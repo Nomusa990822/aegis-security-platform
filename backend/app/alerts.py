@@ -1,4 +1,3 @@
-
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
@@ -19,7 +18,6 @@ class AlertStatusUpdate(BaseModel):
 
 @router.get("/{alert_id}")
 def get_alert(alert_id: int):
-    """Retrieve an individual security alert."""
 
     with get_connection() as connection:
         alert = connection.execute(
@@ -37,9 +35,7 @@ def get_alert(alert_id: int):
             detail="Alert not found"
         )
 
-    return {
-        "alert": dict(alert)
-    }
+    return {"alert": dict(alert)}
 
 
 @router.patch("/{alert_id}/status")
@@ -47,13 +43,12 @@ def update_alert_status(
     alert_id: int,
     update: AlertStatusUpdate
 ):
-    """Update the investigation status of an alert."""
 
     with get_connection() as connection:
 
         existing_alert = connection.execute(
             """
-            SELECT id, status
+            SELECT *
             FROM security_alerts
             WHERE id = ?
             """,
@@ -66,7 +61,9 @@ def update_alert_status(
                 detail="Alert not found"
             )
 
-        connection.execute(
+        previous_status = existing_alert["status"]
+
+        cursor = connection.execute(
             """
             UPDATE security_alerts
             SET status = ?
@@ -75,7 +72,11 @@ def update_alert_status(
             (update.status, alert_id)
         )
 
-        connection.commit()
+        if cursor.rowcount != 1:
+            raise HTTPException(
+                status_code=500,
+                detail="Alert status update failed"
+            )
 
         updated_alert = connection.execute(
             """
@@ -86,8 +87,17 @@ def update_alert_status(
             (alert_id,)
         ).fetchone()
 
+        if updated_alert["status"] != update.status:
+            raise HTTPException(
+                status_code=500,
+                detail="Alert status verification failed"
+            )
+
+        connection.commit()
+
     return {
-        "message": "Alert status updated successfully",
-        "previous_status": existing_alert["status"],
+        "message": "Alert status updated and verified",
+        "previous_status": previous_status,
         "alert": dict(updated_alert)
     }
+
