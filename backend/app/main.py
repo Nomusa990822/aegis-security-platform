@@ -1,3 +1,4 @@
+
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -6,13 +7,17 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.database import get_connection, initialize_database
 from app.detection.engine import detect_brute_force
+from app.alerts import router as alerts_router
 
 
 app = FastAPI(
     title="AEGIS Security Platform",
     description="Autonomous Threat Detection and Response Platform",
-    version="0.2.0"
+    version="0.3.0"
 )
+
+# Register alert management endpoints
+app.include_router(alerts_router)
 
 
 class SecurityEvent(BaseModel):
@@ -42,7 +47,7 @@ def home():
     return {
         "platform": "AEGIS",
         "status": "operational",
-        "version": "0.2.0"
+        "version": "0.3.0"
     }
 
 
@@ -173,3 +178,4 @@ def get_detection_rules():
         "count": 1,
         "rules": [BRUTE_FORCE_RULE]
     }
+
