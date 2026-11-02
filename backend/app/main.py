@@ -2,27 +2,34 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from app.database import (
-    get_connection,
-    initialize_database
-)
+from app.database import get_connection, initialize_database
+from app.detection.engine import detect_brute_force
+
 
 app = FastAPI(
     title="AEGIS Security Platform",
     description="Autonomous Threat Detection and Response Platform",
-    version="0.1.0"
+    version="0.2.0"
 )
 
 
 class SecurityEvent(BaseModel):
+
     event_type: str = Field(min_length=1, max_length=100)
     source_ip: Optional[str] = None
     username: Optional[str] = None
     outcome: Optional[str] = None
     description: str = Field(default="", max_length=2000)
     occurred_at: Optional[datetime] = None
+
+    @field_validator("event_type", "outcome")
+    @classmethod
+    def normalise_values(cls, value):
+        if value is None:
+            return value
+        return value.strip().lower()
 
 
 @app.on_event("startup")
@@ -35,12 +42,13 @@ def home():
     return {
         "platform": "AEGIS",
         "status": "operational",
-        "version": "0.1.0"
+        "version": "0.2.0"
     }
 
 
 @app.get("/api/v1/health")
 def health():
+
     return {
         "status": "healthy",
         "database": "connected",
@@ -56,6 +64,7 @@ def ingest_event(event: SecurityEvent):
 
     try:
         with get_connection() as connection:
+
             cursor = connection.execute(
                 """
                 INSERT INTO security_events (
@@ -82,12 +91,24 @@ def ingest_event(event: SecurityEvent):
 
             event_id = cursor.lastrowid
 
+            event_record = {
+                "event_type": event.event_type,
+                "source_ip": event.source_ip,
+                "username": event.username,
+                "outcome": event.outcome
+            }
+
+            detection = detect_brute_force(
+                connection,
+                event_record
+            )
+
             connection.commit()
 
         return {
-            "message": "Security event successfully ingested",
+            "message": "Security event ingested",
             "event_id": event_id,
-            "event_type": event.event_type
+            "detection": detection
         }
 
     except Exception as error:
@@ -107,6 +128,7 @@ def get_events(limit: int = 100):
         )
 
     with get_connection() as connection:
+
         rows = connection.execute(
             """
             SELECT *
@@ -127,6 +149,7 @@ def get_events(limit: int = 100):
 def get_alerts():
 
     with get_connection() as connection:
+
         rows = connection.execute(
             """
             SELECT *
@@ -138,4 +161,15 @@ def get_alerts():
     return {
         "count": len(rows),
         "alerts": [dict(row) for row in rows]
+    }
+
+
+@app.get("/api/v1/detection/rules")
+def get_detection_rules():
+
+    from app.detection.rules import BRUTE_FORCE_RULE
+
+    return {
+        "count": 1,
+        "rules": [BRUTE_FORCE_RULE]
     }
