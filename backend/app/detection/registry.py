@@ -8,13 +8,17 @@ from app.detection.detectors.port_scan import (
 from app.detection.detectors.horizontal_scan import detect as detect_horizontal_scan
 from app.detection.detectors.service_sweep import detect as detect_service_sweep
 from app.detection.detectors.beaconing import detect as detect_beaconing
+from app.detection.detectors.password_spraying import (
+    detect as detect_password_spraying
+)
 
 DETECTOR_REGISTRY = {
     "AEGIS-AUTH-001": detect_brute_force,
     "AEGIS-NET-001": detect_port_scan,
     "AEGIS-NET-002": detect_horizontal_scan,
     "AEGIS-NET-003": detect_service_sweep,
-    "AEGIS-NET-004": detect_beaconing
+    "AEGIS-NET-004": detect_beaconing,
+    "AEGIS-AUTH-002": detect_password_spraying,
 }
 
 
