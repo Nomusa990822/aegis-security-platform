@@ -14,7 +14,10 @@ def get_connection():
 def initialize_database():
     with get_connection() as connection:
 
-        # Security event storage.
+        # --------------------------------------------------
+        # SECURITY EVENT STORAGE
+        # --------------------------------------------------
+
         connection.execute("""
             CREATE TABLE IF NOT EXISTS security_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,7 +31,10 @@ def initialize_database():
             )
         """)
 
-        # Security alert storage.
+        # --------------------------------------------------
+        # SECURITY ALERT STORAGE
+        # --------------------------------------------------
+
         connection.execute("""
             CREATE TABLE IF NOT EXISTS security_alerts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,7 +48,10 @@ def initialize_database():
             )
         """)
 
-        # Safely migrate existing event tables.
+        # --------------------------------------------------
+        # SAFE EVENT TABLE MIGRATIONS
+        # --------------------------------------------------
+
         existing_columns = {
             row["name"]
             for row in connection.execute(
@@ -63,7 +72,10 @@ def initialize_database():
                     f"ADD COLUMN {column_name} {column_type}"
                 )
 
-        # Analyst investigation notes.
+        # --------------------------------------------------
+        # INDIVIDUAL ALERT INVESTIGATION
+        # --------------------------------------------------
+
         connection.execute("""
             CREATE TABLE IF NOT EXISTS incident_notes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,7 +89,6 @@ def initialize_database():
             )
         """)
 
-        # Chronological incident activity.
         connection.execute("""
             CREATE TABLE IF NOT EXISTS incident_timeline (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,7 +104,6 @@ def initialize_database():
             )
         """)
 
-        # Security events associated with an incident.
         connection.execute("""
             CREATE TABLE IF NOT EXISTS incident_evidence (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,7 +122,6 @@ def initialize_database():
             )
         """)
 
-        # Audit trail for alert management actions.
         connection.execute("""
             CREATE TABLE IF NOT EXISTS alert_audit_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,7 +138,10 @@ def initialize_database():
             )
         """)
 
-        # Investigation indexes.
+        # --------------------------------------------------
+        # ALERT INVESTIGATION INDEXES
+        # --------------------------------------------------
+
         connection.execute("""
             CREATE INDEX IF NOT EXISTS idx_incident_notes_alert
             ON incident_notes(alert_id)
@@ -150,7 +162,6 @@ def initialize_database():
             ON alert_audit_log(alert_id)
         """)
 
-        # Network detection query index.
         connection.execute("""
             CREATE INDEX IF NOT EXISTS idx_network_event_correlation
             ON security_events(
@@ -161,8 +172,10 @@ def initialize_database():
             )
         """)
 
-        
-        # Security alert correlation cases.
+        # --------------------------------------------------
+        # SECURITY CORRELATION CASES
+        # --------------------------------------------------
+
         connection.execute("""
             CREATE TABLE IF NOT EXISTS security_correlations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -173,11 +186,29 @@ def initialize_database():
                 alert_count INTEGER NOT NULL DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'open',
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                assigned_to TEXT
             )
         """)
 
-        # Links existing security alerts to correlation cases.
+        # Safely migrate existing correlation tables.
+        correlation_columns = {
+            row["name"]
+            for row in connection.execute(
+                "PRAGMA table_info(security_correlations)"
+            ).fetchall()
+        }
+
+        if "assigned_to" not in correlation_columns:
+            connection.execute("""
+                ALTER TABLE security_correlations
+                ADD COLUMN assigned_to TEXT
+            """)
+
+        # --------------------------------------------------
+        # ALERT-TO-CORRELATION RELATIONSHIPS
+        # --------------------------------------------------
+
         connection.execute("""
             CREATE TABLE IF NOT EXISTS security_correlation_alerts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -194,7 +225,66 @@ def initialize_database():
             )
         """)
 
-        # Correlation query indexes.
+        # --------------------------------------------------
+        # CORRELATION INVESTIGATION NOTES
+        # --------------------------------------------------
+
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS correlation_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                correlation_id INTEGER NOT NULL,
+                author TEXT NOT NULL DEFAULT 'analyst',
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (correlation_id)
+                    REFERENCES security_correlations(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        # --------------------------------------------------
+        # CORRELATION CASE TIMELINE
+        # --------------------------------------------------
+
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS correlation_timeline (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                correlation_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                details TEXT,
+                actor TEXT NOT NULL DEFAULT 'analyst',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (correlation_id)
+                    REFERENCES security_correlations(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        # --------------------------------------------------
+        # CORRELATION CASE AUDIT HISTORY
+        # --------------------------------------------------
+
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS correlation_audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                correlation_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                actor TEXT NOT NULL DEFAULT 'analyst',
+                previous_value TEXT,
+                new_value TEXT,
+                details TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (correlation_id)
+                    REFERENCES security_correlations(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        # --------------------------------------------------
+        # CORRELATION INDEXES
+        # --------------------------------------------------
+
         connection.execute("""
             CREATE INDEX IF NOT EXISTS idx_correlations_source_ip
             ON security_correlations(source_ip)
@@ -210,8 +300,25 @@ def initialize_database():
             ON security_correlation_alerts(alert_id)
         """)
 
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_correlation_notes_case
+            ON correlation_notes(correlation_id)
+        """)
 
-        # Seed timeline entries for pre-existing alerts.
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_correlation_timeline_case
+            ON correlation_timeline(correlation_id)
+        """)
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_correlation_audit_case
+            ON correlation_audit_log(correlation_id)
+        """)
+
+        # --------------------------------------------------
+        # SEED EXISTING ALERT TIMELINES
+        # --------------------------------------------------
+
         connection.execute("""
             INSERT INTO incident_timeline (
                 alert_id,
@@ -233,6 +340,34 @@ def initialize_database():
                 SELECT 1
                 FROM incident_timeline AS t
                 WHERE t.alert_id = a.id
+            )
+        """)
+
+        # --------------------------------------------------
+        # SEED EXISTING CORRELATION CASE TIMELINES
+        # --------------------------------------------------
+
+        connection.execute("""
+            INSERT INTO correlation_timeline (
+                correlation_id,
+                action,
+                summary,
+                details,
+                actor,
+                created_at
+            )
+            SELECT
+                c.id,
+                'correlation_created',
+                'Correlation case created: ' || c.title,
+                c.description,
+                'system',
+                c.created_at
+            FROM security_correlations AS c
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM correlation_timeline AS t
+                WHERE t.correlation_id = c.id
             )
         """)
 
