@@ -633,11 +633,13 @@ function renderAlertsTable() {
    SECURITY EVENTS REGISTER
 ========================================================= */
 
+
 function renderEventsTable() {
     const search = ($("event-search")?.value ?? "").toLowerCase();
 
     const filtered = state.events.filter(event => {
         const searchable = [
+            event.id,
             event.event_type,
             event.source_ip,
             event.username,
@@ -651,7 +653,7 @@ function renderEventsTable() {
     if (!filtered.length) {
         setHTML(
             "events-table",
-            emptyRow(6, "No matching events found.")
+            emptyRow(7, "No matching events found.")
         );
         return;
     }
@@ -660,9 +662,10 @@ function renderEventsTable() {
         "events-table",
         filtered.map(event => `
             <tr>
+                <td>${escapeHTML(event.id)}</td>
                 <td>${escapeHTML(event.event_type)}</td>
                 <td>${escapeHTML(event.source_ip)}</td>
-                <td>${escapeHTML(event.username)}</td>
+                <td>${escapeHTML(event.username ?? "—")}</td>
 
                 <td class="outcome ${
                     String(event.outcome).toLowerCase() === "failure"
@@ -681,6 +684,7 @@ function renderEventsTable() {
         `).join("")
     );
 }
+
 
 /* =========================================================
    DETECTION RULES
