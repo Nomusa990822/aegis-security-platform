@@ -1,20 +1,34 @@
+
+/* =========================================================
+   AEGIS — AUTONOMOUS THREAT DETECTION AND RESPONSE PLATFORM
+   Correlation Investigation Dashboard
+========================================================= */
+
 const API = {
     health: "/api/v1/health",
     alerts: "/api/v1/alerts",
     events: "/api/v1/events",
-    rules: "/api/v1/detection/rules"
+    rules: "/api/v1/detection/rules",
+    correlations: "/api/v1/correlations"
 };
+
+const DEMO_ANALYST = "analyst-01";
 
 const state = {
     alerts: [],
     events: [],
     rules: [],
-    selectedAlert: null,
-    investigation: null,
-    currentView: "overview"
+    cases: [],
+    selectedCase: null,
+    currentView: "overview",
+    loadingCase: false
 };
 
 const $ = (id) => document.getElementById(id);
+
+/* =========================================================
+   GENERAL HELPERS
+========================================================= */
 
 function escapeHTML(value) {
     return String(value ?? "").replace(/[&<>"']/g, char => ({
@@ -30,7 +44,10 @@ function formatDate(value) {
     if (!value) return "—";
 
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return escapeHTML(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return escapeHTML(value);
+    }
 
     return date.toLocaleString([], {
         year: "numeric",
@@ -45,6 +62,7 @@ function formatTime(value) {
     if (!value) return "—";
 
     const date = new Date(value);
+
     if (Number.isNaN(date.getTime())) return "—";
 
     return date.toLocaleTimeString([], {
@@ -55,10 +73,14 @@ function formatTime(value) {
 
 function showToast(message, isError = false) {
     const toast = $("toast");
+
+    if (!toast) return;
+
     toast.textContent = message;
     toast.className = `toast show${isError ? " error" : ""}`;
 
     window.clearTimeout(showToast.timer);
+
     showToast.timer = window.setTimeout(() => {
         toast.className = "toast";
     }, 3500);
@@ -69,14 +91,19 @@ async function fetchJSON(url, options = {}) {
         ...options,
         headers: {
             "Accept": "application/json",
-            ...(options.body ? { "Content-Type": "application/json" } : {}),
+            ...(options.body
+                ? { "Content-Type": "application/json" }
+                : {}),
             ...options.headers
         }
     });
 
     if (!response.ok) {
         const detail = await response.text();
-        throw new Error(`HTTP ${response.status}: ${detail.slice(0, 250)}`);
+
+        throw new Error(
+            `HTTP ${response.status}: ${detail.slice(0, 250)}`
+        );
     }
 
     return response.json();
@@ -86,159 +113,58 @@ function normaliseList(payload, possibleKeys) {
     if (Array.isArray(payload)) return payload;
 
     for (const key of possibleKeys) {
-        if (Array.isArray(payload?.[key])) return payload[key];
+        if (Array.isArray(payload?.[key])) {
+            return payload[key];
+        }
     }
 
     return [];
 }
 
-function setConnection(online) {
-    $("connection-dot").className =
-        `status-dot ${online ? "online" : "offline"}`;
+function setText(id, value) {
+    const element = $(id);
 
-    $("connection-text").textContent =
-        online ? "Connected" : "Disconnected";
+    if (element) {
+        element.textContent = value ?? "—";
+    }
+}
+
+function setHTML(id, value) {
+    const element = $(id);
+
+    if (element) {
+        element.innerHTML = value;
+    }
+}
+
+function setConnection(online) {
+    const dot = $("connection-dot");
+    const text = $("connection-text");
+
+    if (dot) {
+        dot.className = `status-dot ${online ? "online" : "offline"}`;
+    }
+
+    if (text) {
+        text.textContent = online ? "Connected" : "Disconnected";
+    }
 }
 
 function setHealthIndicator(dotId, textId, online, label) {
-    $(dotId).className =
-        `health-indicator ${online ? "online" : "offline"}`;
+    const dot = $(dotId);
+    const text = $(textId);
 
-    $(textId).textContent = label;
-    $(textId).style.color = online ? "var(--green)" : "var(--red)";
-}
-
-async function loadHealth() {
-    try {
-        const data = await fetchJSON(API.health);
-        const healthy = String(data.status ?? "").toLowerCase();
-
-        const apiOnline =
-            !["unhealthy", "error", "offline"].includes(healthy);
-
-        setHealthIndicator(
-            "api-health-dot",
-            "api-health",
-            apiOnline,
-            apiOnline ? "Operational" : "Unavailable"
-        );
-
-        // The current health endpoint does not independently verify SQLite.
-        setHealthIndicator(
-            "db-health-dot",
-            "db-health",
-            apiOnline,
-            apiOnline ? "API connected" : "Unknown"
-        );
-
-        $("health-label").textContent =
-            apiOnline ? "Operational" : "Attention";
-
-        $("health-label").style.color =
-            apiOnline ? "var(--green)" : "var(--red)";
-
-        setConnection(apiOnline);
-    } catch (error) {
-        setConnection(false);
-        setHealthIndicator("api-health-dot", "api-health", false, "Unavailable");
-        setHealthIndicator("db-health-dot", "db-health", false, "Unknown");
-
-        $("health-label").textContent = "Unavailable";
-        $("health-label").style.color = "var(--red)";
-    }
-}
-
-async function loadAlerts() {
-    const payload = await fetchJSON(API.alerts);
-
-    state.alerts = normaliseList(payload, ["alerts", "items", "results"]);
-
-    renderMetrics();
-    renderRecentAlerts();
-    renderAlertsTable();
-}
-
-async function loadEvents() {
-    const payload = await fetchJSON(`${API.events}?limit=100`);
-
-    state.events = normaliseList(payload, ["events", "items", "results"]);
-
-    renderMetrics();
-    renderRecentEvents();
-    renderEventsTable();
-}
-
-async function loadRules() {
-    try {
-        const payload = await fetchJSON(API.rules);
-
-        state.rules = normaliseList(payload, ["rules", "items", "results"]);
-        renderRules();
-    } catch (error) {
-        $("rules-table").innerHTML = `
-            <tr><td colspan="5" class="empty-state">
-                Could not load detection rules: ${escapeHTML(error.message)}
-            </td></tr>`;
-    }
-}
-
-async function refreshDashboard() {
-    $("refresh-button").classList.add("refreshing");
-
-    const results = await Promise.allSettled([
-        loadHealth(),
-        loadAlerts(),
-        loadEvents(),
-        loadRules()
-    ]);
-
-    if (results[1].status === "rejected") {
-        $("alerts-table").innerHTML = `
-            <tr><td colspan="7" class="empty-state">
-                Unable to retrieve alerts. Check the backend.
-            </td></tr>`;
-
-        $("recent-alerts").innerHTML =
-            `<div class="empty-state">Unable to retrieve alerts.</div>`;
+    if (dot) {
+        dot.className =
+            `health-indicator ${online ? "online" : "offline"}`;
     }
 
-    if (results[2].status === "rejected") {
-        $("events-table").innerHTML = `
-            <tr><td colspan="6" class="empty-state">
-                Unable to retrieve events. Check the backend.
-            </td></tr>`;
-
-        $("recent-events").innerHTML = `
-            <tr><td colspan="5" class="empty-state">
-                Unable to retrieve events.
-            </td></tr>`;
+    if (text) {
+        text.textContent = label;
+        text.style.color = online
+            ? "var(--green)"
+            : "var(--red)";
     }
-
-    $("last-updated").textContent = new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit"
-    });
-
-    $("refresh-button").classList.remove("refreshing");
-
-    // Keep the evidence selector current when the investigation is open.
-    if (state.currentView === "investigation") {
-        renderEvidenceEventOptions();
-    }
-}
-
-function renderMetrics() {
-    const count = (status) =>
-        state.alerts.filter(alert =>
-            String(alert.status).toLowerCase() === status
-        ).length;
-
-    $("metric-events").textContent = state.events.length;
-    $("metric-open").textContent = count("open");
-    $("metric-investigating").textContent = count("investigating");
-    $("metric-resolved").textContent = count("resolved");
-    $("sidebar-alert-count").textContent = count("open");
 }
 
 function severityClass(value) {
@@ -260,79 +186,374 @@ function statusPill(value) {
     return `
         <span class="status-pill ${safeStatus}">
             ${escapeHTML(safeStatus)}
-        </span>`;
+        </span>
+    `;
 }
 
-function renderRecentAlerts() {
-    const alerts = [...state.alerts]
+function severityPill(value) {
+    return `
+        <span class="severity ${severityClass(value)}">
+            ${escapeHTML(value ?? "low")}
+        </span>
+    `;
+}
+
+function emptyRow(columns, message) {
+    return `
+        <tr>
+            <td colspan="${columns}" class="empty-state">
+                ${escapeHTML(message)}
+            </td>
+        </tr>
+    `;
+}
+
+/* =========================================================
+   HEALTH AND DATA LOADING
+========================================================= */
+
+async function loadHealth() {
+    try {
+        const data = await fetchJSON(API.health);
+
+        const status = String(data.status ?? "").toLowerCase();
+
+        const online = ![
+            "unhealthy",
+            "error",
+            "offline"
+        ].includes(status);
+
+        setHealthIndicator(
+            "api-health-dot",
+            "api-health",
+            online,
+            online ? "Operational" : "Unavailable"
+        );
+
+        // The current health endpoint does not independently
+        // verify the SQLite database.
+
+        setHealthIndicator(
+            "db-health-dot",
+            "db-health",
+            online,
+            online ? "API connected" : "Unknown"
+        );
+
+        setText(
+            "health-label",
+            online ? "Operational" : "Attention"
+        );
+
+        const label = $("health-label");
+
+        if (label) {
+            label.style.color = online
+                ? "var(--green)"
+                : "var(--red)";
+        }
+
+        setConnection(online);
+
+    } catch (error) {
+        setConnection(false);
+
+        setHealthIndicator(
+            "api-health-dot",
+            "api-health",
+            false,
+            "Unavailable"
+        );
+
+        setHealthIndicator(
+            "db-health-dot",
+            "db-health",
+            false,
+            "Unknown"
+        );
+
+        setText("health-label", "Unavailable");
+
+        const label = $("health-label");
+
+        if (label) {
+            label.style.color = "var(--red)";
+        }
+    }
+}
+
+async function loadAlerts() {
+    const payload = await fetchJSON(API.alerts);
+
+    state.alerts = normaliseList(
+        payload,
+        ["alerts", "items", "results"]
+    );
+
+    renderMetrics();
+    renderAlertsTable();
+}
+
+async function loadEvents() {
+    const payload = await fetchJSON(
+        `${API.events}?limit=100`
+    );
+
+    state.events = normaliseList(
+        payload,
+        ["events", "items", "results"]
+    );
+
+    renderMetrics();
+    renderRecentEvents();
+    renderEventsTable();
+}
+
+async function loadRules() {
+    try {
+        const payload = await fetchJSON(API.rules);
+
+        state.rules = normaliseList(
+            payload,
+            ["rules", "items", "results"]
+        );
+
+        renderRules();
+
+    } catch (error) {
+        setHTML(
+            "rules-table",
+            emptyRow(
+                5,
+                `Could not load detection rules: ${error.message}`
+            )
+        );
+    }
+}
+
+async function loadCases() {
+    const payload = await fetchJSON(API.correlations);
+
+    state.cases = normaliseList(
+        payload,
+        ["correlations", "cases", "items", "results"]
+    );
+
+    renderMetrics();
+    renderRecentCases();
+    renderCasesTable();
+}
+
+async function refreshDashboard() {
+    const refreshButton = $("refresh-button");
+
+    if (refreshButton) {
+        refreshButton.classList.add("refreshing");
+    }
+
+    const results = await Promise.allSettled([
+        loadHealth(),
+        loadAlerts(),
+        loadEvents(),
+        loadRules(),
+        loadCases()
+    ]);
+
+    if (results[1].status === "rejected") {
+        setHTML(
+            "alerts-table",
+            emptyRow(7, "Unable to retrieve alerts. Check the backend.")
+        );
+    }
+
+    if (results[2].status === "rejected") {
+        setHTML(
+            "events-table",
+            emptyRow(6, "Unable to retrieve security events.")
+        );
+
+        setHTML(
+            "recent-events",
+            emptyRow(5, "Unable to retrieve security events.")
+        );
+    }
+
+    if (results[4].status === "rejected") {
+        setHTML(
+            "cases-table",
+            emptyRow(7, "Unable to retrieve correlation cases.")
+        );
+
+        setHTML(
+            "recent-cases",
+            `<div class="empty-state">
+                Unable to retrieve correlation cases.
+            </div>`
+        );
+    }
+
+    setText(
+        "last-updated",
+        new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit"
+        })
+    );
+
+    if (refreshButton) {
+        refreshButton.classList.remove("refreshing");
+    }
+
+    // Refresh the currently open case without losing its view.
+    if (
+        state.currentView === "case" &&
+        state.selectedCase?.id &&
+        !state.loadingCase
+    ) {
+        await loadCaseDetails(state.selectedCase.id, false);
+    }
+}
+
+/* =========================================================
+   OVERVIEW METRICS
+========================================================= */
+
+function renderMetrics() {
+    const openAlerts = state.alerts.filter(alert =>
+        String(alert.status).toLowerCase() === "open"
+    ).length;
+
+    const activeCases = state.cases.filter(item =>
+        ["open", "investigating"].includes(
+            String(item.status).toLowerCase()
+        )
+    ).length;
+
+    const criticalCases = state.cases.filter(item =>
+        String(item.severity).toLowerCase() === "critical"
+    ).length;
+
+    setText("metric-events", state.events.length);
+    setText("metric-open-alerts", openAlerts);
+    setText("metric-active-cases", activeCases);
+    setText("metric-critical", criticalCases);
+
+    setText("sidebar-alert-count", openAlerts);
+}
+
+/* =========================================================
+   RECENT CASES
+========================================================= */
+
+function renderRecentCases() {
+    const container = $("recent-cases");
+
+    if (!container) return;
+
+    const recent = [...state.cases]
         .sort((a, b) =>
             new Date(b.created_at) - new Date(a.created_at)
         )
         .slice(0, 5);
 
-    if (!alerts.length) {
-        $("recent-alerts").innerHTML =
-            `<div class="empty-state">No alerts recorded.</div>`;
+    if (!recent.length) {
+        container.innerHTML = `
+            <div class="empty-state">
+                No correlation cases recorded.
+            </div>
+        `;
         return;
     }
 
-    $("recent-alerts").innerHTML = alerts.map(alert => `
-        <div class="alert-item" data-alert-id="${Number(alert.id)}">
-            <span class="alert-severity-mark ${severityClass(alert.severity)}"></span>
+    container.innerHTML = recent.map(item => `
+        <div class="alert-item"
+             data-open-case="${Number(item.id)}">
+
+            <span class="alert-severity-mark ${severityClass(item.severity)}">
+            </span>
+
             <div class="alert-main">
-                <div class="alert-title">${escapeHTML(alert.title)}</div>
+                <div class="alert-title">
+                    ${escapeHTML(item.title)}
+                </div>
+
                 <div class="alert-meta">
-                    ${escapeHTML(alert.source_ip)} ·
-                    ${escapeHTML(alert.detection_rule)}
+                    CASE #${Number(item.id)}
+                    · ${escapeHTML(item.source_ip ?? "Unknown source")}
                 </div>
             </div>
+
             <div>
-                ${statusPill(alert.status)}
-                <div class="alert-time">${formatTime(alert.created_at)}</div>
+                ${statusPill(item.status)}
+                <div class="alert-time">
+                    ${formatTime(item.created_at)}
+                </div>
             </div>
         </div>
     `).join("");
 
-    document.querySelectorAll(".alert-item").forEach(item => {
-        item.addEventListener("click", () => {
-            openAlert(Number(item.dataset.alertId));
+    container.querySelectorAll("[data-open-case]").forEach(element => {
+        element.addEventListener("click", () => {
+            openCase(Number(element.dataset.openCase));
         });
     });
 }
 
+/* =========================================================
+   RECENT SECURITY EVENTS
+========================================================= */
+
 function renderRecentEvents() {
-    const events = [...state.events]
+    const container = $("recent-events");
+
+    if (!container) return;
+
+    const recent = [...state.events]
         .sort((a, b) =>
             new Date(b.received_at || b.occurred_at) -
             new Date(a.received_at || a.occurred_at)
         )
         .slice(0, 5);
 
-    if (!events.length) {
-        $("recent-events").innerHTML = `
-            <tr><td colspan="5" class="empty-state">
-                No security events recorded.
-            </td></tr>`;
+    if (!recent.length) {
+        container.innerHTML = emptyRow(
+            5,
+            "No security events recorded."
+        );
         return;
     }
 
-    $("recent-events").innerHTML = events.map(event => `
+    container.innerHTML = recent.map(event => `
         <tr>
             <td>${escapeHTML(event.event_type)}</td>
             <td>${escapeHTML(event.source_ip)}</td>
             <td>${escapeHTML(event.username)}</td>
+
             <td class="outcome ${
-                String(event.outcome).toLowerCase() === "failure" ? "failed" : ""
-            }">${escapeHTML(event.outcome)}</td>
-            <td>${formatDate(event.occurred_at || event.received_at)}</td>
+                String(event.outcome).toLowerCase() === "failure"
+                    ? "failed"
+                    : ""
+            }">
+                ${escapeHTML(event.outcome)}
+            </td>
+
+            <td>
+                ${formatDate(event.occurred_at || event.received_at)}
+            </td>
         </tr>
     `).join("");
 }
 
+/* =========================================================
+   ALERT REGISTER
+========================================================= */
+
 function renderAlertsTable() {
-    const search = $("alert-search").value.toLowerCase();
-    const status = $("alert-status-filter").value;
-    const severity = $("alert-severity-filter").value;
+    const search = ($("alert-search")?.value ?? "").toLowerCase();
+    const status = $("alert-status-filter")?.value ?? "all";
+    const severity = $("alert-severity-filter")?.value ?? "all";
 
     const filtered = state.alerts.filter(alert => {
         const searchable = [
@@ -352,424 +573,69 @@ function renderAlertsTable() {
     });
 
     if (!filtered.length) {
-        $("alerts-table").innerHTML = `
-            <tr><td colspan="7" class="empty-state">
-                No alerts match these filters.
-            </td></tr>`;
+        setHTML(
+            "alerts-table",
+            emptyRow(7, "No alerts match these filters.")
+        );
         return;
     }
 
-    $("alerts-table").innerHTML = filtered.map(alert => `
-        <tr>
-            <td><strong>${escapeHTML(alert.title)}</strong></td>
-            <td>
-                <span class="severity ${severityClass(alert.severity)}">
-                    ${escapeHTML(alert.severity)}
-                </span>
-            </td>
-            <td>${escapeHTML(alert.source_ip)}</td>
-            <td>${escapeHTML(alert.detection_rule)}</td>
-            <td>${statusPill(alert.status)}</td>
-            <td>${formatDate(alert.created_at)}</td>
-            <td>
-                <button class="action-button"
-                    data-open-alert="${Number(alert.id)}">
-                    Investigate
-                </button>
-            </td>
-        </tr>
-    `).join("");
+    setHTML(
+        "alerts-table",
+        filtered.map(alert => `
+            <tr>
+                <td>
+                    <strong>${escapeHTML(alert.title)}</strong>
+                </td>
+
+                <td>${severityPill(alert.severity)}</td>
+
+                <td>${escapeHTML(alert.source_ip)}</td>
+
+                <td>${escapeHTML(alert.detection_rule)}</td>
+
+                <td>${statusPill(alert.status)}</td>
+
+                <td>${formatDate(alert.created_at)}</td>
+
+                <td>
+                    <button class="action-button"
+                        data-open-alert="${Number(alert.id)}">
+                        View
+                    </button>
+                </td>
+            </tr>
+        `).join("")
+    );
 
     document.querySelectorAll("[data-open-alert]").forEach(button => {
         button.addEventListener("click", () => {
-            openAlert(Number(button.dataset.openAlert));
+            const alertId = Number(button.dataset.openAlert);
+
+            const linkedCase = state.cases.find(item =>
+                Number(item.id) &&
+                state.alerts.some(alert =>
+                    Number(alert.id) === alertId
+                )
+            );
+
+            if (linkedCase) {
+                openCase(linkedCase.id);
+            } else {
+                showToast(
+                    "This alert is not currently linked to a case."
+                );
+            }
         });
     });
 }
 
-/* -------------------------------------------------------
-   INCIDENT INVESTIGATION WORKSPACE
-------------------------------------------------------- */
-
-async function openAlert(id) {
-    try {
-        state.selectedAlert = null;
-        state.investigation = null;
-
-        $("investigation-empty").classList.add("hidden");
-        $("investigation-content").classList.remove("hidden");
-
-        $("incident-title").textContent = "Loading incident...";
-        $("notes-list").innerHTML =
-            `<div class="empty-state">Loading investigation notes...</div>`;
-        $("evidence-list").innerHTML =
-            `<div class="empty-state">Loading linked evidence...</div>`;
-        $("timeline-list").innerHTML =
-            `<div class="empty-state">Loading timeline...</div>`;
-
-        switchView("investigation");
-
-        const payload = await fetchJSON(
-            `${API.alerts}/${id}/investigation`
-        );
-
-        if (!payload.alert) {
-            throw new Error("The investigation response did not contain an alert.");
-        }
-
-        state.investigation = payload;
-        state.selectedAlert = payload.alert;
-
-        renderInvestigation(payload);
-    } catch (error) {
-        $("investigation-content").classList.add("hidden");
-        $("investigation-empty").classList.remove("hidden");
-
-        $("investigation-empty").textContent =
-            `Unable to load this investigation: ${error.message}`;
-
-        showToast("Could not load investigation.", true);
-    }
-}
-
-function renderInvestigation(data) {
-    const alert = data.alert;
-    const notes = data.notes ?? [];
-    const evidence = data.evidence ?? [];
-    const timeline = data.timeline ?? [];
-    const audit = data.audit_log ?? [];
-
-    $("incident-reference").textContent =
-        `INC-${String(alert.id).padStart(6, "0")} · ALERT #${alert.id}`;
-
-    $("incident-title").textContent = alert.title ?? "Untitled incident";
-    $("incident-created").textContent =
-        `Created ${formatDate(alert.created_at)}`;
-
-    $("incident-status").innerHTML = statusPill(alert.status);
-
-    $("incident-severity").innerHTML = `
-        <span class="severity ${severityClass(alert.severity)}">
-            ${escapeHTML(alert.severity)}
-        </span>`;
-
-    $("incident-source-ip").textContent = alert.source_ip ?? "—";
-    $("incident-rule").textContent = alert.detection_rule ?? "—";
-    $("incident-description").textContent = alert.description ?? "No description provided.";
-
-    const mitreMatch = String(alert.description ?? "").match(/T\d{4}(?:\.\d{3})?/);
-    const technique = mitreMatch ? mitreMatch[0] : "Not specified";
-
-    $("incident-mitre").innerHTML =
-        technique === "Not specified"
-            ? escapeHTML(technique)
-            : `<a class="mitre-link" href="https://attack.mitre.org/techniques/${encodeURIComponent(technique)}/" target="_blank" rel="noopener noreferrer">${escapeHTML(technique)} ↗</a>`;
-
-    $("investigation-status").value =
-        ["open", "investigating", "resolved"].includes(alert.status)
-            ? alert.status
-            : "open";
-
-    $("status-feedback").textContent = "";
-
-    $("investigation-note-count").textContent = notes.length;
-    $("investigation-evidence-count").textContent = evidence.length;
-    $("investigation-timeline-count").textContent = timeline.length;
-    $("investigation-audit-count").textContent = audit.length;
-
-    $("notes-counter").textContent = notes.length;
-    $("evidence-counter").textContent = evidence.length;
-    $("timeline-counter").textContent = timeline.length;
-    $("audit-counter").textContent = audit.length;
-
-    renderNotes(notes);
-    renderEvidence(evidence);
-    renderTimeline(timeline);
-    renderAuditLog(audit);
-    renderEvidenceEventOptions();
-
-    $("investigation-empty").classList.add("hidden");
-    $("investigation-content").classList.remove("hidden");
-}
-
-function renderNotes(notes) {
-    if (!notes.length) {
-        $("notes-list").innerHTML =
-            `<div class="empty-state">No investigation notes have been added.</div>`;
-        return;
-    }
-
-    $("notes-list").innerHTML = [...notes]
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .map(note => `
-            <article class="record-card">
-                <div class="record-card-header">
-                    <strong>${escapeHTML(note.author || "analyst")}</strong>
-                    <time>${formatDate(note.created_at)}</time>
-                </div>
-                <p>${escapeHTML(note.content)}</p>
-                <span class="record-id">NOTE #${Number(note.id)}</span>
-            </article>
-        `).join("");
-}
-
-function renderEvidence(evidence) {
-    if (!evidence.length) {
-        $("evidence-list").innerHTML =
-            `<div class="empty-state">No evidence has been linked to this incident.</div>`;
-        return;
-    }
-
-    $("evidence-list").innerHTML = evidence.map(item => `
-        <article class="record-card evidence-card">
-            <div class="record-card-header">
-                <strong>Security event #${Number(item.event_id)}</strong>
-                <span class="evidence-outcome ${
-                    String(item.outcome).toLowerCase() === "failure" ? "failed" : ""
-                }">${escapeHTML(item.outcome || "unknown")}</span>
-            </div>
-
-            <div class="evidence-details">
-                <span><small>TYPE</small>${escapeHTML(item.event_type)}</span>
-                <span><small>SOURCE IP</small>${escapeHTML(item.source_ip)}</span>
-                <span><small>USERNAME</small>${escapeHTML(item.username)}</span>
-                <span><small>OCCURRED</small>${formatDate(item.occurred_at)}</span>
-            </div>
-
-            <p class="evidence-description">${escapeHTML(item.description)}</p>
-
-            ${
-                item.analyst_note
-                    ? `<p class="evidence-annotation">${escapeHTML(item.analyst_note)}</p>`
-                    : ""
-            }
-
-            <span class="record-id">
-                EVIDENCE #${Number(item.evidence_id ?? item.id)}
-                · Linked ${formatDate(item.linked_at)}
-            </span>
-        </article>
-    `).join("");
-}
-
-function renderTimeline(timeline) {
-    if (!timeline.length) {
-        $("timeline-list").innerHTML =
-            `<div class="empty-state">No timeline activity recorded.</div>`;
-        return;
-    }
-
-    const sorted = [...timeline].sort((a, b) =>
-        new Date(a.created_at) - new Date(b.created_at)
-    );
-
-    $("timeline-list").innerHTML = sorted.map(item => `
-        <article class="timeline-item">
-            <span class="timeline-marker"></span>
-            <div class="timeline-content">
-                <div class="timeline-header">
-                    <strong>${escapeHTML(item.summary)}</strong>
-                    <time>${formatDate(item.created_at)}</time>
-                </div>
-                ${
-                    item.details
-                        ? `<p>${escapeHTML(item.details)}</p>`
-                        : ""
-                }
-                <span class="record-id">
-                    ${escapeHTML(item.actor || "system")}
-                    · ${escapeHTML(item.action)}
-                </span>
-            </div>
-        </article>
-    `).join("");
-}
-
-function renderAuditLog(audit) {
-    if (!audit.length) {
-        $("audit-table").innerHTML = `
-            <tr><td colspan="6" class="empty-state">
-                No audit records available.
-            </td></tr>`;
-        return;
-    }
-
-    $("audit-table").innerHTML = audit.map(item => `
-        <tr>
-            <td>${formatDate(item.created_at)}</td>
-            <td>${escapeHTML(item.action)}</td>
-            <td>${escapeHTML(item.actor)}</td>
-            <td>${escapeHTML(item.previous_value ?? "—")}</td>
-            <td>${escapeHTML(item.new_value ?? "—")}</td>
-            <td>${escapeHTML(item.details ?? "—")}</td>
-        </tr>
-    `).join("");
-}
-
-
-function renderEvidenceEventOptions() {
-    const select = $("evidence-event-id");
-    if (!select) return;
-
-    const currentValue = select.value;
-
-    // Collect IDs of evidence already linked to this incident.
-    const linkedEventIds = new Set(
-        (state.investigation?.evidence || [])
-            .map(item => Number(item.event_id))
-    );
-
-    // Only show events that have not already been linked.
-    const availableEvents = state.events.filter(event =>
-        !linkedEventIds.has(Number(event.id))
-    );
-
-    const options = availableEvents.map(event => `
-        <option value="${Number(event.id)}">
-            #${Number(event.id)} · ${escapeHTML(event.event_type)}
-            · ${escapeHTML(event.source_ip)}
-            · ${escapeHTML(event.outcome)}
-        </option>
-    `).join("");
-
-    const emptyMessage = state.events.length === 0
-        ? "No security events available."
-        : "All available events are already linked.";
-
-    select.innerHTML = `
-        <option value="">Choose a security event...</option>
-        ${options || `<option value="" disabled>${emptyMessage}</option>`}
-    `;
-
-    // Restore the selection only if the event remains available.
-    if (
-        currentValue &&
-        availableEvents.some(event => String(event.id) === currentValue)
-    ) {
-        select.value = currentValue;
-    } else {
-        select.value = "";
-    }
-}
-
-
-async function submitInvestigationNote(event) {
-    event.preventDefault();
-
-    if (!state.selectedAlert) return;
-
-    const content = $("note-content").value.trim();
-
-    if (!content) {
-        showToast("Enter a note before submitting.", true);
-        return;
-    }
-
-    const button = $("add-note-button");
-    button.disabled = true;
-    button.textContent = "Saving...";
-
-    try {
-        const id = Number(state.selectedAlert.id);
-
-        await fetchJSON(`${API.alerts}/${id}/notes`, {
-            method: "POST",
-            body: JSON.stringify({ content })
-        });
-
-        $("note-content").value = "";
-
-        await openAlert(id);
-        showToast("Investigation note saved.");
-    } catch (error) {
-        showToast(`Could not save note: ${error.message}`, true);
-    } finally {
-        button.disabled = false;
-        button.textContent = "Add note";
-    }
-}
-
-async function submitEvidence(event) {
-    event.preventDefault();
-
-    if (!state.selectedAlert) return;
-
-    const eventId = Number($("evidence-event-id").value);
-    const analystNote = $("evidence-note").value.trim();
-
-    if (!eventId) {
-        showToast("Select a security event to link.", true);
-        return;
-    }
-
-    const button = $("link-evidence-button");
-    button.disabled = true;
-    button.textContent = "Linking...";
-
-    const body = {
-        event_id: eventId,
-        analyst_note: analystNote || null
-    };
-
-    try {
-        const id = Number(state.selectedAlert.id);
-
-        await fetchJSON(`${API.alerts}/${id}/evidence`, {
-            method: "POST",
-            body: JSON.stringify(body)
-        });
-
-        $("evidence-note").value = "";
-
-        await openAlert(id);
-        showToast(`Security event #${eventId} linked as evidence.`);
-    } catch (error) {
-        showToast(`Could not link evidence: ${error.message}`, true);
-    } finally {
-        button.disabled = false;
-        button.textContent = "Link evidence";
-    }
-}
-
-async function updateInvestigationStatus() {
-    if (!state.selectedAlert) return;
-
-    const id = Number(state.selectedAlert.id);
-    const status = $("investigation-status").value;
-    const button = $("save-investigation-status");
-
-    button.disabled = true;
-    button.textContent = "Updating...";
-    $("status-feedback").textContent = "";
-
-    try {
-        const result = await fetchJSON(`${API.alerts}/${id}/status`, {
-            method: "PATCH",
-            body: JSON.stringify({ status })
-        });
-
-        await loadAlerts();
-        await openAlert(id);
-
-        $("status-feedback").textContent =
-            result.message || "Status updated.";
-
-        showToast(`Incident status updated to ${status}.`);
-    } catch (error) {
-        showToast(`Status update failed: ${error.message}`, true);
-        $("status-feedback").textContent = "Update failed.";
-    } finally {
-        button.disabled = false;
-        button.textContent = "Update status";
-    }
-}
-
-/* -------------------------------------------------------
-   SECURITY EVENTS
-------------------------------------------------------- */
+/* =========================================================
+   SECURITY EVENTS REGISTER
+========================================================= */
 
 function renderEventsTable() {
-    const search = $("event-search").value.toLowerCase();
+    const search = ($("event-search")?.value ?? "").toLowerCase();
 
     const filtered = state.events.filter(event => {
         const searchable = [
@@ -784,74 +650,704 @@ function renderEventsTable() {
     });
 
     if (!filtered.length) {
-        $("events-table").innerHTML = `
-            <tr><td colspan="6" class="empty-state">
-                No matching events found.
-            </td></tr>`;
+        setHTML(
+            "events-table",
+            emptyRow(6, "No matching events found.")
+        );
         return;
     }
 
-    $("events-table").innerHTML = filtered.map(event => `
-        <tr>
-            <td>${escapeHTML(event.event_type)}</td>
-            <td>${escapeHTML(event.source_ip)}</td>
-            <td>${escapeHTML(event.username)}</td>
-            <td class="outcome ${
-                String(event.outcome).toLowerCase() === "failure" ? "failed" : ""
-            }">${escapeHTML(event.outcome)}</td>
-            <td>${escapeHTML(event.description)}</td>
-            <td>${formatDate(event.occurred_at || event.received_at)}</td>
-        </tr>
-    `).join("");
+    setHTML(
+        "events-table",
+        filtered.map(event => `
+            <tr>
+                <td>${escapeHTML(event.event_type)}</td>
+                <td>${escapeHTML(event.source_ip)}</td>
+                <td>${escapeHTML(event.username)}</td>
+
+                <td class="outcome ${
+                    String(event.outcome).toLowerCase() === "failure"
+                        ? "failed"
+                        : ""
+                }">
+                    ${escapeHTML(event.outcome)}
+                </td>
+
+                <td>${escapeHTML(event.description)}</td>
+
+                <td>
+                    ${formatDate(event.occurred_at || event.received_at)}
+                </td>
+            </tr>
+        `).join("")
+    );
 }
+
+/* =========================================================
+   DETECTION RULES
+========================================================= */
 
 function renderRules() {
     if (!state.rules.length) {
-        $("rules-table").innerHTML = `
-            <tr><td colspan="5" class="empty-state">
-                No detection rules returned by the API.
-            </td></tr>`;
+        setHTML(
+            "rules-table",
+            emptyRow(5, "No detection rules returned by the API.")
+        );
         return;
     }
 
-    $("rules-table").innerHTML = state.rules.map(rule => `
-        <tr>
-            <td>${escapeHTML(rule.rule_id)}</td>
-            <td>
-                <strong>${escapeHTML(rule.name)}</strong><br>
-                <span class="alert-meta">${escapeHTML(rule.description)}</span>
-            </td>
-            <td>
-                <span class="severity ${severityClass(rule.severity)}">
-                    ${escapeHTML(rule.severity)}
-                </span>
-            </td>
-            <td>
-                ${escapeHTML(rule.mitre_technique)}
-                · ${escapeHTML(rule.mitre_name)}
-            </td>
-            <td>
-                ${
-                    rule.enabled
-                        ? '<span class="status-pill resolved">Enabled</span>'
-                        : '<span class="status-pill open">Disabled</span>'
-                }
-            </td>
-        </tr>
-    `).join("");
+    setHTML(
+        "rules-table",
+        state.rules.map(rule => `
+            <tr>
+                <td>${escapeHTML(rule.rule_id)}</td>
+
+                <td>
+                    <strong>${escapeHTML(rule.name)}</strong><br>
+                    <span class="alert-meta">
+                        ${escapeHTML(rule.description)}
+                    </span>
+                </td>
+
+                <td>${severityPill(rule.severity)}</td>
+
+                <td>
+                    ${escapeHTML(rule.mitre_technique)}
+                    · ${escapeHTML(rule.mitre_name)}
+                </td>
+
+                <td>
+                    ${
+                        rule.enabled
+                            ? '<span class="status-pill resolved">Enabled</span>'
+                            : '<span class="status-pill open">Disabled</span>'
+                    }
+                </td>
+            </tr>
+        `).join("")
+    );
 }
 
-/* -------------------------------------------------------
-   NAVIGATION AND EVENT LISTENERS
-------------------------------------------------------- */
+/* =========================================================
+   CORRELATION CASE REGISTER
+========================================================= */
+
+function renderCasesTable() {
+    const search = ($("case-search")?.value ?? "").toLowerCase();
+    const status = $("case-status-filter")?.value ?? "all";
+    const severity = $("case-severity-filter")?.value ?? "all";
+
+    const filtered = state.cases.filter(item => {
+        const searchable = [
+            item.id,
+            item.title,
+            item.source_ip,
+            item.status,
+            item.severity,
+            item.assigned_to
+        ].join(" ").toLowerCase();
+
+        return searchable.includes(search) &&
+            (status === "all" ||
+                String(item.status).toLowerCase() === status) &&
+            (severity === "all" ||
+                String(item.severity).toLowerCase() === severity);
+    });
+
+    setText("case-total", filtered.length);
+
+    if (!filtered.length) {
+        setHTML(
+            "cases-table",
+            emptyRow(7, "No correlation cases match these filters.")
+        );
+        return;
+    }
+
+    setHTML(
+        "cases-table",
+        filtered.map(item => `
+            <tr>
+                <td>
+                    <strong>CASE #${Number(item.id)}</strong>
+                </td>
+
+                <td>
+                    <strong>${escapeHTML(item.title)}</strong>
+                </td>
+
+                <td>${severityPill(item.severity)}</td>
+
+                <td>${escapeHTML(item.source_ip ?? "—")}</td>
+
+                <td>${Number(item.alert_count ?? 0)}</td>
+
+                <td>${statusPill(item.status)}</td>
+
+                <td>
+                    <button class="action-button"
+                        data-open-case="${Number(item.id)}">
+                        Investigate
+                    </button>
+                </td>
+            </tr>
+        `).join("")
+    );
+
+    document.querySelectorAll("#cases-table [data-open-case]")
+        .forEach(button => {
+            button.addEventListener("click", () => {
+                openCase(Number(button.dataset.openCase));
+            });
+        });
+}
+
+/* =========================================================
+   CASE WORKSPACE
+========================================================= */
+
+async function openCase(id) {
+    if (!Number.isInteger(id) || id < 1) {
+        showToast("Invalid case identifier.", true);
+        return;
+    }
+
+    switchView("case");
+
+    setHTML(
+        "linked-alerts",
+        `<div class="empty-state">Loading linked alerts...</div>`
+    );
+
+    setHTML(
+        "notes-list",
+        `<div class="empty-state">Loading investigation notes...</div>`
+    );
+
+    setHTML(
+        "timeline-list",
+        `<div class="empty-state">Loading case timeline...</div>`
+    );
+
+    setHTML(
+        "audit-table",
+        emptyRow(6, "Loading audit history...")
+    );
+
+    await loadCaseDetails(id, true);
+}
+
+async function loadCaseDetails(id, showLoading = true) {
+    if (state.loadingCase) return;
+
+    state.loadingCase = true;
+
+    if (showLoading) {
+        $("case-empty")?.classList.add("hidden");
+        $("case-content")?.classList.remove("hidden");
+        setText("case-title", "Loading case...");
+    }
+
+    try {
+        const [detail, timelineData, auditData] = await Promise.all([
+            fetchJSON(`${API.correlations}/${id}`),
+            fetchJSON(`${API.correlations}/${id}/timeline`),
+            fetchJSON(`${API.correlations}/${id}/audit`)
+        ]);
+
+        if (!detail.correlation) {
+            throw new Error(
+                "The API response did not contain a correlation case."
+            );
+        }
+
+        state.selectedCase = detail.correlation;
+
+        renderCaseWorkspace(
+            detail,
+            timelineData,
+            auditData
+        );
+
+    } catch (error) {
+        if (showLoading) {
+            $("case-content")?.classList.add("hidden");
+            $("case-empty")?.classList.remove("hidden");
+
+            setText(
+                "case-empty",
+                `Unable to load case: ${error.message}`
+            );
+        }
+
+        showToast(
+            `Could not load case: ${error.message}`,
+            true
+        );
+
+    } finally {
+        state.loadingCase = false;
+    }
+}
+
+function renderCaseWorkspace(detail, timelineData, auditData) {
+    const item = detail.correlation;
+    const alerts = detail.alerts ?? [];
+    const notes = detail.notes ?? [];
+    const timeline = timelineData.timeline ?? [];
+    const audit = auditData.audit_history ?? [];
+
+    state.selectedCase = item;
+
+    $("case-empty")?.classList.add("hidden");
+    $("case-content")?.classList.remove("hidden");
+
+    setText(
+        "case-reference",
+        `CASE-${String(item.id).padStart(6, "0")}`
+    );
+
+    setText("case-title", item.title ?? "Untitled case");
+
+    setText(
+        "case-created",
+        `Created ${formatDate(item.created_at)}`
+    );
+
+    setHTML(
+        "case-status-display",
+        statusPill(item.status)
+    );
+
+    setHTML(
+        "case-severity",
+        severityPill(item.severity)
+    );
+
+    setText("case-source-ip", item.source_ip ?? "—");
+    setText("case-alert-count", alerts.length);
+    setText("case-assigned", item.assigned_to ?? "Unassigned");
+
+    const statusSelect = $("case-status-select");
+
+    if (statusSelect) {
+        statusSelect.value = item.status ?? "open";
+    }
+
+    const assigneeInput = $("case-assignee");
+
+    if (assigneeInput) {
+        assigneeInput.value = item.assigned_to ?? "";
+    }
+
+    setText("case-feedback", "");
+
+    setText("stat-alerts", alerts.length);
+    setText("stat-notes", notes.length);
+    setText("stat-timeline", timeline.length);
+    setText("stat-audit", audit.length);
+
+    setText("linked-alert-counter", alerts.length);
+    setText("notes-counter", notes.length);
+    setText("timeline-counter", timeline.length);
+    setText("audit-counter", audit.length);
+
+    renderLinkedAlerts(alerts);
+    renderCaseNotes(notes);
+    renderCaseTimeline(timeline);
+    renderCaseAudit(audit);
+}
+
+function renderLinkedAlerts(alerts) {
+    if (!alerts.length) {
+        setHTML(
+            "linked-alerts",
+            `<div class="empty-state">
+                No alerts are linked to this case.
+            </div>`
+        );
+        return;
+    }
+
+    setHTML(
+        "linked-alerts",
+        alerts.map(alert => `
+            <article class="record-card">
+                <div class="record-card-header">
+                    <strong>
+                        ALERT #${Number(alert.id)}
+                        · ${escapeHTML(alert.title)}
+                    </strong>
+
+                    ${severityPill(alert.severity)}
+                </div>
+
+                <p>
+                    ${escapeHTML(
+                        alert.description ?? "No description provided."
+                    )}
+                </p>
+
+                <div class="evidence-details">
+                    <span>
+                        <small>SOURCE IP</small>
+                        ${escapeHTML(alert.source_ip)}
+                    </span>
+
+                    <span>
+                        <small>DETECTION RULE</small>
+                        ${escapeHTML(alert.detection_rule)}
+                    </span>
+
+                    <span>
+                        <small>STATUS</small>
+                        ${escapeHTML(alert.status)}
+                    </span>
+
+                    <span>
+                        <small>CREATED</small>
+                        ${formatDate(alert.created_at)}
+                    </span>
+                </div>
+            </article>
+        `).join("")
+    );
+}
+
+/* =========================================================
+   INVESTIGATION NOTES
+========================================================= */
+
+function renderCaseNotes(notes) {
+    if (!notes.length) {
+        setHTML(
+            "notes-list",
+            `<div class="empty-state">
+                No investigation notes have been added.
+            </div>`
+        );
+        return;
+    }
+
+    const sorted = [...notes].sort((a, b) =>
+        new Date(b.created_at) - new Date(a.created_at)
+    );
+
+    setHTML(
+        "notes-list",
+        sorted.map(note => `
+            <article class="record-card">
+                <div class="record-card-header">
+                    <strong>
+                        ${escapeHTML(note.author || "analyst")}
+                    </strong>
+
+                    <time>${formatDate(note.created_at)}</time>
+                </div>
+
+                <p>${escapeHTML(note.content)}</p>
+
+                <span class="record-id">
+                    NOTE #${Number(note.id)}
+                </span>
+            </article>
+        `).join("")
+    );
+}
+
+async function submitCaseNote(event) {
+    event.preventDefault();
+
+    if (!state.selectedCase) {
+        showToast("Open a case before adding a note.", true);
+        return;
+    }
+
+    const content = $("note-content")?.value.trim();
+
+    if (!content) {
+        showToast("Enter a note before submitting.", true);
+        return;
+    }
+
+    const button = $("add-note-button");
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = "Saving...";
+    }
+
+    try {
+        const id = Number(state.selectedCase.id);
+
+        await fetchJSON(
+            `${API.correlations}/${id}/notes`,
+            {
+                method: "POST",
+                body: JSON.stringify({
+                    author: DEMO_ANALYST,
+                    content
+                })
+            }
+        );
+
+        $("note-content").value = "";
+
+        await loadCaseDetails(id, false);
+        await loadCases();
+
+        showToast("Investigation note saved.");
+
+    } catch (error) {
+        showToast(
+            `Could not save note: ${error.message}`,
+            true
+        );
+
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = "Add note";
+        }
+    }
+}
+
+/* =========================================================
+   CASE STATUS MANAGEMENT
+========================================================= */
+
+async function updateCaseStatus() {
+    if (!state.selectedCase) return;
+
+    const id = Number(state.selectedCase.id);
+    const status = $("case-status-select")?.value;
+
+    const button = $("save-case-status");
+
+    if (!["open", "investigating", "resolved"].includes(status)) {
+        showToast("Select a valid case status.", true);
+        return;
+    }
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = "Updating...";
+    }
+
+    setText("case-feedback", "");
+
+    try {
+        const result = await fetchJSON(
+            `${API.correlations}/${id}/status`,
+            {
+                method: "PATCH",
+                body: JSON.stringify({
+                    status,
+                    actor: DEMO_ANALYST,
+                    details: "Case status updated through the AEGIS dashboard."
+                })
+            }
+        );
+
+        await loadCases();
+        await loadCaseDetails(id, false);
+
+        setText(
+            "case-feedback",
+            result.message ?? "Case status updated."
+        );
+
+        showToast(`Case status updated to ${status}.`);
+
+    } catch (error) {
+        showToast(
+            `Status update failed: ${error.message}`,
+            true
+        );
+
+        setText("case-feedback", "Update failed.");
+
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = "Save status";
+        }
+    }
+}
+
+/* =========================================================
+   CASE ASSIGNMENT MANAGEMENT
+========================================================= */
+
+async function updateCaseAssignment(assignedTo) {
+    if (!state.selectedCase) return;
+
+    const id = Number(state.selectedCase.id);
+    const button = $("save-case-assignment");
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = "Saving...";
+    }
+
+    try {
+        const result = await fetchJSON(
+            `${API.correlations}/${id}/assignment`,
+            {
+                method: "PATCH",
+                body: JSON.stringify({
+                    assigned_to: assignedTo || null,
+                    actor: DEMO_ANALYST
+                })
+            }
+        );
+
+        await loadCases();
+        await loadCaseDetails(id, false);
+
+        showToast(
+            assignedTo
+                ? `Case assigned to ${assignedTo}.`
+                : "Case assignment removed."
+        );
+
+        return result;
+
+    } catch (error) {
+        showToast(
+            `Assignment update failed: ${error.message}`,
+            true
+        );
+
+        return null;
+
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = "Save assignment";
+        }
+    }
+}
+
+async function saveCaseAssignment() {
+    const assignedTo = $("case-assignee")?.value.trim();
+
+    if (!assignedTo) {
+        showToast(
+            "Enter an analyst identifier or use Clear assignment.",
+            true
+        );
+        return;
+    }
+
+    await updateCaseAssignment(assignedTo);
+}
+
+async function clearCaseAssignment() {
+    await updateCaseAssignment(null);
+}
+
+/* =========================================================
+   CASE TIMELINE
+========================================================= */
+
+function renderCaseTimeline(timeline) {
+    if (!timeline.length) {
+        setHTML(
+            "timeline-list",
+            `<div class="empty-state">
+                No timeline activity recorded.
+            </div>`
+        );
+        return;
+    }
+
+    const sorted = [...timeline].sort((a, b) =>
+        new Date(a.created_at) - new Date(b.created_at)
+    );
+
+    setHTML(
+        "timeline-list",
+        sorted.map(item => `
+            <article class="timeline-item">
+                <span class="timeline-marker"></span>
+
+                <div class="timeline-content">
+                    <div class="timeline-header">
+                        <strong>
+                            ${escapeHTML(item.summary)}
+                        </strong>
+
+                        <time>${formatDate(item.created_at)}</time>
+                    </div>
+
+                    ${
+                        item.details
+                            ? `<p>${escapeHTML(item.details)}</p>`
+                            : ""
+                    }
+
+                    <span class="record-id">
+                        ${escapeHTML(item.actor || "system")}
+                        · ${escapeHTML(item.action)}
+                    </span>
+                </div>
+            </article>
+        `).join("")
+    );
+}
+
+/* =========================================================
+   CASE AUDIT HISTORY
+========================================================= */
+
+function renderCaseAudit(audit) {
+    if (!audit.length) {
+        setHTML(
+            "audit-table",
+            emptyRow(6, "No audit records available.")
+        );
+        return;
+    }
+
+    setHTML(
+        "audit-table",
+        audit.map(item => `
+            <tr>
+                <td>${formatDate(item.created_at)}</td>
+
+                <td>${escapeHTML(item.action)}</td>
+
+                <td>${escapeHTML(item.actor)}</td>
+
+                <td>
+                    ${escapeHTML(item.previous_value ?? "—")}
+                </td>
+
+                <td>
+                    ${escapeHTML(item.new_value ?? "—")}
+                </td>
+
+                <td>
+                    ${escapeHTML(item.details ?? "—")}
+                </td>
+            </tr>
+        `).join("")
+    );
+}
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
 
 function switchView(view) {
     const validViews = [
         "overview",
         "alerts",
         "events",
-        "rules",
-        "investigation"
+        "investigations",
+        "case",
+        "rules"
     ];
 
     if (!validViews.includes(view)) return;
@@ -876,26 +1372,37 @@ function switchView(view) {
         overview: "Overview",
         alerts: "Alerts",
         events: "Security Events",
-        rules: "Detection Rules",
-        investigation: "Investigation"
+        investigations: "Investigations",
+        case: "Case Workspace",
+        rules: "Detection Rules"
     };
 
-    $("breadcrumb-current").textContent = names[view];
-    $("page-heading").textContent = names[view];
+    setText("breadcrumb-current", names[view]);
+    setText("page-heading", names[view]);
 
-    if (view === "alerts") renderAlertsTable();
-    if (view === "events") renderEventsTable();
-    if (view === "investigation") renderEvidenceEventOptions();
+    if (view === "alerts") {
+        renderAlertsTable();
+    }
+
+    if (view === "events") {
+        renderEventsTable();
+    }
+
+    if (view === "investigations") {
+        renderCasesTable();
+    }
 }
+
+/* =========================================================
+   EVENT LISTENERS
+========================================================= */
 
 document.querySelectorAll(".nav-item").forEach(button => {
     button.addEventListener("click", () => {
         const view = button.dataset.view;
 
-        if (view === "investigation" && !state.selectedAlert) {
-            switchView("investigation");
-            $("investigation-content").classList.add("hidden");
-            $("investigation-empty").classList.remove("hidden");
+        if (view === "case" && !state.selectedCase) {
+            switchView("investigations");
             return;
         }
 
@@ -909,24 +1416,76 @@ document.querySelectorAll("[data-open-view]").forEach(button => {
     });
 });
 
-$("back-to-alerts").addEventListener("click", () => {
-    switchView("alerts");
+$("back-to-cases")?.addEventListener("click", () => {
+    switchView("investigations");
 });
 
-$("refresh-button").addEventListener("click", refreshDashboard);
-
-$("alert-search").addEventListener("input", renderAlertsTable);
-$("alert-status-filter").addEventListener("change", renderAlertsTable);
-$("alert-severity-filter").addEventListener("change", renderAlertsTable);
-$("event-search").addEventListener("input", renderEventsTable);
-
-$("note-form").addEventListener("submit", submitInvestigationNote);
-$("evidence-form").addEventListener("submit", submitEvidence);
-
-$("save-investigation-status").addEventListener(
+$("refresh-button")?.addEventListener(
     "click",
-    updateInvestigationStatus
+    refreshDashboard
 );
 
+$("alert-search")?.addEventListener(
+    "input",
+    renderAlertsTable
+);
+
+$("alert-status-filter")?.addEventListener(
+    "change",
+    renderAlertsTable
+);
+
+$("alert-severity-filter")?.addEventListener(
+    "change",
+    renderAlertsTable
+);
+
+$("event-search")?.addEventListener(
+    "input",
+    renderEventsTable
+);
+
+$("case-search")?.addEventListener(
+    "input",
+    renderCasesTable
+);
+
+$("case-status-filter")?.addEventListener(
+    "change",
+    renderCasesTable
+);
+
+$("case-severity-filter")?.addEventListener(
+    "change",
+    renderCasesTable
+);
+
+$("note-form")?.addEventListener(
+    "submit",
+    submitCaseNote
+);
+
+$("save-case-status")?.addEventListener(
+    "click",
+    updateCaseStatus
+);
+
+$("save-case-assignment")?.addEventListener(
+    "click",
+    saveCaseAssignment
+);
+
+$("clear-case-assignment")?.addEventListener(
+    "click",
+    clearCaseAssignment
+);
+
+/* =========================================================
+   INITIALISE DASHBOARD
+========================================================= */
+
 refreshDashboard();
-window.setInterval(refreshDashboard, 15000);
+
+window.setInterval(() => {
+    refreshDashboard();
+}, 15000);
