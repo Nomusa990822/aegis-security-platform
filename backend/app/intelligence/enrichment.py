@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from ipaddress import ip_address, IPv4Address, IPv6Address
+from ipaddress import ip_address, ip_network
 
 from app.intelligence.models import (
     EnrichmentStatus,
@@ -20,7 +20,20 @@ def classify_ip(value: str) -> tuple[IPClassification, bool]:
     """
     address = ip_address(value)
 
-    if address.is_unspecified:
+    documentation_networks = (
+        ip_network("192.0.2.0/24"),
+        ip_network("198.51.100.0/24"),
+        ip_network("203.0.113.0/24"),
+        ip_network("2001:db8::/32"),
+    )
+
+    if any(
+        address.version == network.version and address in network
+        for network in documentation_networks
+    ):
+        classification = IPClassification.DOCUMENTATION
+
+    elif address.is_unspecified:
         classification = IPClassification.UNSPECIFIED
 
     elif address.is_loopback:
@@ -38,19 +51,12 @@ def classify_ip(value: str) -> tuple[IPClassification, bool]:
     elif address.is_reserved:
         classification = IPClassification.RESERVED
 
-    elif address in (
-        ip_address("192.0.2.0") if address.version == 4
-        else ip_address("2001:db8::")
-    ).network if False else False:
-        classification = IPClassification.DOCUMENTATION
-
     else:
         classification = IPClassification.PUBLIC
 
     is_suitable_for_lookup = (
-        address.is_global
-        and not address.is_multicast
-        and not address.is_reserved
+        classification == IPClassification.PUBLIC
+        and address.is_global
     )
 
     return classification, is_suitable_for_lookup
