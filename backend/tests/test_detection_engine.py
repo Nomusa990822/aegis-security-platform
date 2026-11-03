@@ -1317,3 +1317,82 @@ def test_service_sweep_does_not_combine_different_source_ips(
 
         assert sweep_results == []
         assert get_alert_count(connection, "AEGIS-NET-003") == 0
+
+def test_correlation_updates_existing_investigating_case(
+    isolated_database,
+):
+    source_ip = "198.51.100.243"
+    now = datetime.now(timezone.utc)
+
+    with get_connection() as connection:
+        insert_alert(
+            connection,
+            source_ip=source_ip,
+            detection_rule="AEGIS-AUTH-011",
+            severity="medium",
+            created_at=now - timedelta(minutes=2),
+        )
+
+        insert_alert(
+            connection,
+            source_ip=source_ip,
+            detection_rule="AEGIS-AUTH-012",
+            severity="high",
+            created_at=now - timedelta(minutes=1),
+        )
+
+        first_result = correlate_alerts(connection, source_ip)
+
+        assert first_result is not None
+        assert first_result["created"] is True
+        assert first_result["alert_count"] == 2
+
+        correlation_id = first_result["correlation_id"]
+
+        connection.execute(
+            """
+            UPDATE security_correlations
+            SET status = 'investigating'
+            WHERE id = ?
+            """,
+            (correlation_id,),
+        )
+
+        insert_alert(
+            connection,
+            source_ip=source_ip,
+            detection_rule="AEGIS-NET-011",
+            severity="critical",
+            created_at=now,
+        )
+
+        second_result = correlate_alerts(connection, source_ip)
+
+        assert second_result is not None
+        assert second_result["created"] is False
+        assert second_result["correlation_id"] == correlation_id
+        assert second_result["alert_count"] == 3
+        assert second_result["severity"] == "critical"
+
+        case_count = connection.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM security_correlations
+            WHERE source_ip = ?
+            """,
+            (source_ip,),
+        ).fetchone()["total"]
+
+        assert case_count == 1
+
+        case = connection.execute(
+            """
+            SELECT status, alert_count
+            FROM security_correlations
+            WHERE id = ?
+            """,
+            (correlation_id,),
+        ).fetchone()
+
+        assert case["status"] == "investigating"
+        assert case["alert_count"] == 3
