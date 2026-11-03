@@ -606,13 +606,25 @@ function renderAuditLog(audit) {
     `).join("");
 }
 
+
 function renderEvidenceEventOptions() {
     const select = $("evidence-event-id");
     if (!select) return;
 
     const currentValue = select.value;
 
-    const options = state.events.map(event => `
+    // Collect IDs of evidence already linked to this incident.
+    const linkedEventIds = new Set(
+        (state.investigation?.evidence || [])
+            .map(item => Number(item.event_id))
+    );
+
+    // Only show events that have not already been linked.
+    const availableEvents = state.events.filter(event =>
+        !linkedEventIds.has(Number(event.id))
+    );
+
+    const options = availableEvents.map(event => `
         <option value="${Number(event.id)}">
             #${Number(event.id)} · ${escapeHTML(event.event_type)}
             · ${escapeHTML(event.source_ip)}
@@ -620,14 +632,26 @@ function renderEvidenceEventOptions() {
         </option>
     `).join("");
 
-    select.innerHTML =
-        `<option value="">Choose a security event...</option>${options}`;
+    const emptyMessage = state.events.length === 0
+        ? "No security events available."
+        : "All available events are already linked.";
 
-    if (currentValue &&
-        state.events.some(event => String(event.id) === currentValue)) {
+    select.innerHTML = `
+        <option value="">Choose a security event...</option>
+        ${options || `<option value="" disabled>${emptyMessage}</option>`}
+    `;
+
+    // Restore the selection only if the event remains available.
+    if (
+        currentValue &&
+        availableEvents.some(event => String(event.id) === currentValue)
+    ) {
         select.value = currentValue;
+    } else {
+        select.value = "";
     }
 }
+
 
 async function submitInvestigationNote(event) {
     event.preventDefault();
