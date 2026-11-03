@@ -547,6 +547,225 @@
             </div>
         </section>
 
+                <!-- INDIVIDUAL ALERT INVESTIGATION -->
+        <section class="view" id="view-alert">
+
+            <div class="section-intro">
+                <div>
+                    <p class="eyebrow">SECURITY OPERATIONS / ALERT INVESTIGATION</p>
+                    <h1>Alert investigation</h1>
+                    <p class="muted">
+                        Examine a detection, document findings and manage its response.
+                    </p>
+                </div>
+
+                <button class="secondary-button" id="back-to-alerts">
+                    Back to alert queue
+                </button>
+            </div>
+
+            <div id="alert-workspace-empty" class="panel">
+                <div class="empty-state">
+                    Select an alert from the alert queue to begin an investigation.
+                </div>
+            </div>
+
+            <div id="alert-workspace-content" hidden>
+
+                <!-- ALERT OVERVIEW -->
+                <section class="panel investigation-section">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">DETECTION RECORD</p>
+                            <h2 id="investigation-alert-title">Alert</h2>
+                            <span class="record-id" id="investigation-alert-reference"></span>
+                        </div>
+
+                        <div id="investigation-alert-severity"></div>
+                    </div>
+
+                    <p class="muted" id="investigation-alert-description"></p>
+
+                    <div class="detail-grid">
+                        <div class="detail-field">
+                            <span>STATUS</span>
+                            <strong id="investigation-alert-status"></strong>
+                        </div>
+
+                        <div class="detail-field">
+                            <span>SOURCE IP</span>
+                            <strong id="investigation-alert-source"></strong>
+                        </div>
+
+                        <div class="detail-field">
+                            <span>DETECTION RULE</span>
+                            <strong id="investigation-alert-rule"></strong>
+                        </div>
+
+                        <div class="detail-field">
+                            <span>CREATED</span>
+                            <strong id="investigation-alert-created"></strong>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- RESPONSE CONTROLS -->
+                <section class="panel investigation-section">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">RESPONSE MANAGEMENT</p>
+                            <h2>Update alert status</h2>
+                        </div>
+                    </div>
+
+                    <div class="toolbar">
+                        <select id="investigation-status-select"
+                                aria-label="Select alert status">
+                            <option value="open">Open</option>
+                            <option value="investigating">Investigating</option>
+                            <option value="resolved">Resolved</option>
+                        </select>
+
+                        <button class="action-button" id="save-alert-status">
+                            Save status
+                        </button>
+                    </div>
+
+                    <p class="muted" id="alert-status-feedback" aria-live="polite"></p>
+                </section>
+
+                <!-- INVESTIGATION NOTES -->
+                <section class="panel investigation-section">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">ANALYST WORKLOG</p>
+                            <h2>Investigation notes</h2>
+                        </div>
+
+                        <span class="section-counter" id="alert-note-counter">0</span>
+                    </div>
+
+                    <form id="alert-note-form" class="investigation-form">
+                        <label for="alert-note-content">Record an observation or finding</label>
+
+                        <textarea
+                            id="alert-note-content"
+                            maxlength="5000"
+                            rows="4"
+                            placeholder="Document what you observed, what you investigated and any conclusions..."
+                            required
+                        ></textarea>
+
+                        <button class="action-button" type="submit" id="add-alert-note">
+                            Add investigation note
+                        </button>
+                    </form>
+
+                    <div id="alert-notes-list" class="record-list">
+                        <div class="empty-state">No investigation notes recorded.</div>
+                    </div>
+                </section>
+
+                <!-- SECURITY EVENT EVIDENCE -->
+                <section class="panel investigation-section">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">EVIDENCE MANAGEMENT</p>
+                            <h2>Linked security events</h2>
+                        </div>
+
+                        <span class="section-counter" id="alert-evidence-counter">0</span>
+                    </div>
+
+                    <form id="alert-evidence-form" class="investigation-form">
+                        <label for="alert-evidence-event-id">Security event ID</label>
+
+                        <input
+                            type="number"
+                            id="alert-evidence-event-id"
+                            min="1"
+                            step="1"
+                            placeholder="Enter an existing security event ID"
+                            required
+                        >
+
+                        <label for="alert-evidence-note">Analyst justification</label>
+
+                        <textarea
+                            id="alert-evidence-note"
+                            maxlength="1000"
+                            rows="3"
+                            placeholder="Explain why this event is relevant to the alert..."
+                        ></textarea>
+
+                        <button class="action-button" type="submit" id="link-alert-evidence">
+                            Link event as evidence
+                        </button>
+                    </form>
+
+                    <div id="alert-evidence-list" class="record-list">
+                        <div class="empty-state">No evidence linked to this alert.</div>
+                    </div>
+                </section>
+
+                <!-- INVESTIGATION TIMELINE -->
+                <section class="panel investigation-section">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">INVESTIGATION HISTORY</p>
+                            <h2>Activity timeline</h2>
+                        </div>
+
+                        <span class="section-counter" id="alert-timeline-counter">0</span>
+                    </div>
+
+                    <div id="alert-timeline-list" class="timeline-list">
+                        <div class="empty-state">No timeline activity recorded.</div>
+                    </div>
+                </section>
+
+                <!-- ALERT AUDIT HISTORY -->
+                <section class="panel investigation-section">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">ACCOUNTABILITY</p>
+                            <h2>Audit history</h2>
+                        </div>
+
+                        <span class="section-counter" id="alert-audit-counter">0</span>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>TIME</th>
+                                    <th>ACTION</th>
+                                    <th>ACTOR</th>
+                                    <th>PREVIOUS VALUE</th>
+                                    <th>NEW VALUE</th>
+                                    <th>DETAILS</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="alert-audit-table">
+                                <tr>
+                                    <td colspan="6" class="empty-state">
+                                        No audit records available.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p class="audit-disclaimer">
+                        Audit history records application-level activity. It is not currently immutable or tamper-proof.
+                    </p>
+                </section>
+
+            </div>
+        </section>
+
         <!-- DETECTION RULES -->
         <section class="view" id="view-rules">
             <div class="section-intro">
