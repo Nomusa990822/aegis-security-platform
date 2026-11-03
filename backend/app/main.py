@@ -1,24 +1,23 @@
-
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from app.database import get_connection, initialize_database
 from app.detection.engine import evaluate_event
 from app.detection.registry import get_detection_rules
-from app.alerts import router as alerts_router
-
-from pathlib import Path
-from fastapi.staticfiles import StaticFiles
+from app.alerts.router import router as alerts_router
 
 
 app = FastAPI(
     title="AEGIS Security Platform",
     description="Autonomous Threat Detection and Response Platform",
-    version="0.3.0"
+    version="0.4.0"
 )
+
 
 app.mount(
     "/dashboard",
@@ -29,20 +28,32 @@ app.mount(
     name="dashboard"
 )
 
-# Register alert management endpoints
 app.include_router(alerts_router)
 
 
 class SecurityEvent(BaseModel):
 
     event_type: str = Field(min_length=1, max_length=100)
+
     source_ip: Optional[str] = None
     username: Optional[str] = None
     outcome: Optional[str] = None
+
+    destination_ip: Optional[str] = None
+    destination_port: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=65535
+    )
+    protocol: Optional[str] = Field(
+        default=None,
+        max_length=20
+    )
+
     description: str = Field(default="", max_length=2000)
     occurred_at: Optional[datetime] = None
 
-    @field_validator("event_type", "outcome")
+    @field_validator("event_type", "outcome", "protocol")
     @classmethod
     def normalise_values(cls, value):
         if value is None:
@@ -60,13 +71,12 @@ def home():
     return {
         "platform": "AEGIS",
         "status": "operational",
-        "version": "0.3.0"
+        "version": "0.4.0"
     }
 
 
 @app.get("/api/v1/health")
 def health():
-
     return {
         "status": "healthy",
         "database": "connected",
@@ -92,9 +102,12 @@ def ingest_event(event: SecurityEvent):
                     outcome,
                     description,
                     occurred_at,
-                    received_at
+                    received_at,
+                    destination_ip,
+                    destination_port,
+                    protocol
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event.event_type,
@@ -103,7 +116,10 @@ def ingest_event(event: SecurityEvent):
                     event.outcome,
                     event.description,
                     occurred_at.isoformat(),
-                    received_at.isoformat()
+                    received_at.isoformat(),
+                    event.destination_ip,
+                    event.destination_port,
+                    event.protocol
                 )
             )
 
@@ -113,7 +129,10 @@ def ingest_event(event: SecurityEvent):
                 "event_type": event.event_type,
                 "source_ip": event.source_ip,
                 "username": event.username,
-                "outcome": event.outcome
+                "outcome": event.outcome,
+                "destination_ip": event.destination_ip,
+                "destination_port": event.destination_port,
+                "protocol": event.protocol
             }
 
             detections = evaluate_event(
@@ -123,13 +142,13 @@ def ingest_event(event: SecurityEvent):
 
             connection.commit()
 
-        return {
-            "message": "Security event ingested",
-            "event_id": event_id,
-            "detection": detections[0] if detections else None,
-            "detections": detections,
-            "detection_count": len(detections)
-        }
+            return {
+                "message": "Security event ingested",
+                "event_id": event_id,
+                "detection": detections[0] if detections else None,
+                "detections": detections,
+                "detection_count": len(detections)
+            }
 
     except Exception as error:
         raise HTTPException(
@@ -144,11 +163,10 @@ def get_events(limit: int = 100):
     if not 1 <= limit <= 1000:
         raise HTTPException(
             status_code=400,
-            detail="Limit must be between 1 and 1000"
+            detail="limit must be between 1 and 1000"
         )
 
     with get_connection() as connection:
-
         rows = connection.execute(
             """
             SELECT *
@@ -169,7 +187,6 @@ def get_events(limit: int = 100):
 def get_alerts():
 
     with get_connection() as connection:
-
         rows = connection.execute(
             """
             SELECT *
