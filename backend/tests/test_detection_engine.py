@@ -643,3 +643,362 @@ def test_correlation_returns_none_without_source_ip(
         ).fetchone()["total"]
 
         assert correlation_count == 0
+
+
+# ============================================================
+# NETWORK PORT SCAN DETECTION
+# ============================================================
+
+def test_port_scan_detects_ten_distinct_ports(isolated_database):
+    source_ip = "203.0.113.110"
+    destination_ip = "192.0.2.110"
+
+    with get_connection() as connection:
+        results = []
+
+        for port in range(8000, 8010):
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip=destination_ip,
+                destination_port=port,
+                protocol="TCP",
+            )
+
+            detections = evaluate_event(connection, event)
+
+            results.append([
+                item for item in detections
+                if item["rule_id"] == "AEGIS-NET-001"
+            ])
+
+        assert all(not result for result in results[:9])
+        assert len(results[9]) == 1
+
+        detection = results[9][0]
+
+        assert detection["created"] is True
+        assert detection["distinct_port_count"] == 10
+        assert detection["destination_ip"] == destination_ip
+        assert detection["severity"] == "high"
+
+        assert get_alert_count(connection, "AEGIS-NET-001") == 1
+
+
+def test_port_scan_ignores_repeated_destination_ports(
+    isolated_database,
+):
+    source_ip = "203.0.113.111"
+    destination_ip = "192.0.2.111"
+
+    with get_connection() as connection:
+        detections = []
+
+        for _ in range(15):
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip=destination_ip,
+                destination_port=8080,
+                protocol="TCP",
+            )
+
+            detections.extend(evaluate_event(connection, event))
+
+        port_scan_results = [
+            item for item in detections
+            if item["rule_id"] == "AEGIS-NET-001"
+        ]
+
+        assert port_scan_results == []
+        assert get_alert_count(connection, "AEGIS-NET-001") == 0
+
+
+def test_port_scan_reuses_existing_active_alert(isolated_database):
+    source_ip = "203.0.113.112"
+    destination_ip = "192.0.2.112"
+
+    with get_connection() as connection:
+        for port in range(9000, 9010):
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip=destination_ip,
+                destination_port=port,
+                protocol="TCP",
+            )
+
+            results = evaluate_event(connection, event)
+
+        first_detection = next(
+            item for item in results
+            if item["rule_id"] == "AEGIS-NET-001"
+        )
+
+        assert first_detection["created"] is True
+
+        next_event = insert_event(
+            connection,
+            event_type="network_connection",
+            source_ip=source_ip,
+            destination_ip=destination_ip,
+            destination_port=9010,
+            protocol="TCP",
+        )
+
+        next_results = evaluate_event(connection, next_event)
+
+        second_detection = next(
+            item for item in next_results
+            if item["rule_id"] == "AEGIS-NET-001"
+        )
+
+        assert second_detection["created"] is False
+        assert second_detection["alert_id"] == first_detection["alert_id"]
+
+        assert get_alert_count(connection, "AEGIS-NET-001") == 1
+
+
+# ============================================================
+# HORIZONTAL NETWORK SCAN DETECTION
+# ============================================================
+
+def test_horizontal_scan_detects_ten_distinct_destinations(
+    isolated_database,
+):
+    source_ip = "203.0.113.120"
+    destination_port = 443
+
+    with get_connection() as connection:
+        results = []
+
+        for host in range(1, 11):
+            destination_ip = f"192.0.2.{host}"
+
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip=destination_ip,
+                destination_port=destination_port,
+                protocol="TCP",
+            )
+
+            detections = evaluate_event(connection, event)
+
+            results.append([
+                item for item in detections
+                if item["rule_id"] == "AEGIS-NET-002"
+            ])
+
+        assert all(not result for result in results[:9])
+        assert len(results[9]) == 1
+
+        detection = results[9][0]
+
+        assert detection["created"] is True
+        assert detection["destination_count"] == 10
+        assert detection["destination_port"] == destination_port
+        assert detection["severity"] == "high"
+
+        assert get_alert_count(connection, "AEGIS-NET-002") == 1
+
+
+def test_horizontal_scan_ignores_repeated_destination_ips(
+    isolated_database,
+):
+    source_ip = "203.0.113.121"
+
+    with get_connection() as connection:
+        detections = []
+
+        for _ in range(15):
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip="192.0.2.121",
+                destination_port=443,
+                protocol="TCP",
+            )
+
+            detections.extend(evaluate_event(connection, event))
+
+        horizontal_results = [
+            item for item in detections
+            if item["rule_id"] == "AEGIS-NET-002"
+        ]
+
+        assert horizontal_results == []
+        assert get_alert_count(connection, "AEGIS-NET-002") == 0
+
+
+def test_horizontal_scan_reuses_existing_active_alert(
+    isolated_database,
+):
+    source_ip = "203.0.113.122"
+    destination_port = 443
+
+    with get_connection() as connection:
+        for host in range(1, 11):
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip=f"192.0.2.{host}",
+                destination_port=destination_port,
+                protocol="TCP",
+            )
+
+            results = evaluate_event(connection, event)
+
+        first_detection = next(
+            item for item in results
+            if item["rule_id"] == "AEGIS-NET-002"
+        )
+
+        assert first_detection["created"] is True
+
+        next_event = insert_event(
+            connection,
+            event_type="network_connection",
+            source_ip=source_ip,
+            destination_ip="192.0.2.11",
+            destination_port=destination_port,
+            protocol="TCP",
+        )
+
+        next_results = evaluate_event(connection, next_event)
+
+        second_detection = next(
+            item for item in next_results
+            if item["rule_id"] == "AEGIS-NET-002"
+        )
+
+        assert second_detection["created"] is False
+        assert second_detection["alert_id"] == first_detection["alert_id"]
+
+        assert get_alert_count(connection, "AEGIS-NET-002") == 1
+
+
+# ============================================================
+# NETWORK SERVICE SWEEP DETECTION
+# ============================================================
+
+def test_service_sweep_detects_twenty_distinct_ip_port_pairs(
+    isolated_database,
+):
+    source_ip = "203.0.113.130"
+
+    with get_connection() as connection:
+        results = []
+
+        for index in range(20):
+            destination_ip = f"192.0.2.{index + 1}"
+            destination_port = 8000 + index
+
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip=destination_ip,
+                destination_port=destination_port,
+                protocol="TCP",
+            )
+
+            detections = evaluate_event(connection, event)
+
+            results.append([
+                item for item in detections
+                if item["rule_id"] == "AEGIS-NET-003"
+            ])
+
+        assert all(not result for result in results[:19])
+        assert len(results[19]) == 1
+
+        detection = results[19][0]
+
+        assert detection["created"] is True
+        assert detection["destination_pair_count"] == 20
+        assert detection["severity"] == "high"
+
+        assert get_alert_count(connection, "AEGIS-NET-003") == 1
+
+
+def test_service_sweep_ignores_duplicate_ip_port_pairs(
+    isolated_database,
+):
+    source_ip = "203.0.113.131"
+
+    with get_connection() as connection:
+        detections = []
+
+        for _ in range(25):
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip="192.0.2.131",
+                destination_port=8080,
+                protocol="TCP",
+            )
+
+            detections.extend(evaluate_event(connection, event))
+
+        sweep_results = [
+            item for item in detections
+            if item["rule_id"] == "AEGIS-NET-003"
+        ]
+
+        assert sweep_results == []
+        assert get_alert_count(connection, "AEGIS-NET-003") == 0
+
+
+def test_service_sweep_reuses_existing_active_alert(
+    isolated_database,
+):
+    source_ip = "203.0.113.132"
+
+    with get_connection() as connection:
+        for index in range(20):
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip=f"192.0.2.{index + 1}",
+                destination_port=8000 + index,
+                protocol="TCP",
+            )
+
+            results = evaluate_event(connection, event)
+
+        first_detection = next(
+            item for item in results
+            if item["rule_id"] == "AEGIS-NET-003"
+        )
+
+        assert first_detection["created"] is True
+
+        next_event = insert_event(
+            connection,
+            event_type="network_connection",
+            source_ip=source_ip,
+            destination_ip="192.0.2.21",
+            destination_port=8020,
+            protocol="TCP",
+        )
+
+        next_results = evaluate_event(connection, next_event)
+
+        second_detection = next(
+            item for item in next_results
+            if item["rule_id"] == "AEGIS-NET-003"
+        )
+
+        assert second_detection["created"] is False
+        assert second_detection["alert_id"] == first_detection["alert_id"]
+
+        assert get_alert_count(connection, "AEGIS-NET-003") == 1
