@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.database import get_connection, initialize_database
 from app.detection.engine import evaluate_event
 from app.detection.registry import get_detection_rules
-from app.alerts.router import router as alerts_router
+from app.alerts import router as alerts_router
 
 
 app = FastAPI(
