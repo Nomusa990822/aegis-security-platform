@@ -1,17 +1,16 @@
 from app.detection.rules import DETECTION_RULES
-
 from app.detection.detectors.brute_force import (
     detect as detect_brute_force
 )
-
 from app.detection.detectors.port_scan import (
     detect as detect_port_scan
 )
-
+from app.detection.detectors.horizontal_scan import detect as detect_horizontal_scan
 
 DETECTOR_REGISTRY = {
     "AEGIS-AUTH-001": detect_brute_force,
-    "AEGIS-NET-001": detect_port_scan
+    "AEGIS-NET-001": detect_port_scan,
+    "AEGIS-NET-002": detect_horizontal_scan
 }
 
 
