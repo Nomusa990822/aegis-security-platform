@@ -791,6 +791,546 @@ function renderCasesTable() {
         });
 }
 
+
+
+/* =========================================================
+   INDIVIDUAL ALERT INVESTIGATION WORKSPACE
+========================================================= */
+
+async function openAlert(id) {
+    if (!Number.isInteger(id) || id < 1) {
+        showToast("Invalid alert identifier.", true);
+        return;
+    }
+
+    state.selectedAlert = id;
+    state.alertInvestigation = null;
+
+    switchView("alert");
+
+    $("alert-workspace-empty")?.classList.add("hidden");
+    $("alert-workspace-content")?.classList.remove("hidden");
+
+    setText("investigation-alert-title", "Loading alert...");
+    setText("investigation-alert-reference", `ALERT-${String(id).padStart(6, "0")}`);
+
+    setHTML(
+        "alert-notes-list",
+        `<div class="empty-state">Loading investigation notes...</div>`
+    );
+
+    setHTML(
+        "alert-evidence-list",
+        `<div class="empty-state">Loading linked evidence...</div>`
+    );
+
+    setHTML(
+        "alert-timeline-list",
+        `<div class="empty-state">Loading activity timeline...</div>`
+    );
+
+    setHTML(
+        "alert-audit-table",
+        emptyRow(6, "Loading audit history...")
+    );
+
+    await loadAlertInvestigation(id);
+}
+
+
+async function loadAlertInvestigation(id) {
+    if (state.loadingAlert) return;
+
+    state.loadingAlert = true;
+
+    try {
+        const data = await fetchJSON(
+            `${API.alerts}/${id}/investigation`
+        );
+
+        if (state.selectedAlert !== id) return;
+
+        if (!data.alert) {
+            throw new Error(
+                "The API response did not contain an alert."
+            );
+        }
+
+        state.alertInvestigation = data;
+
+        renderAlertWorkspace(data);
+
+    } catch (error) {
+        if (state.selectedAlert === id) {
+            $("alert-workspace-content")?.classList.add("hidden");
+            $("alert-workspace-empty")?.classList.remove("hidden");
+
+            setText(
+                "alert-workspace-empty",
+                `Unable to load alert investigation: ${error.message}`
+            );
+        }
+
+        showToast(
+            `Could not load alert investigation: ${error.message}`,
+            true
+        );
+
+    } finally {
+        state.loadingAlert = false;
+    }
+}
+
+
+function renderAlertWorkspace(data) {
+    const alert = data.alert;
+    const notes = data.notes ?? [];
+    const evidence = data.evidence ?? [];
+    const timeline = data.timeline ?? [];
+    const audit = data.audit_log ?? [];
+
+    $("alert-workspace-empty")?.classList.add("hidden");
+    $("alert-workspace-content")?.classList.remove("hidden");
+
+    setText(
+        "investigation-alert-title",
+        alert.title ?? "Untitled alert"
+    );
+
+    setText(
+        "investigation-alert-reference",
+        `ALERT-${String(alert.id).padStart(6, "0")}`
+    );
+
+    setHTML(
+        "investigation-alert-severity",
+        severityPill(alert.severity)
+    );
+
+    setText(
+        "investigation-alert-description",
+        alert.description ?? "No description provided."
+    );
+
+    setHTML(
+        "investigation-alert-status",
+        statusPill(alert.status)
+    );
+
+    setText(
+        "investigation-alert-source",
+        alert.source_ip ?? "—"
+    );
+
+    setText(
+        "investigation-alert-rule",
+        alert.detection_rule ?? "—"
+    );
+
+    setText(
+        "investigation-alert-created",
+        formatDate(alert.created_at)
+    );
+
+    const statusSelect = $("investigation-status-select");
+
+    if (statusSelect) {
+        statusSelect.value = alert.status ?? "open";
+    }
+
+    setText("alert-status-feedback", "");
+
+    setText("alert-note-counter", notes.length);
+    setText("alert-evidence-counter", evidence.length);
+    setText("alert-timeline-counter", timeline.length);
+    setText("alert-audit-counter", audit.length);
+
+    renderAlertNotes(notes);
+    renderAlertEvidence(evidence);
+    renderAlertTimeline(timeline);
+    renderAlertAudit(audit);
+}
+
+
+/* =========================================================
+   ALERT INVESTIGATION NOTES
+========================================================= */
+
+function renderAlertNotes(notes) {
+    if (!notes.length) {
+        setHTML(
+            "alert-notes-list",
+            `<div class="empty-state">
+                No investigation notes have been added.
+            </div>`
+        );
+        return;
+    }
+
+    setHTML(
+        "alert-notes-list",
+        notes.map(note => `
+            <article class="record-card">
+                <div class="record-card-header">
+                    <strong>
+                        ${escapeHTML(note.author ?? "Analyst")}
+                    </strong>
+
+                    <time>${formatDate(note.created_at)}</time>
+                </div>
+
+                <p>${escapeHTML(note.content)}</p>
+
+                <span class="record-id">
+                    NOTE #${Number(note.id)}
+                </span>
+            </article>
+        `).join("")
+    );
+}
+
+
+async function submitAlertNote(event) {
+    event.preventDefault();
+
+    const id = state.selectedAlert;
+
+    if (!id) {
+        showToast("Open an alert before adding a note.", true);
+        return;
+    }
+
+    const content = $("alert-note-content")?.value.trim();
+
+    if (!content) {
+        showToast("Enter an investigation note.", true);
+        return;
+    }
+
+    const button = $("add-alert-note");
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = "Saving...";
+    }
+
+    try {
+        await fetchJSON(
+            `${API.alerts}/${id}/notes`,
+            {
+                method: "POST",
+                body: JSON.stringify({ content })
+            }
+        );
+
+        $("alert-note-content").value = "";
+
+        await loadAlertInvestigation(id);
+        await loadAlerts();
+
+        showToast("Investigation note saved.");
+
+    } catch (error) {
+        showToast(
+            `Could not save investigation note: ${error.message}`,
+            true
+        );
+
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = "Add investigation note";
+        }
+    }
+}
+
+
+/* =========================================================
+   ALERT EVIDENCE MANAGEMENT
+========================================================= */
+
+function renderAlertEvidence(evidence) {
+    if (!evidence.length) {
+        setHTML(
+            "alert-evidence-list",
+            `<div class="empty-state">
+                No security events have been linked to this alert.
+            </div>`
+        );
+        return;
+    }
+
+    setHTML(
+        "alert-evidence-list",
+        evidence.map(item => `
+            <article class="record-card">
+                <div class="record-card-header">
+                    <strong>
+                        EVENT #${Number(item.event_id)}
+                        · ${escapeHTML(item.event_type ?? "Security event")}
+                    </strong>
+
+                    <span class="record-id">
+                        ${escapeHTML(item.outcome ?? "Unknown outcome")}
+                    </span>
+                </div>
+
+                <p>
+                    ${escapeHTML(
+                        item.description ?? "No event description available."
+                    )}
+                </p>
+
+                <div class="evidence-details">
+                    <span>
+                        <small>SOURCE IP</small>
+                        ${escapeHTML(item.source_ip ?? "—")}
+                    </span>
+
+                    <span>
+                        <small>USERNAME</small>
+                        ${escapeHTML(item.username ?? "—")}
+                    </span>
+
+                    <span>
+                        <small>LINKED BY</small>
+                        ${escapeHTML(item.linked_by ?? "—")}
+                    </span>
+
+                    <span>
+                        <small>LINKED AT</small>
+                        ${formatDate(item.linked_at)}
+                    </span>
+                </div>
+
+                ${
+                    item.analyst_note
+                        ? `<p class="muted">
+                            <strong>Analyst justification:</strong>
+                            ${escapeHTML(item.analyst_note)}
+                        </p>`
+                        : ""
+                }
+            </article>
+        `).join("")
+    );
+}
+
+
+async function submitAlertEvidence(event) {
+    event.preventDefault();
+
+    const id = state.selectedAlert;
+
+    if (!id) {
+        showToast("Open an alert before linking evidence.", true);
+        return;
+    }
+
+    const eventId = Number($("alert-evidence-event-id")?.value);
+    const analystNote = $("alert-evidence-note")?.value.trim();
+
+    if (!Number.isInteger(eventId) || eventId < 1) {
+        showToast("Enter a valid security event ID.", true);
+        return;
+    }
+
+    const button = $("link-alert-evidence");
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = "Linking...";
+    }
+
+    try {
+        await fetchJSON(
+            `${API.alerts}/${id}/evidence`,
+            {
+                method: "POST",
+                body: JSON.stringify({
+                    event_id: eventId,
+                    analyst_note: analystNote || null
+                })
+            }
+        );
+
+        $("alert-evidence-event-id").value = "";
+        $("alert-evidence-note").value = "";
+
+        await loadAlertInvestigation(id);
+
+        showToast("Security event linked as evidence.");
+
+    } catch (error) {
+        showToast(
+            `Could not link evidence: ${error.message}`,
+            true
+        );
+
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = "Link event as evidence";
+        }
+    }
+}
+
+
+/* =========================================================
+   ALERT INVESTIGATION TIMELINE
+========================================================= */
+
+function renderAlertTimeline(timeline) {
+    if (!timeline.length) {
+        setHTML(
+            "alert-timeline-list",
+            `<div class="empty-state">
+                No investigation activity recorded.
+            </div>`
+        );
+        return;
+    }
+
+    const sorted = [...timeline].sort((a, b) =>
+        new Date(a.created_at) - new Date(b.created_at)
+    );
+
+    setHTML(
+        "alert-timeline-list",
+        sorted.map(item => `
+            <article class="timeline-item">
+                <span class="timeline-marker"></span>
+
+                <div class="timeline-content">
+                    <div class="timeline-header">
+                        <strong>
+                            ${escapeHTML(item.summary ?? item.action ?? "Activity")}
+                        </strong>
+
+                        <time>${formatDate(item.created_at)}</time>
+                    </div>
+
+                    ${
+                        item.details
+                            ? `<p>${escapeHTML(item.details)}</p>`
+                            : ""
+                    }
+
+                    <span class="record-id">
+                        ${escapeHTML(item.actor ?? "system")}
+                        · ${escapeHTML(item.action ?? "activity")}
+                    </span>
+                </div>
+            </article>
+        `).join("")
+    );
+}
+
+
+/* =========================================================
+   ALERT AUDIT HISTORY
+========================================================= */
+
+function renderAlertAudit(audit) {
+    if (!audit.length) {
+        setHTML(
+            "alert-audit-table",
+            emptyRow(6, "No audit records available.")
+        );
+        return;
+    }
+
+    setHTML(
+        "alert-audit-table",
+        audit.map(item => `
+            <tr>
+                <td>${formatDate(item.created_at)}</td>
+
+                <td>${escapeHTML(item.action ?? "—")}</td>
+
+                <td>${escapeHTML(item.actor ?? "—")}</td>
+
+                <td>
+                    ${escapeHTML(item.previous_value ?? "—")}
+                </td>
+
+                <td>
+                    ${escapeHTML(item.new_value ?? "—")}
+                </td>
+
+                <td>
+                    ${escapeHTML(item.details ?? "—")}
+                </td>
+            </tr>
+        `).join("")
+    );
+}
+
+
+/* =========================================================
+   ALERT STATUS MANAGEMENT
+========================================================= */
+
+async function updateAlertStatus() {
+    const id = state.selectedAlert;
+
+    if (!id) {
+        showToast("No alert is currently selected.", true);
+        return;
+    }
+
+    const status = $("investigation-status-select")?.value;
+
+    if (!["open", "investigating", "resolved"].includes(status)) {
+        showToast("Select a valid alert status.", true);
+        return;
+    }
+
+    const button = $("save-alert-status");
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = "Updating...";
+    }
+
+    setText("alert-status-feedback", "");
+
+    try {
+        const result = await fetchJSON(
+            `${API.alerts}/${id}/status`,
+            {
+                method: "PATCH",
+                body: JSON.stringify({ status })
+            }
+        );
+
+        await loadAlertInvestigation(id);
+        await loadAlerts();
+
+        setText(
+            "alert-status-feedback",
+            result.message ?? "Alert status updated."
+        );
+
+        showToast(`Alert status updated to ${status}.`);
+
+    } catch (error) {
+        showToast(
+            `Alert status update failed: ${error.message}`,
+            true
+        );
+
+        setText("alert-status-feedback", "Update failed.");
+
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = "Save status";
+        }
+    }
+}
+
+
 /* =========================================================
    CASE WORKSPACE
 ========================================================= */
