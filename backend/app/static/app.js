@@ -931,12 +931,12 @@ function renderAlertWorkspace(data) {
 
     $("alert-workspace-empty")?.classList.add("hidden");
 
-   const workspaceContent = $("alert-workspace-content");
+    const workspaceContent = $("alert-workspace-content");
 
-   if (workspaceContent) {
-       workspaceContent.hidden = false;
-       workspaceContent.classList.remove("hidden");
-   }
+    if (workspaceContent) {
+        workspaceContent.hidden = false;
+        workspaceContent.classList.remove("hidden");
+    }
 
     setText(
         "investigation-alert-title",
