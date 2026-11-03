@@ -1,44 +1,53 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#090d16">
+    <meta name="description" content="AEGIS Security Operations Centre — autonomous threat detection and response.">
     <title>AEGIS | Security Operations Centre</title>
     <link rel="stylesheet" href="/dashboard/styles.css">
 </head>
 <body>
 <div class="app-shell">
+
     <aside class="sidebar">
-        <a class="brand" href="/dashboard/">
+        <a class="brand" href="/dashboard/" aria-label="AEGIS overview">
             <div class="brand-mark">A</div>
-            <div>
+            <div class="brand-copy">
                 <span class="brand-name">AEGIS</span>
                 <span class="brand-subtitle">SECURITY PLATFORM</span>
             </div>
         </a>
 
-        <div class="nav-label">WORKSPACE</div>
-        <nav class="navigation">
+        <div class="nav-label">OPERATIONS</div>
+        <nav class="navigation" aria-label="Main navigation">
             <button class="nav-item active" data-view="overview">
-                <span class="nav-icon">◫</span> Overview
+                <span class="nav-icon">◫</span>
+                <span>Overview</span>
             </button>
             <button class="nav-item" data-view="alerts">
-                <span class="nav-icon">⚑</span> Alerts
+                <span class="nav-icon">⚑</span>
+                <span>Alert queue</span>
                 <span class="nav-count" id="sidebar-alert-count">0</span>
             </button>
             <button class="nav-item" data-view="events">
-                <span class="nav-icon">⌁</span> Security Events
+                <span class="nav-icon">⌁</span>
+                <span>Security events</span>
             </button>
-            <button class="nav-item" data-view="investigation">
-                <span class="nav-icon">◎</span> Investigations
+            <button class="nav-item" data-view="investigations">
+                <span class="nav-icon">◎</span>
+                <span>Investigations</span>
+                <span class="nav-count" id="sidebar-case-count">0</span>
             </button>
         </nav>
 
         <div class="nav-label detection-label">DETECTION</div>
         <nav class="navigation">
             <button class="nav-item" data-view="rules">
-                <span class="nav-icon">⌘</span> Detection Rules
+                <span class="nav-icon">⌘</span>
+                <span>Detection rules</span>
             </button>
         </nav>
 
@@ -50,11 +59,12 @@
                     <small>Backend connection</small>
                 </div>
             </div>
-            <div class="sidebar-version">AEGIS v0.3.0 · SOC CONSOLE</div>
+            <div class="sidebar-version">AEGIS v0.4.0 · SOC CONSOLE</div>
         </div>
     </aside>
 
     <main class="main-content">
+
         <header class="topbar">
             <div>
                 <div class="breadcrumb">
@@ -63,64 +73,86 @@
                 </div>
                 <div class="page-heading" id="page-heading">Security overview</div>
             </div>
+
             <div class="topbar-actions">
                 <div class="live-indicator">
                     <span class="status-dot"></span>
                     LIVE MONITORING
                 </div>
-                <button class="icon-button" id="refresh-button" title="Refresh data">↻</button>
+                <button class="icon-button" id="refresh-button"
+                        title="Refresh dashboard" aria-label="Refresh dashboard">↻</button>
             </div>
         </header>
 
         <!-- OVERVIEW -->
         <section class="view active" id="view-overview">
+
             <div class="welcome-row">
                 <div>
-                    <p class="eyebrow">THREAT MONITORING</p>
+                    <p class="eyebrow">SECURITY OPERATIONS CENTRE</p>
                     <h1>Security at a glance.</h1>
-                    <p class="muted">Monitor activity, identify threats and manage security incidents.</p>
+                    <p class="muted">Monitor telemetry, investigate threats and manage correlated incidents.</p>
                 </div>
-                <div class="updated-label">Last updated <span id="last-updated">—</span></div>
+                <div class="updated-label">
+                    Last updated <span id="last-updated">—</span>
+                </div>
             </div>
 
             <div class="metric-grid">
                 <article class="metric-card">
-                    <div class="metric-top"><span>EVENTS RECEIVED</span><span class="metric-symbol">⌁</span></div>
+                    <div class="metric-top">
+                        <span>EVENTS RECEIVED</span>
+                        <span class="metric-symbol">⌁</span>
+                    </div>
                     <div class="metric-value" id="metric-events">—</div>
-                    <div class="metric-foot">Recorded security events</div>
+                    <div class="metric-foot">Latest recorded events</div>
                 </article>
+
                 <article class="metric-card">
-                    <div class="metric-top"><span>OPEN ALERTS</span><span class="metric-symbol warning">⚑</span></div>
-                    <div class="metric-value" id="metric-open">—</div>
-                    <div class="metric-foot">Awaiting investigation</div>
+                    <div class="metric-top">
+                        <span>OPEN ALERTS</span>
+                        <span class="metric-symbol warning">⚑</span>
+                    </div>
+                    <div class="metric-value" id="metric-open-alerts">—</div>
+                    <div class="metric-foot">Detections awaiting review</div>
                 </article>
+
                 <article class="metric-card">
-                    <div class="metric-top"><span>INVESTIGATING</span><span class="metric-symbol blue">◎</span></div>
-                    <div class="metric-value" id="metric-investigating">—</div>
-                    <div class="metric-foot">Under analyst review</div>
+                    <div class="metric-top">
+                        <span>ACTIVE CASES</span>
+                        <span class="metric-symbol blue">◎</span>
+                    </div>
+                    <div class="metric-value" id="metric-active-cases">—</div>
+                    <div class="metric-foot">Open and investigating cases</div>
                 </article>
+
                 <article class="metric-card">
-                    <div class="metric-top"><span>RESOLVED</span><span class="metric-symbol green">✓</span></div>
-                    <div class="metric-value" id="metric-resolved">—</div>
-                    <div class="metric-foot">Resolved incidents</div>
+                    <div class="metric-top">
+                        <span>CRITICAL CASES</span>
+                        <span class="metric-symbol danger">!</span>
+                    </div>
+                    <div class="metric-value" id="metric-critical">—</div>
+                    <div class="metric-foot">Critical-severity investigations</div>
                 </article>
             </div>
 
             <div class="content-grid">
-                <section class="panel alert-panel">
+                <section class="panel">
                     <div class="panel-heading">
                         <div>
-                            <p class="eyebrow">INCIDENT MANAGEMENT</p>
-                            <h2>Recent alerts</h2>
+                            <p class="eyebrow">CORRELATION ENGINE</p>
+                            <h2>Recent investigations</h2>
                         </div>
-                        <button class="text-button" data-open-view="alerts">View all →</button>
+                        <button class="text-button" data-open-view="investigations">
+                            View all →
+                        </button>
                     </div>
-                    <div id="recent-alerts" class="alert-list">
-                        <div class="empty-state">Loading alerts...</div>
+                    <div id="recent-cases" class="case-list">
+                        <div class="empty-state">Loading investigations...</div>
                     </div>
                 </section>
 
-                <section class="panel system-panel">
+                <section class="panel">
                     <div class="panel-heading">
                         <div>
                             <p class="eyebrow">PLATFORM STATUS</p>
@@ -128,19 +160,28 @@
                         </div>
                         <span class="health-label" id="health-label">Checking</span>
                     </div>
+
                     <div class="health-row">
                         <span class="health-indicator" id="api-health-dot"></span>
-                        <div><strong>API service</strong><small>FastAPI application</small></div>
+                        <div>
+                            <strong>API service</strong>
+                            <small>FastAPI application</small>
+                        </div>
                         <span class="health-value" id="api-health">Checking</span>
                     </div>
+
                     <div class="health-row">
                         <span class="health-indicator" id="db-health-dot"></span>
-                        <div><strong>Event database</strong><small>SQLite storage</small></div>
+                        <div>
+                            <strong>Database connectivity</strong>
+                            <small>Reported by health endpoint</small>
+                        </div>
                         <span class="health-value" id="db-health">Checking</span>
                     </div>
+
                     <div class="system-note">
                         <span class="note-icon">i</span>
-                        <p>Health indicators reflect the backend health endpoint. They do not represent a full infrastructure security assessment.</p>
+                        <p>Health indicators reflect the backend health endpoint. They are not a full infrastructure security assessment.</p>
                     </div>
                 </section>
             </div>
@@ -148,15 +189,22 @@
             <section class="panel activity-panel">
                 <div class="panel-heading">
                     <div>
-                        <p class="eyebrow">TELEMETRY</p>
+                        <p class="eyebrow">THREAT TELEMETRY</p>
                         <h2>Recent security events</h2>
                     </div>
                     <button class="text-button" data-open-view="events">View events →</button>
                 </div>
+
                 <div class="table-wrap">
                     <table>
                         <thead>
-                            <tr><th>EVENT TYPE</th><th>SOURCE IP</th><th>USERNAME</th><th>OUTCOME</th><th>TIME</th></tr>
+                            <tr>
+                                <th>EVENT TYPE</th>
+                                <th>SOURCE IP</th>
+                                <th>USERNAME</th>
+                                <th>OUTCOME</th>
+                                <th>TIME</th>
+                            </tr>
                         </thead>
                         <tbody id="recent-events">
                             <tr><td colspan="5" class="empty-state">Loading events...</td></tr>
@@ -170,21 +218,24 @@
         <section class="view" id="view-alerts">
             <div class="section-intro">
                 <div>
-                    <p class="eyebrow">INCIDENT MANAGEMENT</p>
+                    <p class="eyebrow">DETECTION OUTPUT</p>
                     <h1>Alert queue</h1>
-                    <p class="muted">Review detections and open their investigation workspaces.</p>
+                    <p class="muted">Review individual detections generated by the AEGIS detection engine.</p>
                 </div>
             </div>
 
             <div class="toolbar">
-                <input type="search" id="alert-search" placeholder="Search alerts, IP addresses or rules...">
-                <select id="alert-status-filter">
+                <input type="search" id="alert-search"
+                       placeholder="Search alerts, IP addresses or rules...">
+
+                <select id="alert-status-filter" aria-label="Filter alerts by status">
                     <option value="all">All statuses</option>
                     <option value="open">Open</option>
                     <option value="investigating">Investigating</option>
                     <option value="resolved">Resolved</option>
                 </select>
-                <select id="alert-severity-filter">
+
+                <select id="alert-severity-filter" aria-label="Filter alerts by severity">
                     <option value="all">All severities</option>
                     <option value="critical">Critical</option>
                     <option value="high">High</option>
@@ -198,213 +249,302 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>ALERT</th><th>SEVERITY</th><th>SOURCE IP</th>
-                                <th>RULE</th><th>STATUS</th><th>CREATED</th><th></th>
+                                <th>ALERT</th>
+                                <th>SEVERITY</th>
+                                <th>SOURCE IP</th>
+                                <th>RULE</th>
+                                <th>STATUS</th>
+                                <th>CREATED</th>
                             </tr>
                         </thead>
                         <tbody id="alerts-table">
-                            <tr><td colspan="7" class="empty-state">Loading alerts...</td></tr>
+                            <tr><td colspan="6" class="empty-state">Loading alerts...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </section>
         </section>
 
-        <!-- INCIDENT INVESTIGATION -->
-        <section class="view" id="view-investigation">
-            <div class="investigation-toolbar">
-                <div>
-                    <p class="eyebrow">INCIDENT RESPONSE / CASE MANAGEMENT</p>
-                    <h1>Investigation workspace</h1>
-                    <p class="muted">Examine detection context, document findings and maintain an incident record.</p>
-                </div>
-                <button class="action-button" id="back-to-alerts">← Back to alerts</button>
-            </div>
-
-            <div id="investigation-empty" class="panel empty-state">
-                Select an alert from the alert queue to begin an investigation.
-            </div>
-
-            <div id="investigation-content" class="hidden">
-                <section class="panel incident-hero">
-                    <div class="incident-hero-top">
-                        <div>
-                            <p class="eyebrow" id="incident-reference">INCIDENT</p>
-                            <h2 id="incident-title">Loading incident...</h2>
-                            <p class="muted" id="incident-created">—</p>
-                        </div>
-                        <div id="incident-status"></div>
-                    </div>
-
-                    <div class="incident-summary-grid">
-                        <div class="detail-field">
-                            <small>Severity</small>
-                            <strong id="incident-severity">—</strong>
-                        </div>
-                        <div class="detail-field">
-                            <small>Source IP</small>
-                            <strong id="incident-source-ip">—</strong>
-                        </div>
-                        <div class="detail-field">
-                            <small>Detection rule</small>
-                            <strong id="incident-rule">—</strong>
-                        </div>
-                        <div class="detail-field">
-                            <small>MITRE ATT&CK</small>
-                            <strong id="incident-mitre">—</strong>
-                        </div>
-                    </div>
-
-                    <p class="detail-description" id="incident-description"></p>
-
-                    <div class="incident-status-controls">
-                        <label for="investigation-status">Incident status</label>
-                        <select id="investigation-status">
-                            <option value="open">Open</option>
-                            <option value="investigating">Investigating</option>
-                            <option value="resolved">Resolved</option>
-                        </select>
-                        <button class="action-button" id="save-investigation-status">Update status</button>
-                        <span class="muted" id="status-feedback"></span>
-                    </div>
-                </section>
-
-                <div class="investigation-metrics">
-                    <div class="investigation-stat">
-                        <span>NOTES</span><strong id="investigation-note-count">0</strong>
-                    </div>
-                    <div class="investigation-stat">
-                        <span>EVIDENCE</span><strong id="investigation-evidence-count">0</strong>
-                    </div>
-                    <div class="investigation-stat">
-                        <span>TIMELINE ENTRIES</span><strong id="investigation-timeline-count">0</strong>
-                    </div>
-                    <div class="investigation-stat">
-                        <span>AUDIT RECORDS</span><strong id="investigation-audit-count">0</strong>
-                    </div>
-                </div>
-
-                <div class="investigation-grid">
-                    <section class="panel investigation-section">
-                        <div class="panel-heading">
-                            <div>
-                                <p class="eyebrow">ANALYST WORKLOG</p>
-                                <h2>Investigation notes</h2>
-                            </div>
-                            <span class="section-counter" id="notes-counter">0</span>
-                        </div>
-
-                        <form id="note-form" class="investigation-form">
-                            <label for="note-content">Add an investigation note</label>
-                            <textarea id="note-content" rows="4" maxlength="5000"
-                                placeholder="Document observations, hypotheses, findings or next steps..." required></textarea>
-                            <div class="form-footer">
-                                <small>Maximum 5,000 characters</small>
-                                <button class="action-button" type="submit" id="add-note-button">Add note</button>
-                            </div>
-                        </form>
-                        <div id="notes-list" class="record-list">
-                            <div class="empty-state">No investigation notes.</div>
-                        </div>
-                    </section>
-
-                    <section class="panel investigation-section">
-                        <div class="panel-heading">
-                            <div>
-                                <p class="eyebrow">DIGITAL FORENSICS</p>
-                                <h2>Linked evidence</h2>
-                            </div>
-                            <span class="section-counter" id="evidence-counter">0</span>
-                        </div>
-
-                        <form id="evidence-form" class="investigation-form">
-                            <label for="evidence-event-id">Security event ID</label>
-                            <select id="evidence-event-id" required>
-                                <option value="">Choose a security event...</option>
-                            </select>
-                            <label for="evidence-note">Evidence annotation</label>
-                            <textarea id="evidence-note" rows="3" maxlength="1000"
-                                placeholder="Explain why this event is relevant to the incident..."></textarea>
-                            <div class="form-footer">
-                                <small>Link an event to this incident</small>
-                                <button class="action-button" type="submit" id="link-evidence-button">Link evidence</button>
-                            </div>
-                        </form>
-                        <div id="evidence-list" class="record-list">
-                            <div class="empty-state">No evidence linked.</div>
-                        </div>
-                    </section>
-                </div>
-
-                <section class="panel investigation-section timeline-section">
-                    <div class="panel-heading">
-                        <div>
-                            <p class="eyebrow">INCIDENT HISTORY</p>
-                            <h2>Investigation timeline</h2>
-                        </div>
-                        <span class="section-counter" id="timeline-counter">0</span>
-                    </div>
-                    <div id="timeline-list" class="timeline-list">
-                        <div class="empty-state">No timeline activity.</div>
-                    </div>
-                </section>
-
-                <section class="panel investigation-section">
-                    <div class="panel-heading">
-                        <div>
-                            <p class="eyebrow">ACCOUNTABILITY</p>
-                            <h2>Audit history</h2>
-                            <p class="muted">Recorded changes and analyst actions associated with this incident.</p>
-                        </div>
-                        <span class="section-counter" id="audit-counter">0</span>
-                    </div>
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>TIME</th><th>ACTION</th><th>ACTOR</th>
-                                    <th>PREVIOUS VALUE</th><th>NEW VALUE</th><th>DETAILS</th>
-                                </tr>
-                            </thead>
-                            <tbody id="audit-table">
-                                <tr><td colspan="6" class="empty-state">No audit records.</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <p class="audit-disclaimer">
-                        Audit records provide application-level activity history. They are not currently immutable or tamper-proof.
-                    </p>
-                </section>
-            </div>
-        </section>
-
-        <!-- EVENTS -->
+        <!-- SECURITY EVENTS -->
         <section class="view" id="view-events">
             <div class="section-intro">
                 <div>
                     <p class="eyebrow">TELEMETRY</p>
                     <h1>Security events</h1>
-                    <p class="muted">Review events received by the AEGIS ingestion API.</p>
+                    <p class="muted">Inspect events received and recorded by the ingestion API.</p>
                 </div>
             </div>
+
             <div class="toolbar">
-                <input type="search" id="event-search" placeholder="Search event type, IP or username...">
+                <input type="search" id="event-search"
+                       placeholder="Search event type, IP address or username...">
             </div>
+
             <section class="panel">
                 <div class="table-wrap">
                     <table>
                         <thead>
                             <tr>
-                                <th>EVENT TYPE</th><th>SOURCE IP</th><th>USERNAME</th>
-                                <th>OUTCOME</th><th>DESCRIPTION</th><th>OCCURRED</th>
+                                <th>ID</th>
+                                <th>EVENT TYPE</th>
+                                <th>SOURCE IP</th>
+                                <th>USERNAME</th>
+                                <th>OUTCOME</th>
+                                <th>DESCRIPTION</th>
+                                <th>OCCURRED</th>
                             </tr>
                         </thead>
                         <tbody id="events-table">
-                            <tr><td colspan="6" class="empty-state">Loading events...</td></tr>
+                            <tr><td colspan="7" class="empty-state">Loading events...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </section>
+        </section>
+
+        <!-- INVESTIGATION CASE QUEUE -->
+        <section class="view" id="view-investigations">
+            <div class="section-intro">
+                <div>
+                    <p class="eyebrow">INCIDENT MANAGEMENT</p>
+                    <h1>Investigation cases</h1>
+                    <p class="muted">Investigate correlated security activity and coordinate incident response.</p>
+                </div>
+            </div>
+
+            <div class="toolbar">
+                <input type="search" id="case-search"
+                       placeholder="Search case title, source IP or analyst...">
+
+                <select id="case-status-filter" aria-label="Filter cases by status">
+                    <option value="all">All statuses</option>
+                    <option value="open">Open</option>
+                    <option value="investigating">Investigating</option>
+                    <option value="resolved">Resolved</option>
+                </select>
+
+                <select id="case-severity-filter" aria-label="Filter cases by severity">
+                    <option value="all">All severities</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+            </div>
+
+            <section class="panel">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">CORRELATED SECURITY ACTIVITY</p>
+                        <h2>Case register</h2>
+                    </div>
+                    <span class="section-counter" id="case-total">0 cases</span>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>CASE</th>
+                                <th>SEVERITY</th>
+                                <th>SOURCE IP</th>
+                                <th>ALERTS</th>
+                                <th>STATUS</th>
+                                <th>ASSIGNED TO</th>
+                                <th>CREATED</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cases-table">
+                            <tr><td colspan="7" class="empty-state">Loading cases...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+
+        <!-- CASE INVESTIGATION WORKSPACE -->
+        <section class="view" id="view-case">
+
+            <div class="investigation-toolbar">
+                <div>
+                    <p class="eyebrow">INCIDENT RESPONSE / CASE MANAGEMENT</p>
+                    <h1>Case investigation</h1>
+                    <p class="muted">Review correlated alerts, document findings and maintain the investigation record.</p>
+                </div>
+
+                <button class="action-button" id="back-to-cases">← Back to cases</button>
+            </div>
+
+            <div id="case-empty" class="panel empty-state">
+                Select a case from the investigation register.
+            </div>
+
+            <div id="case-content" class="hidden">
+
+                <section class="panel incident-hero">
+                    <div class="incident-hero-top">
+                        <div>
+                            <p class="eyebrow" id="case-reference">CASE</p>
+                            <h2 id="case-title">Loading case...</h2>
+                            <p class="muted" id="case-created">—</p>
+                        </div>
+                        <div id="case-status-display"></div>
+                    </div>
+
+                    <div class="incident-summary-grid">
+                        <div class="detail-field">
+                            <small>Severity</small>
+                            <strong id="case-severity">—</strong>
+                        </div>
+                        <div class="detail-field">
+                            <small>Source IP</small>
+                            <strong id="case-source-ip">—</strong>
+                        </div>
+                        <div class="detail-field">
+                            <small>Linked alerts</small>
+                            <strong id="case-alert-count">—</strong>
+                        </div>
+                        <div class="detail-field">
+                            <small>Assigned analyst</small>
+                            <strong id="case-assigned">Unassigned</strong>
+                        </div>
+                    </div>
+
+                    <div class="case-controls">
+                        <div class="control-group">
+                            <label for="case-status-select">Case status</label>
+                            <select id="case-status-select">
+                                <option value="open">Open</option>
+                                <option value="investigating">Investigating</option>
+                                <option value="resolved">Resolved</option>
+                            </select>
+                            <button class="action-button" id="save-case-status">Update status</button>
+                        </div>
+
+                        <div class="control-group">
+                            <label for="case-assignee">Assign analyst</label>
+                            <input id="case-assignee" type="text"
+                                   maxlength="100" placeholder="e.g. analyst-01">
+                            <button class="action-button" id="save-case-assignment">Save assignment</button>
+                            <button class="secondary-button" id="clear-case-assignment">Unassign</button>
+                        </div>
+                    </div>
+
+                    <div class="case-feedback" id="case-feedback" aria-live="polite"></div>
+                </section>
+
+                <div class="investigation-metrics">
+                    <div class="investigation-stat">
+                        <span>LINKED ALERTS</span>
+                        <strong id="stat-alerts">0</strong>
+                    </div>
+                    <div class="investigation-stat">
+                        <span>INVESTIGATION NOTES</span>
+                        <strong id="stat-notes">0</strong>
+                    </div>
+                    <div class="investigation-stat">
+                        <span>TIMELINE ENTRIES</span>
+                        <strong id="stat-timeline">0</strong>
+                    </div>
+                    <div class="investigation-stat">
+                        <span>AUDIT RECORDS</span>
+                        <strong id="stat-audit">0</strong>
+                    </div>
+                </div>
+
+                <!-- LINKED ALERTS -->
+                <section class="panel investigation-section">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">DETECTION EVIDENCE</p>
+                            <h2>Correlated alerts</h2>
+                        </div>
+                        <span class="section-counter" id="linked-alert-counter">0</span>
+                    </div>
+
+                    <div class="linked-alert-list" id="linked-alerts">
+                        <div class="empty-state">Loading linked alerts...</div>
+                    </div>
+                </section>
+
+                <!-- NOTES -->
+                <section class="panel investigation-section">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">ANALYST WORKLOG</p>
+                            <h2>Investigation notes</h2>
+                        </div>
+                        <span class="section-counter" id="notes-counter">0</span>
+                    </div>
+
+                    <form id="note-form" class="investigation-form">
+                        <label for="note-content">Document an observation or finding</label>
+                        <textarea id="note-content" rows="4" maxlength="10000"
+                                  placeholder="Record evidence, hypotheses, investigative findings or recommended next steps..."
+                                  required></textarea>
+
+                        <div class="form-footer">
+                            <small>Maximum 10,000 characters</small>
+                            <button class="action-button" type="submit" id="add-note-button">
+                                Add investigation note
+                            </button>
+                        </div>
+                    </form>
+
+                    <div id="notes-list" class="record-list">
+                        <div class="empty-state">No investigation notes.</div>
+                    </div>
+                </section>
+
+                <!-- TIMELINE -->
+                <section class="panel investigation-section">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">CASE HISTORY</p>
+                            <h2>Investigation timeline</h2>
+                        </div>
+                        <span class="section-counter" id="timeline-counter">0</span>
+                    </div>
+
+                    <div id="timeline-list" class="timeline-list">
+                        <div class="empty-state">Loading timeline...</div>
+                    </div>
+                </section>
+
+                <!-- AUDIT -->
+                <section class="panel investigation-section">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">ACCOUNTABILITY</p>
+                            <h2>Audit history</h2>
+                        </div>
+                        <span class="section-counter" id="audit-counter">0</span>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>TIME</th>
+                                    <th>ACTION</th>
+                                    <th>ACTOR</th>
+                                    <th>PREVIOUS VALUE</th>
+                                    <th>NEW VALUE</th>
+                                    <th>DETAILS</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-table">
+                                <tr><td colspan="6" class="empty-state">Loading audit history...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p class="audit-disclaimer">
+                        Audit history records application-level activity. It is not currently immutable or tamper-proof.
+                    </p>
+                </section>
+
+            </div>
         </section>
 
         <!-- DETECTION RULES -->
@@ -416,13 +556,17 @@
                     <p class="muted">Understand the logic used to identify suspicious activity.</p>
                 </div>
             </div>
+
             <section class="panel">
                 <div class="table-wrap">
                     <table>
                         <thead>
                             <tr>
-                                <th>RULE ID</th><th>RULE NAME</th><th>SEVERITY</th>
-                                <th>MITRE ATT&CK</th><th>STATUS</th>
+                                <th>RULE ID</th>
+                                <th>RULE NAME</th>
+                                <th>SEVERITY</th>
+                                <th>MITRE ATT&CK</th>
+                                <th>STATUS</th>
                             </tr>
                         </thead>
                         <tbody id="rules-table">
@@ -437,10 +581,12 @@
             <span>AEGIS AUTONOMOUS THREAT DETECTION & RESPONSE</span>
             <span>DEFENSIVE SECURITY MONITORING</span>
         </footer>
+
     </main>
 </div>
 
-<div class="toast" id="toast" role="status"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
 <script src="/dashboard/app.js"></script>
 </body>
 </html>
