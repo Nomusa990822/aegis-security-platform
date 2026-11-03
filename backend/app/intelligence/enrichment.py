@@ -15,28 +15,45 @@ def classify_ip(value: str) -> tuple[IPClassification, bool]:
     """
     Classify an IPv4 or IPv6 address.
 
-    Returns:
-        A tuple containing the classification and whether the address
-        is globally routable.
+    The boolean indicates whether the address is suitable
+    for external public IP intelligence lookups.
     """
     address = ip_address(value)
 
     if address.is_unspecified:
         classification = IPClassification.UNSPECIFIED
+
     elif address.is_loopback:
         classification = IPClassification.LOOPBACK
+
     elif address.is_link_local:
         classification = IPClassification.LINK_LOCAL
+
     elif address.is_multicast:
         classification = IPClassification.MULTICAST
+
     elif address.is_private:
         classification = IPClassification.PRIVATE
+
     elif address.is_reserved:
         classification = IPClassification.RESERVED
+
+    elif address in (
+        ip_address("192.0.2.0") if address.version == 4
+        else ip_address("2001:db8::")
+    ).network if False else False:
+        classification = IPClassification.DOCUMENTATION
+
     else:
         classification = IPClassification.PUBLIC
 
-    return classification, address.is_global
+    is_suitable_for_lookup = (
+        address.is_global
+        and not address.is_multicast
+        and not address.is_reserved
+    )
+
+    return classification, is_suitable_for_lookup
 
 
 class ThreatIntelligenceEnrichmentService:
