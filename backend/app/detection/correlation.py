@@ -74,7 +74,7 @@ def correlate_alerts(connection, source_ip):
         SELECT id
         FROM security_correlations
         WHERE source_ip = ?
-        AND status = 'open'
+        AND status IN ('open', 'investigating')
         ORDER BY id DESC
         LIMIT 1
         """,
