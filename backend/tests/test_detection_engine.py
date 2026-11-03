@@ -1002,3 +1002,318 @@ def test_service_sweep_reuses_existing_active_alert(
         assert second_detection["alert_id"] == first_detection["alert_id"]
 
         assert get_alert_count(connection, "AEGIS-NET-003") == 1
+
+
+# ============================================================
+# EDGE CASES: TIME-WINDOW BOUNDARIES
+# ============================================================
+
+def test_port_scan_excludes_events_outside_time_window(
+    isolated_database,
+):
+    source_ip = "203.0.113.140"
+    destination_ip = "192.0.2.140"
+    now = datetime.now(timezone.utc)
+
+    with get_connection() as connection:
+        # One event is older than the two-minute detection window.
+        insert_event(
+            connection,
+            event_type="network_connection",
+            source_ip=source_ip,
+            destination_ip=destination_ip,
+            destination_port=7999,
+            received_at=now - timedelta(minutes=3),
+        )
+
+        results = []
+
+        for port in range(8000, 8009):
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip=destination_ip,
+                destination_port=port,
+                received_at=now,
+            )
+
+            results.extend(evaluate_event(connection, event))
+
+        port_results = [
+            item for item in results
+            if item["rule_id"] == "AEGIS-NET-001"
+        ]
+
+        assert port_results == []
+        assert get_alert_count(connection, "AEGIS-NET-001") == 0
+
+
+def test_horizontal_scan_excludes_events_outside_time_window(
+    isolated_database,
+):
+    source_ip = "203.0.113.141"
+    now = datetime.now(timezone.utc)
+
+    with get_connection() as connection:
+        insert_event(
+            connection,
+            event_type="network_connection",
+            source_ip=source_ip,
+            destination_ip="192.0.2.1",
+            destination_port=443,
+            received_at=now - timedelta(minutes=3),
+        )
+
+        results = []
+
+        for host in range(2, 11):
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip=f"192.0.2.{host}",
+                destination_port=443,
+                received_at=now,
+            )
+
+            results.extend(evaluate_event(connection, event))
+
+        horizontal_results = [
+            item for item in results
+            if item["rule_id"] == "AEGIS-NET-002"
+        ]
+
+        assert horizontal_results == []
+        assert get_alert_count(connection, "AEGIS-NET-002") == 0
+
+
+def test_service_sweep_excludes_events_outside_time_window(
+    isolated_database,
+):
+    source_ip = "203.0.113.142"
+    now = datetime.now(timezone.utc)
+
+    with get_connection() as connection:
+        insert_event(
+            connection,
+            event_type="network_connection",
+            source_ip=source_ip,
+            destination_ip="192.0.2.1",
+            destination_port=7999,
+            received_at=now - timedelta(minutes=6),
+        )
+
+        results = []
+
+        for index in range(19):
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip=f"192.0.2.{index + 2}",
+                destination_port=8000 + index,
+                received_at=now,
+            )
+
+            results.extend(evaluate_event(connection, event))
+
+        sweep_results = [
+            item for item in results
+            if item["rule_id"] == "AEGIS-NET-003"
+        ]
+
+        assert sweep_results == []
+        assert get_alert_count(connection, "AEGIS-NET-003") == 0
+
+
+def test_beaconing_uses_occurred_at_for_time_window(
+    isolated_database,
+):
+    source_ip = "203.0.113.143"
+    destination_ip = "192.0.2.143"
+    now = datetime.now(timezone.utc)
+
+    with get_connection() as connection:
+        # This event was received recently but occurred too long ago.
+        insert_event(
+            connection,
+            event_type="network_connection",
+            source_ip=source_ip,
+            destination_ip=destination_ip,
+            destination_port=8443,
+            occurred_at=now - timedelta(minutes=12),
+            received_at=now,
+        )
+
+        results = []
+
+        for interval in range(5):
+            event = insert_event(
+                connection,
+                event_type="network_connection",
+                source_ip=source_ip,
+                destination_ip=destination_ip,
+                destination_port=8443,
+                occurred_at=now + timedelta(seconds=interval * 10),
+                received_at=now,
+            )
+
+            results.extend(evaluate_event(connection, event))
+
+        beaconing_results = [
+            item for item in results
+            if item["rule_id"] == "AEGIS-NET-004"
+        ]
+
+        assert beaconing_results == []
+        assert get_alert_count(connection, "AEGIS-NET-004") == 0
+
+
+# ============================================================
+# EDGE CASES: INCOMPLETE NETWORK TELEMETRY
+# ============================================================
+
+def test_network_detectors_ignore_incomplete_telemetry(
+    isolated_database,
+):
+    with get_connection() as connection:
+        incomplete_events = [
+            {
+                "event_type": "network_connection",
+                "source_ip": None,
+                "destination_ip": "192.0.2.150",
+                "destination_port": 443,
+            },
+            {
+                "event_type": "network_connection",
+                "source_ip": "203.0.113.150",
+                "destination_ip": None,
+                "destination_port": 443,
+            },
+            {
+                "event_type": "network_connection",
+                "source_ip": "203.0.113.151",
+                "destination_ip": "192.0.2.151",
+                "destination_port": None,
+            },
+        ]
+
+        for event in incomplete_events:
+            results = evaluate_event(connection, event)
+
+            network_results = [
+                item for item in results
+                if item["rule_id"] in {
+                    "AEGIS-NET-001",
+                    "AEGIS-NET-002",
+                    "AEGIS-NET-003",
+                    "AEGIS-NET-004",
+                }
+            ]
+
+            assert network_results == []
+
+        for rule_id in (
+            "AEGIS-NET-001",
+            "AEGIS-NET-002",
+            "AEGIS-NET-003",
+            "AEGIS-NET-004",
+        ):
+            assert get_alert_count(connection, rule_id) == 0
+
+
+# ============================================================
+# EDGE CASES: SOURCE-IP ISOLATION
+# ============================================================
+
+def test_port_scan_does_not_combine_different_source_ips(
+    isolated_database,
+):
+    destination_ip = "192.0.2.160"
+
+    with get_connection() as connection:
+        results = []
+
+        for source_ip, ports in (
+            ("203.0.113.160", range(8000, 8005)),
+            ("203.0.113.161", range(8005, 8010)),
+        ):
+            for port in ports:
+                event = insert_event(
+                    connection,
+                    event_type="network_connection",
+                    source_ip=source_ip,
+                    destination_ip=destination_ip,
+                    destination_port=port,
+                    protocol="TCP",
+                )
+
+                results.extend(evaluate_event(connection, event))
+
+        port_results = [
+            item for item in results
+            if item["rule_id"] == "AEGIS-NET-001"
+        ]
+
+        assert port_results == []
+        assert get_alert_count(connection, "AEGIS-NET-001") == 0
+
+
+def test_horizontal_scan_does_not_combine_different_source_ips(
+    isolated_database,
+):
+    with get_connection() as connection:
+        results = []
+
+        for source_ip, hosts in (
+            ("203.0.113.162", range(1, 6)),
+            ("203.0.113.163", range(6, 11)),
+        ):
+            for host in hosts:
+                event = insert_event(
+                    connection,
+                    event_type="network_connection",
+                    source_ip=source_ip,
+                    destination_ip=f"192.0.2.{host}",
+                    destination_port=443,
+                    protocol="TCP",
+                )
+
+                results.extend(evaluate_event(connection, event))
+
+        horizontal_results = [
+            item for item in results
+            if item["rule_id"] == "AEGIS-NET-002"
+        ]
+
+        assert horizontal_results == []
+        assert get_alert_count(connection, "AEGIS-NET-002") == 0
+
+
+def test_service_sweep_does_not_combine_different_source_ips(
+    isolated_database,
+):
+    with get_connection() as connection:
+        results = []
+
+        for source_ip in ("203.0.113.164", "203.0.113.165"):
+            for index in range(10):
+                event = insert_event(
+                    connection,
+                    event_type="network_connection",
+                    source_ip=source_ip,
+                    destination_ip=f"192.0.2.{index + 1}",
+                    destination_port=8000 + index,
+                    protocol="TCP",
+                )
+
+                results.extend(evaluate_event(connection, event))
+
+        sweep_results = [
+            item for item in results
+            if item["rule_id"] == "AEGIS-NET-003"
+        ]
+
+        assert sweep_results == []
+        assert get_alert_count(connection, "AEGIS-NET-003") == 0
