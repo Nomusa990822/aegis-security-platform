@@ -24,7 +24,8 @@ const state = {
     alertInvestigation: null,
     currentView: "overview",
     loadingCase: false,
-    loadingAlert: false
+    loadingAlert: false,
+    alertRequestId: 0
 };
 
 const $ = (id) => document.getElementById(id);
@@ -821,7 +822,15 @@ async function openAlert(id) {
     $("alert-workspace-content")?.classList.remove("hidden");
 
     setText("investigation-alert-title", "Loading alert...");
-    setText("investigation-alert-reference", `ALERT-${String(id).padStart(6, "0")}`);
+    setText(
+        "investigation-alert-reference",
+        `ALERT-${String(id).padStart(6, "0")}`
+    );
+
+    setText(
+        "investigation-alert-description",
+        "Retrieving alert details and investigation history..."
+    );
 
     setHTML(
         "alert-notes-list",
@@ -846,10 +855,8 @@ async function openAlert(id) {
     await loadAlertInvestigation(id);
 }
 
-
 async function loadAlertInvestigation(id) {
-    if (state.loadingAlert) return;
-
+    const requestId = ++state.alertRequestId;
     state.loadingAlert = true;
 
     try {
@@ -857,7 +864,13 @@ async function loadAlertInvestigation(id) {
             `${API.alerts}/${id}/investigation`
         );
 
-        if (state.selectedAlert !== id) return;
+        // Ignore responses belonging to an older selection.
+        if (
+            requestId !== state.alertRequestId ||
+            state.selectedAlert !== id
+        ) {
+            return;
+        }
 
         if (!data.alert) {
             throw new Error(
@@ -870,7 +883,11 @@ async function loadAlertInvestigation(id) {
         renderAlertWorkspace(data);
 
     } catch (error) {
-        if (state.selectedAlert === id) {
+        // Only display errors for the currently selected alert.
+        if (
+            requestId === state.alertRequestId &&
+            state.selectedAlert === id
+        ) {
             $("alert-workspace-content")?.classList.add("hidden");
             $("alert-workspace-empty")?.classList.remove("hidden");
 
@@ -878,15 +895,17 @@ async function loadAlertInvestigation(id) {
                 "alert-workspace-empty",
                 `Unable to load alert investigation: ${error.message}`
             );
+
+            showToast(
+                `Could not load alert investigation: ${error.message}`,
+                true
+            );
         }
 
-        showToast(
-            `Could not load alert investigation: ${error.message}`,
-            true
-        );
-
     } finally {
-        state.loadingAlert = false;
+        if (requestId === state.alertRequestId) {
+            state.loadingAlert = false;
+        }
     }
 }
 
