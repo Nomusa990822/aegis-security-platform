@@ -93,8 +93,28 @@ BEACONING_RULE = {
 }
 
 
+
+PASSWORD_SPRAYING_RULE = {
+    "rule_id": "AEGIS-AUTH-002",
+    "name": "Password Spraying Detection",
+    "description": (
+        "A source IP generates authentication failures "
+        "against multiple distinct user accounts."
+    ),
+    "event_type": "authentication",
+    "threshold": 5,
+    "window_minutes": 5,
+    "severity": "high",
+    "mitre_tactic": "Credential Access",
+    "mitre_technique": "T1110.003",
+    "mitre_name": "Password Spraying",
+    "enabled": True
+}
+
+
 DETECTION_RULES = [
     BRUTE_FORCE_RULE,
+    PASSWORD_SPRAYING_RULE,
     PORT_SCAN_RULE,
     HORIZONTAL_SCAN_RULE,
     SERVICE_SWEEP_RULE,
