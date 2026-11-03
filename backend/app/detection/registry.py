@@ -1,16 +1,22 @@
 from app.detection.rules import DETECTION_RULES
+
 from app.detection.detectors.brute_force import (
     detect as detect_brute_force
 )
 
+from app.detection.detectors.port_scan import (
+    detect as detect_port_scan
+)
+
 
 DETECTOR_REGISTRY = {
-    "AEGIS-AUTH-001": detect_brute_force
+    "AEGIS-AUTH-001": detect_brute_force,
+    "AEGIS-NET-001": detect_port_scan
 }
 
 
 def get_detection_rules():
-    """Return the registered detection rule definitions."""
+    """Return registered detection rule definitions."""
     return DETECTION_RULES
 
 
@@ -25,3 +31,4 @@ def get_detector(rule_id):
         )
 
     return detector
+
