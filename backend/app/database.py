@@ -333,10 +333,7 @@ def initialize_database():
                 first_seen TEXT,
                 last_seen TEXT,
                 assessed_at TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (alert_id)
-                    REFERENCES security_alerts(id)
-                    ON DELETE SET NULL
+                created_at TEXT NOT NULL
             )
         """)
 
