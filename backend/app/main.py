@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.database import get_connection, initialize_database
 from app.detection.engine import evaluate_event
 from app.detection.registry import get_detection_rules
+from app.detection.correlation import correlate_alerts
 from app.alerts import router as alerts_router
 
 
@@ -140,6 +141,14 @@ def ingest_event(event: SecurityEvent):
                 event_record
             )
 
+            correlation = None
+
+            if detections and event.source_ip:
+                correlation = correlate_alerts(
+                    connection,
+                    event.source_ip
+                )
+
             connection.commit()
 
             return {
@@ -147,7 +156,8 @@ def ingest_event(event: SecurityEvent):
                 "event_id": event_id,
                 "detection": detections[0] if detections else None,
                 "detections": detections,
-                "detection_count": len(detections)
+                "detection_count": len(detections),
+                "correlation": correlation
             }
 
     except Exception as error:
