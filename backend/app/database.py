@@ -356,7 +356,7 @@ def initialize_database():
         if "alert_id" not in assessment_columns:
             connection.execute("""
                 ALTER TABLE ip_intelligence_assessments
-                ADD COLUMN alert_id INTEGER
+                ADD COLUMN alert_id INTEGER DEFAULT NULL
                 REFERENCES security_alerts(id)
                 ON DELETE SET NULL
             """)
