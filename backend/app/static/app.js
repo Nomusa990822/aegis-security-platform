@@ -2036,6 +2036,15 @@ $("clear-case-assignment")?.addEventListener(
 
 refreshDashboard();
 
+    // Refresh the currently open alert investigation.
+    if (
+        state.currentView === "alert" &&
+        state.selectedAlert &&
+        !state.loadingAlert
+    ) {
+        await loadAlertInvestigation(state.selectedAlert);
+    }
+
 window.setInterval(() => {
     refreshDashboard();
 }, 15000);
