@@ -7,11 +7,14 @@ DATABASE_PATH = Path(__file__).resolve().parent.parent / "aegis.db"
 def get_connection():
     connection = sqlite3.connect(DATABASE_PATH)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 
 def initialize_database():
     with get_connection() as connection:
+
+        # Existing security event storage.
         connection.execute("""
             CREATE TABLE IF NOT EXISTS security_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,6 +28,7 @@ def initialize_database():
             )
         """)
 
+        # Existing security alert storage.
         connection.execute("""
             CREATE TABLE IF NOT EXISTS security_alerts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,4 +42,124 @@ def initialize_database():
             )
         """)
 
+        # Analyst investigation notes.
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS incident_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alert_id INTEGER NOT NULL,
+                author TEXT NOT NULL DEFAULT 'analyst',
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+
+                FOREIGN KEY (alert_id)
+                    REFERENCES security_alerts(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        # Chronological incident activity.
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS incident_timeline (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alert_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                details TEXT,
+                actor TEXT NOT NULL DEFAULT 'analyst',
+                created_at TEXT NOT NULL,
+
+                FOREIGN KEY (alert_id)
+                    REFERENCES security_alerts(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        # Security events associated with an incident.
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS incident_evidence (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alert_id INTEGER NOT NULL,
+                event_id INTEGER NOT NULL,
+                analyst_note TEXT,
+                linked_by TEXT NOT NULL DEFAULT 'analyst',
+                linked_at TEXT NOT NULL,
+
+                UNIQUE (alert_id, event_id),
+
+                FOREIGN KEY (alert_id)
+                    REFERENCES security_alerts(id)
+                    ON DELETE CASCADE,
+
+                FOREIGN KEY (event_id)
+                    REFERENCES security_events(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        # Audit trail for alert-management actions.
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS alert_audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alert_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                actor TEXT NOT NULL DEFAULT 'analyst',
+                previous_value TEXT,
+                new_value TEXT,
+                details TEXT,
+                created_at TEXT NOT NULL,
+
+                FOREIGN KEY (alert_id)
+                    REFERENCES security_alerts(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        # Indexes for investigation queries.
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_incident_notes_alert
+            ON incident_notes(alert_id)
+        """)
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_incident_timeline_alert
+            ON incident_timeline(alert_id, id)
+        """)
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_incident_evidence_alert
+            ON incident_evidence(alert_id)
+        """)
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_alert_audit_alert
+            ON alert_audit_log(alert_id, id)
+        """)
+
+        # Add an initial timeline entry for existing alerts
+        # that do not yet have an incident history.
+        connection.execute("""
+            INSERT INTO incident_timeline (
+                alert_id,
+                action,
+                summary,
+                details,
+                actor,
+                created_at
+            )
+            SELECT
+                a.id,
+                'alert_created',
+                'Security alert created',
+                a.description,
+                'system',
+                a.created_at
+            FROM security_alerts AS a
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM incident_timeline AS t
+                WHERE t.alert_id = a.id
+            )
+        """)
+
         connection.commit()
+
