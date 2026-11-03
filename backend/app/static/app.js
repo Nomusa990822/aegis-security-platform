@@ -453,7 +453,9 @@ function renderMetrics() {
     setText("metric-active-cases", activeCases);
     setText("metric-critical", criticalCases);
 
+    // Sidebar counters
     setText("sidebar-alert-count", openAlerts);
+    setText("sidebar-case-count", activeCases);
 }
 
 /* =========================================================
