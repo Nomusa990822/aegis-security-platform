@@ -417,6 +417,15 @@ async function refreshDashboard() {
     ) {
         await loadCaseDetails(state.selectedCase.id, false);
     }
+
+    // Refresh the currently open alert investigation.
+    if (
+        state.currentView === "alert" &&
+        state.selectedAlert &&
+        !state.loadingAlert
+    ) {
+        await loadAlertInvestigation(state.selectedAlert);
+    }
 }
 
 /* =========================================================
