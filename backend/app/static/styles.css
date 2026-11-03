@@ -320,3 +320,465 @@ tbody tr:hover { background: #172235; }
     .detail-grid { grid-template-columns: 1fr; }
     .footer { gap: 10px; line-height: 1.5; }
 }
+
+/* ======================================================
+   AEGIS INCIDENT INVESTIGATION WORKSPACE
+====================================================== */
+
+.investigation-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 18px;
+    margin-bottom: 22px;
+}
+
+.investigation-toolbar h1 {
+    font-size: clamp(25px, 3vw, 33px);
+    letter-spacing: -1.1px;
+    margin: 8px 0;
+}
+
+.investigation-toolbar p {
+    margin-top: 7px;
+}
+
+.incident-hero {
+    margin-bottom: 16px;
+    padding: 23px;
+}
+
+.incident-hero-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 15px;
+    margin-bottom: 23px;
+}
+
+.incident-hero-top h2 {
+    font-size: clamp(19px, 2.5vw, 25px);
+    letter-spacing: -.6px;
+    margin: 7px 0;
+}
+
+.incident-hero-top .muted {
+    font-size: 11px;
+    margin: 0;
+}
+
+.incident-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 11px;
+}
+
+.incident-summary-grid .detail-field {
+    border: 1px solid #26364d;
+}
+
+.incident-status-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    border-top: 1px solid var(--border);
+    padding-top: 17px;
+    margin-top: 17px;
+}
+
+.incident-status-controls label {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.incident-status-controls select,
+.investigation-form select,
+.investigation-form textarea {
+    background: #0d1523;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    padding: 10px 12px;
+    outline: none;
+    font: inherit;
+    font-size: 11px;
+}
+
+.incident-status-controls select:focus,
+.investigation-form select:focus,
+.investigation-form textarea:focus {
+    border-color: #7799dc;
+}
+
+.incident-status-controls select {
+    min-width: 145px;
+}
+
+.incident-status-controls #status-feedback {
+    font-size: 10px;
+}
+
+.mitre-link {
+    color: #a9c2ff;
+    text-decoration: none;
+}
+
+.mitre-link:hover {
+    color: white;
+    text-decoration: underline;
+}
+
+.investigation-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 17px;
+}
+
+.investigation-stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 15px 17px;
+}
+
+.investigation-stat span {
+    display: block;
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.investigation-stat strong {
+    display: block;
+    font-size: 25px;
+    margin-top: 9px;
+}
+
+.investigation-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+}
+
+.investigation-section {
+    margin-bottom: 16px;
+    min-width: 0;
+}
+
+.investigation-section .panel-heading {
+    margin-bottom: 17px;
+}
+
+.section-counter {
+    display: inline-grid;
+    place-items: center;
+    min-width: 27px;
+    height: 27px;
+    padding: 0 7px;
+    border: 1px solid #344968;
+    border-radius: 7px;
+    color: #b9cdf2;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.investigation-form {
+    display: grid;
+    gap: 9px;
+    padding: 14px;
+    background: #0d1523;
+    border: 1px solid #25344a;
+    border-radius: 9px;
+    margin-bottom: 16px;
+}
+
+.investigation-form label {
+    color: #b7c4d7;
+    font-size: 10px;
+    font-weight: 650;
+}
+
+.investigation-form textarea {
+    width: 100%;
+    min-height: 75px;
+    resize: vertical;
+    line-height: 1.6;
+}
+
+.investigation-form textarea::placeholder {
+    color: #64738a;
+}
+
+.investigation-form select {
+    width: 100%;
+    min-width: 0;
+}
+
+.form-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.form-footer small {
+    color: #718097;
+    font-size: 9px;
+}
+
+.action-button:disabled {
+    opacity: .55;
+    cursor: wait;
+}
+
+.record-list {
+    display: grid;
+    gap: 10px;
+}
+
+.record-card {
+    border: 1px solid #27364b;
+    background: #131e2e;
+    border-radius: 8px;
+    padding: 13px;
+    min-width: 0;
+}
+
+.record-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.record-card-header strong {
+    color: #dce6f5;
+    font-size: 11px;
+}
+
+.record-card-header time {
+    color: var(--muted);
+    font-size: 9px;
+}
+
+.record-card > p {
+    color: #b9c6d8;
+    font-size: 11px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin: 11px 0;
+}
+
+.record-id {
+    display: block;
+    color: #71829b;
+    font-size: 9px;
+    letter-spacing: .4px;
+    margin-top: 10px;
+    overflow-wrap: anywhere;
+}
+
+.evidence-outcome {
+    color: var(--green);
+    font-size: 9px;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.evidence-outcome.failed {
+    color: var(--red);
+}
+
+.evidence-details {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 13px;
+}
+
+.evidence-details span {
+    color: #d0dced;
+    font-size: 10px;
+    overflow-wrap: anywhere;
+}
+
+.evidence-details small {
+    display: block;
+    color: var(--muted);
+    font-size: 8px;
+    letter-spacing: .8px;
+    margin-bottom: 5px;
+}
+
+.evidence-description {
+    padding-top: 10px;
+    border-top: 1px solid #29374b;
+}
+
+.record-card .evidence-annotation {
+    background: #1a2940;
+    border-left: 2px solid #7799dc;
+    border-radius: 3px;
+    padding: 9px 11px;
+    color: #c6d5ed;
+}
+
+.timeline-section {
+    margin-top: 0;
+}
+
+.timeline-list {
+    padding: 5px 0 0 4px;
+}
+
+.timeline-item {
+    display: flex;
+    gap: 14px;
+    position: relative;
+    padding-bottom: 21px;
+}
+
+.timeline-item:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    width: 1px;
+    background: #344967;
+    left: 5px;
+    top: 13px;
+    bottom: 0;
+}
+
+.timeline-marker {
+    position: relative;
+    z-index: 1;
+    flex: 0 0 11px;
+    width: 11px;
+    height: 11px;
+    border: 2px solid #91adE9;
+    border-radius: 50%;
+    background: #17253a;
+    margin-top: 3px;
+}
+
+.timeline-content {
+    min-width: 0;
+    flex: 1;
+}
+
+.timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.timeline-header strong {
+    font-size: 11px;
+    color: #dce6f5;
+}
+
+.timeline-header time {
+    color: var(--muted);
+    font-size: 9px;
+}
+
+.timeline-content p {
+    color: #aab8cb;
+    font-size: 10px;
+    line-height: 1.6;
+    margin: 7px 0;
+    overflow-wrap: anywhere;
+}
+
+.audit-disclaimer {
+    color: #7f8da2;
+    font-size: 9px;
+    line-height: 1.6;
+    margin: 13px 0 0;
+}
+
+.investigation-section .table-wrap {
+    border-radius: 7px;
+}
+
+.investigation-section td {
+    white-space: normal;
+    min-width: 85px;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+}
+
+.investigation-section th {
+    white-space: nowrap;
+}
+
+@media (max-width: 1050px) {
+    .incident-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .investigation-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 700px) {
+    .investigation-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .incident-hero {
+        padding: 15px;
+    }
+
+    .incident-hero-top {
+        flex-direction: column;
+    }
+
+    .incident-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .investigation-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .investigation-stat {
+        padding: 12px;
+    }
+
+    .investigation-stat strong {
+        font-size: 22px;
+    }
+
+    .incident-status-controls {
+        align-items: stretch;
+    }
+
+    .incident-status-controls label {
+        flex-basis: 100%;
+    }
+
+    .incident-status-controls select,
+    .incident-status-controls button {
+        flex: 1;
+    }
+
+    .evidence-details {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .timeline-header {
+        display: grid;
+    }
+}
