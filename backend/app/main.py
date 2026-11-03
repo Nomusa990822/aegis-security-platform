@@ -9,11 +9,23 @@ from app.database import get_connection, initialize_database
 from app.detection.engine import detect_brute_force
 from app.alerts import router as alerts_router
 
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
 
 app = FastAPI(
     title="AEGIS Security Platform",
     description="Autonomous Threat Detection and Response Platform",
     version="0.3.0"
+)
+
+app.mount(
+    "/dashboard",
+    StaticFiles(
+        directory=Path(__file__).resolve().parent / "static",
+        html=True
+    ),
+    name="dashboard"
 )
 
 # Register alert management endpoints
