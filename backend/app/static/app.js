@@ -20,8 +20,11 @@ const state = {
     rules: [],
     cases: [],
     selectedCase: null,
+    selectedAlert: null,
+    alertInvestigation: null,
     currentView: "overview",
-    loadingCase: false
+    loadingCase: false,
+    loadingAlert: false
 };
 
 const $ = (id) => document.getElementById(id);
@@ -608,26 +611,12 @@ function renderAlertsTable() {
         `).join("")
     );
 
-    document.querySelectorAll("[data-open-alert]").forEach(button => {
-        button.addEventListener("click", () => {
-            const alertId = Number(button.dataset.openAlert);
-
-            const linkedCase = state.cases.find(item =>
-                Number(item.id) &&
-                state.alerts.some(alert =>
-                    Number(alert.id) === alertId
-                )
-            );
-
-            if (linkedCase) {
-                openCase(linkedCase.id);
-            } else {
-                showToast(
-                    "This alert is not currently linked to a case."
-                );
-            }
-        });
-    });
+   document.querySelectorAll("[data-open-alert]").forEach(button => {
+       button.addEventListener("click", () => {
+           const alertId = Number(button.dataset.openAlert);
+           openAlert(alertId);
+       });
+   });
 }
 
 /* =========================================================
@@ -1347,6 +1336,7 @@ function switchView(view) {
         "events",
         "investigations",
         "case",
+        "alert",
         "rules"
     ];
 
@@ -1374,6 +1364,7 @@ function switchView(view) {
         events: "Security Events",
         investigations: "Investigations",
         case: "Case Workspace",
+        alert: "Alert Investigation",
         rules: "Detection Rules"
     };
 
