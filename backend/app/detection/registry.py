@@ -18,7 +18,7 @@ DETECTOR_REGISTRY = {
     "AEGIS-NET-002": detect_horizontal_scan,
     "AEGIS-NET-003": detect_service_sweep,
     "AEGIS-NET-004": detect_beaconing,
-    "AEGIS-AUTH-002": detect_password_spraying,
+    "AEGIS-AUTH-002": detect_password_spraying
 }
 
 
