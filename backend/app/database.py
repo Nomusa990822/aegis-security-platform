@@ -161,6 +161,56 @@ def initialize_database():
             )
         """)
 
+        
+        # Security alert correlation cases.
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS security_correlations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                source_ip TEXT,
+                description TEXT NOT NULL,
+                alert_count INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'open',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+
+        # Links existing security alerts to correlation cases.
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS security_correlation_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                correlation_id INTEGER NOT NULL,
+                alert_id INTEGER NOT NULL,
+                linked_at TEXT NOT NULL,
+                UNIQUE (correlation_id, alert_id),
+                FOREIGN KEY (correlation_id)
+                    REFERENCES security_correlations(id)
+                    ON DELETE CASCADE,
+                FOREIGN KEY (alert_id)
+                    REFERENCES security_alerts(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        # Correlation query indexes.
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_correlations_source_ip
+            ON security_correlations(source_ip)
+        """)
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_correlation_alerts_correlation
+            ON security_correlation_alerts(correlation_id)
+        """)
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_correlation_alerts_alert
+            ON security_correlation_alerts(alert_id)
+        """)
+
+
         # Seed timeline entries for pre-existing alerts.
         connection.execute("""
             INSERT INTO incident_timeline (
