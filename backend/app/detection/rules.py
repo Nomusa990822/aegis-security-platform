@@ -9,7 +9,12 @@ BRUTE_FORCE_RULE = {
     "threshold": 5,
     "window_minutes": 5,
     "severity": "high",
+    "mitre_tactic": "Credential Access",
     "mitre_technique": "T1110",
     "mitre_name": "Brute Force",
     "enabled": True
 }
+
+DETECTION_RULES = [
+    BRUTE_FORCE_RULE
+]
