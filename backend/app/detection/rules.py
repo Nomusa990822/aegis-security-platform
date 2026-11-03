@@ -71,9 +71,32 @@ SERVICE_SWEEP_RULE = {
 }
 
 
+
+BEACONING_RULE = {
+    "rule_id": "AEGIS-NET-004",
+    "name": "Suspicious Network Beaconing",
+    "description": (
+        "Detects repeated connections between the same source "
+        "and destination with unusually regular time intervals."
+    ),
+    "event_type": "network_connection",
+    "threshold": 6,
+    "window_minutes": 10,
+    "min_interval_seconds": 5,
+    "max_interval_seconds": 120,
+    "max_interval_variation": 0.15,
+    "severity": "high",
+    "mitre_tactic": "Command and Control",
+    "mitre_technique": "T1071",
+    "mitre_name": "Application Layer Protocol",
+    "enabled": True
+}
+
+
 DETECTION_RULES = [
     BRUTE_FORCE_RULE,
     PORT_SCAN_RULE,
     HORIZONTAL_SCAN_RULE,
-    SERVICE_SWEEP_RULE
+    SERVICE_SWEEP_RULE,
+    BEACONING_RULE
 ]
