@@ -1951,6 +1951,25 @@ $("back-to-cases")?.addEventListener("click", () => {
     switchView("investigations");
 });
 
+$("back-to-alerts")?.addEventListener("click", () => {
+    switchView("alerts");
+});
+
+$("alert-note-form")?.addEventListener(
+    "submit",
+    submitAlertNote
+);
+
+$("alert-evidence-form")?.addEventListener(
+    "submit",
+    submitAlertEvidence
+);
+
+$("save-alert-status")?.addEventListener(
+    "click",
+    updateAlertStatus
+);
+
 $("refresh-button")?.addEventListener(
     "click",
     refreshDashboard
