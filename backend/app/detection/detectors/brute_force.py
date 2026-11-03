@@ -1,5 +1,4 @@
-
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def detect(connection, event, rule):
