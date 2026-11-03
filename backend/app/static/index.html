@@ -1,0 +1,261 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#090d16">
+    <title>AEGIS | Security Operations Centre</title>
+    <link rel="stylesheet" href="/dashboard/styles.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <a class="brand" href="/dashboard/">
+                <div class="brand-mark">A</div>
+                <div>
+                    <span class="brand-name">AEGIS</span>
+                    <span class="brand-subtitle">SECURITY PLATFORM</span>
+                </div>
+            </a>
+
+            <div class="nav-label">WORKSPACE</div>
+            <nav class="navigation">
+                <button class="nav-item active" data-view="overview">
+                    <span class="nav-icon">◫</span> Overview
+                </button>
+                <button class="nav-item" data-view="alerts">
+                    <span class="nav-icon">⚑</span> Alerts
+                    <span class="nav-count" id="sidebar-alert-count">0</span>
+                </button>
+                <button class="nav-item" data-view="events">
+                    <span class="nav-icon">⌁</span> Security Events
+                </button>
+            </nav>
+
+            <div class="nav-label detection-label">DETECTION</div>
+            <nav class="navigation">
+                <button class="nav-item" data-view="rules">
+                    <span class="nav-icon">⌘</span> Detection Rules
+                </button>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <div class="connection-indicator">
+                    <span class="status-dot" id="connection-dot"></span>
+                    <div>
+                        <strong id="connection-text">Connecting...</strong>
+                        <small>Backend connection</small>
+                    </div>
+                </div>
+                <div class="sidebar-version">AEGIS v0.3.0 · SOC CONSOLE</div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="topbar">
+                <div>
+                    <div class="breadcrumb">AEGIS <span>/</span> <strong id="breadcrumb-current">Overview</strong></div>
+                    <div class="page-heading" id="page-heading">Security overview</div>
+                </div>
+                <div class="topbar-actions">
+                    <div class="live-indicator">
+                        <span class="status-dot"></span>
+                        LIVE MONITORING
+                    </div>
+                    <button class="icon-button" id="refresh-button" title="Refresh data">↻</button>
+                </div>
+            </header>
+
+            <section class="view active" id="view-overview">
+                <div class="welcome-row">
+                    <div>
+                        <p class="eyebrow">THREAT MONITORING</p>
+                        <h1>Security at a glance.</h1>
+                        <p class="muted">Monitor activity, identify threats and manage security incidents.</p>
+                    </div>
+                    <div class="updated-label">Last updated <span id="last-updated">—</span></div>
+                </div>
+
+                <div class="metric-grid">
+                    <article class="metric-card">
+                        <div class="metric-top"><span>EVENTS RECEIVED</span><span class="metric-symbol">⌁</span></div>
+                        <div class="metric-value" id="metric-events">—</div>
+                        <div class="metric-foot">Recorded security events</div>
+                    </article>
+                    <article class="metric-card">
+                        <div class="metric-top"><span>OPEN ALERTS</span><span class="metric-symbol warning">⚑</span></div>
+                        <div class="metric-value" id="metric-open">—</div>
+                        <div class="metric-foot">Awaiting investigation</div>
+                    </article>
+                    <article class="metric-card">
+                        <div class="metric-top"><span>INVESTIGATING</span><span class="metric-symbol blue">◎</span></div>
+                        <div class="metric-value" id="metric-investigating">—</div>
+                        <div class="metric-foot">Under analyst review</div>
+                    </article>
+                    <article class="metric-card">
+                        <div class="metric-top"><span>RESOLVED</span><span class="metric-symbol green">✓</span></div>
+                        <div class="metric-value" id="metric-resolved">—</div>
+                        <div class="metric-foot">Resolved incidents</div>
+                    </article>
+                </div>
+
+                <div class="content-grid">
+                    <section class="panel alert-panel">
+                        <div class="panel-heading">
+                            <div>
+                                <p class="eyebrow">INCIDENT MANAGEMENT</p>
+                                <h2>Recent alerts</h2>
+                            </div>
+                            <button class="text-button" data-open-view="alerts">View all →</button>
+                        </div>
+                        <div id="recent-alerts" class="alert-list">
+                            <div class="empty-state">Loading alerts...</div>
+                        </div>
+                    </section>
+
+                    <section class="panel system-panel">
+                        <div class="panel-heading">
+                            <div>
+                                <p class="eyebrow">PLATFORM STATUS</p>
+                                <h2>System health</h2>
+                            </div>
+                            <span class="health-label" id="health-label">Checking</span>
+                        </div>
+                        <div class="health-row">
+                            <span class="health-indicator" id="api-health-dot"></span>
+                            <div><strong>API service</strong><small>FastAPI application</small></div>
+                            <span class="health-value" id="api-health">Checking</span>
+                        </div>
+                        <div class="health-row">
+                            <span class="health-indicator" id="db-health-dot"></span>
+                            <div><strong>Event database</strong><small>SQLite storage</small></div>
+                            <span class="health-value" id="db-health">Checking</span>
+                        </div>
+                        <div class="system-note">
+                            <span class="note-icon">i</span>
+                            <p>Health indicators reflect the backend health endpoint. They do not represent a full infrastructure security assessment.</p>
+                        </div>
+                    </section>
+                </div>
+
+                <section class="panel activity-panel">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">TELEMETRY</p>
+                            <h2>Recent security events</h2>
+                        </div>
+                        <button class="text-button" data-open-view="events">View events →</button>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>EVENT TYPE</th><th>SOURCE IP</th><th>USERNAME</th><th>OUTCOME</th><th>TIME</th></tr>
+                            </thead>
+                            <tbody id="recent-events">
+                                <tr><td colspan="5" class="empty-state">Loading events...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+
+            <section class="view" id="view-alerts">
+                <div class="section-intro">
+                    <div>
+                        <p class="eyebrow">INCIDENT MANAGEMENT</p>
+                        <h1>Alert queue</h1>
+                        <p class="muted">Review detections and manage incident status.</p>
+                    </div>
+                </div>
+                <div class="toolbar">
+                    <input type="search" id="alert-search" placeholder="Search alerts, IP addresses or rules...">
+                    <select id="alert-status-filter">
+                        <option value="all">All statuses</option>
+                        <option value="open">Open</option>
+                        <option value="investigating">Investigating</option>
+                        <option value="resolved">Resolved</option>
+                    </select>
+                    <select id="alert-severity-filter">
+                        <option value="all">All severities</option>
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <section class="panel">
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>ALERT</th><th>SEVERITY</th><th>SOURCE IP</th><th>RULE</th><th>STATUS</th><th>CREATED</th><th></th></tr>
+                            </thead>
+                            <tbody id="alerts-table">
+                                <tr><td colspan="7" class="empty-state">Loading alerts...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+                <div class="detail-panel panel hidden" id="alert-detail">
+                    <div class="panel-heading">
+                        <div><p class="eyebrow">INCIDENT DETAILS</p><h2 id="detail-title">Alert details</h2></div>
+                        <button class="icon-button" id="close-detail" aria-label="Close details">×</button>
+                    </div>
+                    <div id="detail-content"></div>
+                </div>
+            </section>
+
+            <section class="view" id="view-events">
+                <div class="section-intro">
+                    <div>
+                        <p class="eyebrow">TELEMETRY</p>
+                        <h1>Security events</h1>
+                        <p class="muted">Review events received by the AEGIS ingestion API.</p>
+                    </div>
+                </div>
+                <div class="toolbar">
+                    <input type="search" id="event-search" placeholder="Search event type, IP or username...">
+                </div>
+                <section class="panel">
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr><th>EVENT TYPE</th><th>SOURCE IP</th><th>USERNAME</th><th>OUTCOME</th><th>DESCRIPTION</th><th>OCCURRED</th></tr>
+                            </thead>
+                            <tbody id="events-table">
+                                <tr><td colspan="6" class="empty-state">Loading events...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+
+            <section class="view" id="view-rules">
+                <div class="section-intro">
+                    <div>
+                        <p class="eyebrow">DETECTION ENGINE</p>
+                        <h1>Detection rules</h1>
+                        <p class="muted">Understand the logic used to identify suspicious activity.</p>
+                    </div>
+                </div>
+                <section class="panel">
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>RULE ID</th><th>RULE NAME</th><th>SEVERITY</th><th>MITRE ATT&CK</th><th>STATUS</th></tr></thead>
+                            <tbody id="rules-table"><tr><td colspan="5" class="empty-state">Loading detection rules...</td></tr></tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+
+            <footer class="footer">
+                <span>AEGIS AUTONOMOUS THREAT DETECTION & RESPONSE</span>
+                <span>DEFENSIVE SECURITY MONITORING</span>
+            </footer>
+        </main>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+    <script src="/dashboard/app.js"></script>
+</body>
+</html>
