@@ -819,7 +819,13 @@ async function openAlert(id) {
     switchView("alert");
 
     $("alert-workspace-empty")?.classList.add("hidden");
-    $("alert-workspace-content")?.classList.remove("hidden");
+
+   const workspaceContent = $("alert-workspace-content");
+
+   if (workspaceContent) {
+       workspaceContent.hidden = false;
+       workspaceContent.classList.remove("hidden");
+   }
 
     setText("investigation-alert-title", "Loading alert...");
     setText(
@@ -888,7 +894,13 @@ async function loadAlertInvestigation(id) {
             requestId === state.alertRequestId &&
             state.selectedAlert === id
         ) {
-            $("alert-workspace-content")?.classList.add("hidden");
+            const workspaceContent = $("alert-workspace-content");
+
+            if (workspaceContent) {
+                workspaceContent.hidden = true;
+                workspaceContent.classList.add("hidden");
+            }
+
             $("alert-workspace-empty")?.classList.remove("hidden");
 
             setText(
@@ -918,7 +930,13 @@ function renderAlertWorkspace(data) {
     const audit = data.audit_log ?? [];
 
     $("alert-workspace-empty")?.classList.add("hidden");
-    $("alert-workspace-content")?.classList.remove("hidden");
+
+   const workspaceContent = $("alert-workspace-content");
+
+   if (workspaceContent) {
+       workspaceContent.hidden = false;
+       workspaceContent.classList.remove("hidden");
+   }
 
     setText(
         "investigation-alert-title",
