@@ -315,6 +315,103 @@ def initialize_database():
             ON correlation_audit_log(correlation_id)
         """)
 
+        # ----------------------------------------------------------------------
+        # THREAT INTELLIGENCE ASSESSMENTS
+        # ----------------------------------------------------------------------
+
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS ip_intelligence_assessments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip_address TEXT NOT NULL,
+                classification TEXT NOT NULL,
+                is_global INTEGER NOT NULL,
+                enrichment_status TEXT NOT NULL,
+                threat_score INTEGER NOT NULL DEFAULT 0,
+                confidence REAL NOT NULL DEFAULT 0.0,
+                reputation TEXT NOT NULL DEFAULT 'unknown',
+                categories TEXT NOT NULL DEFAULT '[]',
+                first_seen TEXT,
+                last_seen TEXT,
+                assessed_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (alert_id)
+                    REFERENCES security_alerts(id)
+                    ON DELETE SET NULL
+            )
+        """)
+
+        # ----------------------------------------------------------------------
+        # ASSESSMENT TO ALERT RELATIONSHIP
+        # ----------------------------------------------------------------------
+
+        # Add alert_id separately so assessments can exist independently
+        # and later be associated with one or more security alerts.
+        assessment_columns = {
+            row["name"]
+            for row in connection.execute(
+                "PRAGMA table_info(ip_intelligence_assessments)"
+            ).fetchall()
+        }
+
+        if "alert_id" not in assessment_columns:
+            connection.execute("""
+                ALTER TABLE ip_intelligence_assessments
+                ADD COLUMN alert_id INTEGER
+                REFERENCES security_alerts(id)
+                ON DELETE SET NULL
+            """)
+
+        # ----------------------------------------------------------------------
+        # INDIVIDUAL INTELLIGENCE PROVIDER RESULTS
+        # ----------------------------------------------------------------------
+
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS ip_intelligence_provider_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                assessment_id INTEGER NOT NULL,
+                provider TEXT NOT NULL,
+                status TEXT NOT NULL,
+                reputation TEXT,
+                confidence REAL NOT NULL DEFAULT 0.0,
+                categories TEXT NOT NULL DEFAULT '[]',
+                details TEXT NOT NULL DEFAULT '{}',
+                error TEXT,
+                checked_at TEXT NOT NULL,
+                FOREIGN KEY (assessment_id)
+                    REFERENCES ip_intelligence_assessments(id)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        # ----------------------------------------------------------------------
+        # THREAT INTELLIGENCE INDEXES
+        # ----------------------------------------------------------------------
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_intelligence_assessments_ip
+            ON ip_intelligence_assessments(ip_address)
+        """)
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_intelligence_assessments_alert
+            ON ip_intelligence_assessments(alert_id)
+        """)
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_intelligence_assessments_time
+            ON ip_intelligence_assessments(assessed_at)
+        """)
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_intelligence_provider_assessment
+            ON ip_intelligence_provider_results(assessment_id)
+        """)
+
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_intelligence_provider_name
+            ON ip_intelligence_provider_results(provider)
+        """)
+
         # --------------------------------------------------
         # SEED EXISTING ALERT TIMELINES
         # --------------------------------------------------
