@@ -52,9 +52,28 @@ HORIZONTAL_SCAN_RULE = {
 }
 
 
+
+SERVICE_SWEEP_RULE = {
+    "rule_id": "AEGIS-NET-003",
+    "name": "Broad Network Service Discovery",
+    "description": (
+        "A source IP contacts numerous distinct destination "
+        "IP and port combinations within a short time window."
+    ),
+    "event_type": "network_connection",
+    "threshold": 20,
+    "window_minutes": 5,
+    "severity": "high",
+    "mitre_tactic": "Discovery",
+    "mitre_technique": "T1046",
+    "mitre_name": "Network Service Discovery",
+    "enabled": True
+}
+
+
 DETECTION_RULES = [
     BRUTE_FORCE_RULE,
     PORT_SCAN_RULE,
-    HORIZONTAL_SCAN_RULE
+    HORIZONTAL_SCAN_RULE,
+    SERVICE_SWEEP_RULE
 ]
-
