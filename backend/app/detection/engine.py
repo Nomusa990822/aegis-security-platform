@@ -1,119 +1,52 @@
-from datetime import datetime, timezone, timedelta
-
 from app.detection.rules import BRUTE_FORCE_RULE
+from app.detection.registry import (
+    get_detection_rules,
+    get_detector
+)
+
+
+def evaluate_event(connection, event):
+    """
+    Evaluate a security event against all enabled,
+    registered detection rules.
+
+    Returns a list containing every detection match.
+    """
+
+    detections = []
+
+    for rule in get_detection_rules():
+
+        if not rule.get("enabled", False):
+            continue
+
+        detector = get_detector(rule["rule_id"])
+
+        result = detector(
+            connection,
+            event,
+            rule
+        )
+
+        if result is not None:
+            detections.append(result)
+
+    return detections
 
 
 def detect_brute_force(connection, event):
+    """
+    Backward-compatible brute-force detection interface.
+    """
 
-    rule = BRUTE_FORCE_RULE
-
-    if not rule["enabled"]:
+    if not BRUTE_FORCE_RULE.get("enabled", False):
         return None
 
-    if event["event_type"].lower() != "authentication":
-        return None
+    detector = get_detector(BRUTE_FORCE_RULE["rule_id"])
 
-    if (event["outcome"] or "").lower() != "failure":
-        return None
-
-    source_ip = event["source_ip"]
-    username = event["username"]
-
-    if not source_ip or not username:
-        return None
-
-    now = datetime.now(timezone.utc)
-
-    cutoff = (
-        now - timedelta(minutes=rule["window_minutes"])
-    ).isoformat()
-
-    # Retrieve recent failed authentication attempts.
-    rows = connection.execute(
-        """
-        SELECT id, received_at
-        FROM security_events
-        WHERE event_type = ?
-        AND LOWER(outcome) = 'failure'
-        AND source_ip = ?
-        AND username = ?
-        AND received_at >= ?
-        """,
-        (
-            "authentication",
-            source_ip,
-            username,
-            cutoff
-        )
-    ).fetchall()
-
-    attempt_count = len(rows)
-
-    if attempt_count < rule["threshold"]:
-        return None
-
-    # Prevent duplicate open alerts for the same detection.
-    existing = connection.execute(
-        """
-        SELECT id
-        FROM security_alerts
-        WHERE detection_rule = ?
-        AND source_ip = ?
-        AND description LIKE ?
-        AND status = 'open'
-        LIMIT 1
-        """,
-        (
-            rule["rule_id"],
-            source_ip,
-            f"%Username: {username}%"
-        )
-    ).fetchone()
-
-    if existing:
-        return {
-            "alert_id": existing["id"],
-            "message": "Existing alert updated by new event",
-            "created": False
-        }
-
-    description = (
-        f"Detected {attempt_count} failed authentication attempts "
-        f"within {rule['window_minutes']} minutes. "
-        f"Source IP: {source_ip}. "
-        f"Username: {username}. "
-        f"MITRE ATT&CK: {rule['mitre_technique']} "
-        f"({rule['mitre_name']})."
+    return detector(
+        connection,
+        event,
+        BRUTE_FORCE_RULE
     )
 
-    cursor = connection.execute(
-        """
-        INSERT INTO security_alerts (
-            title,
-            severity,
-            description,
-            source_ip,
-            detection_rule,
-            created_at,
-            status
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            rule["name"],
-            rule["severity"],
-            description,
-            source_ip,
-            rule["rule_id"],
-            now.isoformat(),
-            "open"
-        )
-    )
-
-    return {
-        "alert_id": cursor.lastrowid,
-        "message": "Brute force activity detected",
-        "created": True,
-        "attempt_count": attempt_count,
-        "severity": rule["severity"]
-    }
