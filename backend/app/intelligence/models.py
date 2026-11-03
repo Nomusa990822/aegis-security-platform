@@ -14,6 +14,7 @@ class IPClassification(str, Enum):
     MULTICAST = "multicast"
     RESERVED = "reserved"
     UNSPECIFIED = "unspecified"
+    DOCUMENTATION = "documentation"
 
 
 class EnrichmentStatus(str, Enum):
