@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.database import get_connection
 
@@ -32,9 +32,24 @@ class CorrelationAssignment(BaseModel):
 
 
 class CorrelationNoteCreate(BaseModel):
-    author: str = Field(default="analyst", min_length=1, max_length=100)
-    content: str = Field(min_length=1, max_length=10000)
+    author: str = Field(
+        default="analyst",
+        min_length=1,
+        max_length=100
+    )
 
+    content: str = Field(
+        min_length=1,
+        max_length=10000
+    )
+
+    @field_validator("author", "content")
+    @classmethod
+    def reject_blank_values(cls, value):
+        if not value.strip():
+            raise ValueError("This field cannot be empty or whitespace")
+
+        return value.strip()
 
 # --------------------------------------------------
 # HELPERS
