@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -14,10 +15,17 @@ from app.alerts import router as alerts_router
 from app.correlations import router as correlations_router
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    initialize_database()
+    yield
+
+
 app = FastAPI(
     title="AEGIS Security Platform",
     description="Autonomous Threat Detection and Response Platform",
-    version="0.4.0"
+    version="0.4.0",
+    lifespan=lifespan
 )
 
 
@@ -62,11 +70,6 @@ class SecurityEvent(BaseModel):
         if value is None:
             return value
         return value.strip().lower()
-
-
-@app.on_event("startup")
-def startup():
-    initialize_database()
 
 
 @app.get("/")
