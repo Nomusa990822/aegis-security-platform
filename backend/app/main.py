@@ -6,7 +6,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from app.database import get_connection, initialize_database
-from app.detection.engine import detect_brute_force
+from app.detection.engine import evaluate_event
+from app.detection.registry import get_detection_rules
 from app.alerts import router as alerts_router
 
 from pathlib import Path
@@ -115,7 +116,7 @@ def ingest_event(event: SecurityEvent):
                 "outcome": event.outcome
             }
 
-            detection = detect_brute_force(
+            detections = evaluate_event(
                 connection,
                 event_record
             )
@@ -125,7 +126,9 @@ def ingest_event(event: SecurityEvent):
         return {
             "message": "Security event ingested",
             "event_id": event_id,
-            "detection": detection
+            "detection": detections[0] if detections else None,
+            "detections": detections,
+            "detection_count": len(detections)
         }
 
     except Exception as error:
@@ -182,12 +185,11 @@ def get_alerts():
 
 
 @app.get("/api/v1/detection/rules")
-def get_detection_rules():
+def get_detection_rules_endpoint():
 
-    from app.detection.rules import BRUTE_FORCE_RULE
+    rules = get_detection_rules()
 
     return {
-        "count": 1,
-        "rules": [BRUTE_FORCE_RULE]
+        "count": len(rules),
+        "rules": rules
     }
-
