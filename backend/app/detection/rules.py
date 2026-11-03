@@ -15,6 +15,27 @@ BRUTE_FORCE_RULE = {
     "enabled": True
 }
 
+
+PORT_SCAN_RULE = {
+    "rule_id": "AEGIS-NET-001",
+    "name": "Network Port Scan Detection",
+    "description": (
+        "A source IP contacts multiple distinct destination "
+        "ports on the same target within a short time window."
+    ),
+    "event_type": "network_connection",
+    "threshold": 10,
+    "window_minutes": 2,
+    "severity": "high",
+    "mitre_tactic": "Discovery",
+    "mitre_technique": "T1046",
+    "mitre_name": "Network Service Discovery",
+    "enabled": True
+}
+
+
 DETECTION_RULES = [
-    BRUTE_FORCE_RULE
+    BRUTE_FORCE_RULE,
+    PORT_SCAN_RULE
 ]
+
