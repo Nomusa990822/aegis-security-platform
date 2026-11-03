@@ -1,7 +1,7 @@
 import sqlite3
 
 from datetime import datetime, timezone
-from typing import Literal
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
