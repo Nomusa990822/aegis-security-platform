@@ -13,6 +13,7 @@ from app.detection.registry import get_detection_rules
 from app.detection.correlation import correlate_alerts
 from app.alerts import router as alerts_router
 from app.correlations import router as correlations_router
+from app.intelligence.router import router as intelligence_router
 
 
 @asynccontextmanager
@@ -40,6 +41,7 @@ app.mount(
 
 app.include_router(alerts_router)
 app.include_router(correlations_router)
+app.include_router(intelligence_router)
 
 
 class SecurityEvent(BaseModel):
