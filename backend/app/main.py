@@ -14,6 +14,7 @@ from app.detection.correlation import correlate_alerts
 from app.alerts import router as alerts_router
 from app.correlations import router as correlations_router
 from app.intelligence.router import router as intelligence_router
+from app.intelligence.alert_enrichment import AlertIntelligenceService
 
 
 @asynccontextmanager
@@ -42,6 +43,7 @@ app.mount(
 app.include_router(alerts_router)
 app.include_router(correlations_router)
 app.include_router(intelligence_router)
+alert_intelligence_service = AlertIntelligenceService()
 
 
 class SecurityEvent(BaseModel):
@@ -92,8 +94,9 @@ def health():
     }
 
 
+
 @app.post("/api/v1/events", status_code=201)
-def ingest_event(event: SecurityEvent):
+async def ingest_event(event: SecurityEvent):
 
     received_at = datetime.now(timezone.utc)
     occurred_at = event.occurred_at or received_at
@@ -158,20 +161,43 @@ def ingest_event(event: SecurityEvent):
 
             connection.commit()
 
-            return {
-                "message": "Security event ingested",
-                "event_id": event_id,
-                "detection": detections[0] if detections else None,
-                "detections": detections,
-                "detection_count": len(detections),
-                "correlation": correlation
-            }
+        # Automatically enrich detected alerts.
+        intelligence_enrichments = []
+
+        for detection in detections:
+
+            alert_id = detection.get("alert_id")
+
+            if alert_id is None:
+                continue
+
+            enrichment_result = (
+                await alert_intelligence_service.enrich_alert(
+                    alert_id=alert_id,
+                    source_ip=event.source_ip
+                )
+            )
+
+            intelligence_enrichments.append(
+                enrichment_result
+            )
+
+        return {
+            "message": "Security event ingested",
+            "event_id": event_id,
+            "detection": detections[0] if detections else None,
+            "detections": detections,
+            "detection_count": len(detections),
+            "correlation": correlation,
+            "intelligence_enrichments": intelligence_enrichments
+        }
 
     except Exception as error:
         raise HTTPException(
             status_code=500,
             detail="Unable to process security event"
         ) from error
+
 
 
 @app.get("/api/v1/events")
