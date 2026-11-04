@@ -1,3 +1,6 @@
+
+import asyncio
+
 import pytest
 
 from app.intelligence.enrichment import (
@@ -67,15 +70,16 @@ def test_non_public_addresses_are_not_eligible(
     assert eligible is False
 
 
-@pytest.mark.asyncio
-async def test_non_global_ip_skips_provider_lookup():
+def test_non_global_ip_skips_provider_lookup():
     provider = MockProvider()
 
     service = ThreatIntelligenceEnrichmentService(
         providers=[provider]
     )
 
-    assessment = await service.enrich_ip("192.168.1.10")
+    assessment = asyncio.run(
+        service.enrich_ip("192.168.1.10")
+    )
 
     assert assessment.classification == IPClassification.PRIVATE
     assert assessment.enrichment_status == EnrichmentStatus.SKIPPED
@@ -83,8 +87,7 @@ async def test_non_global_ip_skips_provider_lookup():
     assert provider.calls == []
 
 
-@pytest.mark.asyncio
-async def test_public_ip_with_unavailable_provider_is_unknown():
+def test_public_ip_with_unavailable_provider_is_unknown():
     provider = MockProvider(
         ProviderResult(
             provider="mock_provider",
@@ -97,7 +100,9 @@ async def test_public_ip_with_unavailable_provider_is_unknown():
         providers=[provider]
     )
 
-    assessment = await service.enrich_ip("8.8.8.8")
+    assessment = asyncio.run(
+        service.enrich_ip("8.8.8.8")
+    )
 
     assert assessment.enrichment_status == EnrichmentStatus.FAILED
     assert assessment.reputation == "unknown"
@@ -106,8 +111,7 @@ async def test_public_ip_with_unavailable_provider_is_unknown():
     assert provider.calls == ["8.8.8.8"]
 
 
-@pytest.mark.asyncio
-async def test_public_ip_with_successful_provider():
+def test_public_ip_with_successful_provider():
     provider = MockProvider(
         ProviderResult(
             provider="mock_provider",
@@ -123,7 +127,9 @@ async def test_public_ip_with_successful_provider():
         providers=[provider]
     )
 
-    assessment = await service.enrich_ip("8.8.8.8")
+    assessment = asyncio.run(
+        service.enrich_ip("8.8.8.8")
+    )
 
     assert assessment.enrichment_status == EnrichmentStatus.COMPLETED
     assert assessment.reputation == "low_risk"
@@ -132,8 +138,7 @@ async def test_public_ip_with_successful_provider():
     assert provider.calls == ["8.8.8.8"]
 
 
-@pytest.mark.asyncio
-async def test_provider_exception_does_not_crash_enrichment():
+def test_provider_exception_does_not_crash_enrichment():
     provider = MockProvider(
         RuntimeError("Simulated provider failure")
     )
@@ -142,7 +147,9 @@ async def test_provider_exception_does_not_crash_enrichment():
         providers=[provider]
     )
 
-    assessment = await service.enrich_ip("8.8.8.8")
+    assessment = asyncio.run(
+        service.enrich_ip("8.8.8.8")
+    )
 
     assert assessment.enrichment_status == EnrichmentStatus.FAILED
     assert assessment.reputation == "unknown"
