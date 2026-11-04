@@ -55,9 +55,9 @@ class IntelligenceRepository:
                 """,
                 (
                     assessment.ip_address,
-                    assessment.classification.value,
+                    assessment.classification,
                     int(assessment.is_global),
-                    assessment.enrichment_status.value,
+                    assessment.enrichment_status,
                     assessment.threat_score,
                     assessment.confidence,
                     assessment.reputation,
