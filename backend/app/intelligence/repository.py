@@ -127,6 +127,39 @@ class IntelligenceRepository:
             if owns_connection:
                 connection.close()
 
+    def get_assessment_by_alert_id(
+        self,
+        alert_id: int,
+        connection=None,
+    ) -> int | None:
+        """
+        Return the intelligence assessment ID linked to an alert.
+
+        Returns None when the alert has not been enriched.
+        """
+        owns_connection = connection is None
+
+        if owns_connection:
+            connection = get_connection()
+
+        try:
+            row = connection.execute(
+                """
+                SELECT id
+                FROM ip_intelligence_assessments
+                WHERE alert_id = ?
+                ORDER BY assessed_at DESC, id DESC
+                LIMIT 1
+                """,
+                (alert_id,),
+            ).fetchone()
+
+            return row["id"] if row else None
+
+        finally:
+            if owns_connection:
+                connection.close()
+
     def get_assessment(
         self,
         assessment_id: int,
