@@ -1,0 +1,237 @@
+/* =========================================================
+   AEGIS CONTROLLED RESPONSE WORKSPACE
+========================================================= */
+
+.response-panel {
+    margin-bottom: 17px;
+}
+
+.response-safety-banner {
+    padding: 12px 14px;
+    margin-bottom: 17px;
+    border: 1px solid #66502d;
+    border-left: 3px solid #d5a34e;
+    border-radius: 7px;
+    background: #29251d;
+    color: #e6c58d;
+    font-size: 11px;
+    line-height: 1.7;
+}
+
+.response-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 13px;
+    padding: 15px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #0d1523;
+}
+
+.response-field {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+}
+
+.response-field label {
+    color: #b7c4d7;
+    font-size: 10px;
+    font-weight: 650;
+}
+
+.response-field input,
+.response-field select {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 11px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    outline: none;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 11px;
+}
+
+.response-field input:focus,
+.response-field select:focus {
+    border-color: #7799dc;
+}
+
+.response-field input:disabled,
+.response-field select:disabled {
+    opacity: .65;
+    cursor: not-allowed;
+}
+
+.response-field.full-width {
+    grid-column: 1 / -1;
+}
+
+.response-source-reference {
+    color: #8fa6c7;
+    font-size: 10px;
+    line-height: 1.6;
+}
+
+.response-form-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 9px;
+    grid-column: 1 / -1;
+}
+
+.response-result {
+    display: none;
+    margin-top: 15px;
+    padding: 15px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #131e2e;
+}
+
+.response-result.visible {
+    display: block;
+}
+
+.response-result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.response-result-header strong {
+    font-size: 12px;
+}
+
+.response-result-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.response-result-item {
+    padding: 10px;
+    border-radius: 6px;
+    background: #0d1523;
+    min-width: 0;
+}
+
+.response-result-item small {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+}
+
+.response-result-item strong {
+    display: block;
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+.response-reasons {
+    margin: 13px 0 0;
+    padding-left: 18px;
+    color: #b9c6d8;
+    font-size: 10px;
+    line-height: 1.8;
+}
+
+.response-status {
+    display: inline-flex;
+    padding: 5px 9px;
+    border-radius: 20px;
+    background: #283448;
+    color: #c1d0e5;
+    font-size: 9px;
+    font-weight: 750;
+    text-transform: uppercase;
+}
+
+.response-status.simulated {
+    background: #1e4036;
+    color: #78d8b1;
+}
+
+.response-status.rejected {
+    background: #49252d;
+    color: #ff9999;
+}
+
+.response-history {
+    margin-top: 22px;
+}
+
+.response-history .panel-heading {
+    margin-bottom: 12px;
+}
+
+.response-history-table td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.response-history-table .response-id {
+    color: #a9c2ff;
+    font-weight: 700;
+}
+
+.response-history-table .response-boolean {
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.response-audit-details {
+    margin-top: 12px;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+}
+
+.response-audit-details summary {
+    color: #a9c2ff;
+    cursor: pointer;
+    font-size: 10px;
+}
+
+.response-audit-details pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: #aebcd0;
+    font-size: 10px;
+    line-height: 1.6;
+}
+
+.response-feedback {
+    min-height: 17px;
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.response-feedback.error {
+    color: #ff9999;
+}
+
+@media (max-width: 700px) {
+    .response-form {
+        grid-template-columns: 1fr;
+        padding: 12px;
+    }
+
+    .response-field.full-width,
+    .response-form-actions {
+        grid-column: auto;
+    }
+
+    .response-result-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
