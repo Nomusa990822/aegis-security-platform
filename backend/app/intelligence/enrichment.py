@@ -1,3 +1,4 @@
+
 from datetime import datetime, timezone
 from ipaddress import ip_address, ip_network
 
@@ -98,7 +99,7 @@ class ThreatIntelligenceEnrichmentService:
         accessed_at = datetime.now(timezone.utc)
 
         # Non-global addresses are classified locally.
-        # They must never be submitted to external providers.
+        # They are never submitted to external providers.
         if not is_global:
             return IPIntelligenceAssessment(
                 ip_address=normalized_ip,
@@ -116,9 +117,9 @@ class ThreatIntelligenceEnrichmentService:
 
         for provider in self.providers:
             try:
-                result = await provider.check_ip_normalized(
-                    normalized_ip
-                )
+                # Use the common provider interface implemented by
+                # AbuseIPDBProvider and the test MockProvider.
+                result = await provider.check_ip(normalized_ip)
 
                 if not isinstance(result, ProviderResult):
                     raise TypeError(
@@ -162,8 +163,7 @@ class ThreatIntelligenceEnrichmentService:
         else:
             status = EnrichmentStatus.COMPLETED
 
-        # All scoring and confidence calculations are delegated
-        # to the dedicated scoring engine.
+        # Centralised threat scoring and confidence calculation.
         threat_score = self.scoring_engine.calculate_score(
             provider_results
         )
@@ -177,7 +177,7 @@ class ThreatIntelligenceEnrichmentService:
             has_successful_results=bool(successful_results),
         )
 
-        # Only successful providers contribute categories.
+        # Only successful provider results contribute categories.
         categories = sorted({
             category
             for result in successful_results
@@ -201,11 +201,7 @@ class ThreatIntelligenceEnrichmentService:
     def _calculate_threat_score(
         results: list[ProviderResult],
     ) -> int:
-        """
-        Backwards-compatible scoring method.
-
-        New code should use ThreatScoringEngine directly.
-        """
+        """Backwards-compatible scoring method."""
 
         return ThreatScoringEngine().calculate_score(results)
 
@@ -214,9 +210,7 @@ class ThreatIntelligenceEnrichmentService:
         results: list[ProviderResult],
         threat_score: int,
     ) -> str:
-        """
-        Backwards-compatible reputation method.
-        """
+        """Backwards-compatible reputation method."""
 
         has_successful_results = any(
             result.status == ProviderStatus.SUCCESS
