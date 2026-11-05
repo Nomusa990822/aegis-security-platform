@@ -782,3 +782,231 @@ tbody tr:hover { background: #172235; }
         display: grid;
     }
 }
+
+
+/* =========================================================
+   AEGIS MITRE ATT&CK WORKSPACE
+========================================================= */
+
+.mitre-metrics {
+    margin-bottom: 18px;
+}
+
+.mitre-catalogue-panel {
+    margin-bottom: 17px;
+}
+
+.mitre-toolbar {
+    margin-top: 0;
+}
+
+.mitre-technique-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.mitre-technique-card {
+    width: 100%;
+    min-width: 0;
+    padding: 15px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: #131e2e;
+    color: var(--text);
+    text-align: left;
+    transition: border-color .2s ease, background .2s ease;
+}
+
+.mitre-technique-card:hover {
+    border-color: #6688c4;
+    background: #18263b;
+}
+
+.mitre-technique-card.selected {
+    border-color: #8daeff;
+    background: #1a2941;
+    box-shadow: inset 2px 0 #8daeff;
+}
+
+.mitre-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.mitre-technique-id {
+    display: inline-block;
+    color: #a9c2ff;
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: .6px;
+}
+
+.mitre-tactic {
+    display: inline-block;
+    padding: 4px 7px;
+    border: 1px solid #344968;
+    border-radius: 5px;
+    color: #b8c9e8;
+    font-size: 9px;
+}
+
+.mitre-technique-card > strong {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.mitre-technique-card > p {
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.6;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.mitre-card-action {
+    display: block;
+    margin-top: 13px;
+    color: var(--accent);
+    font-size: 9px;
+    font-weight: 650;
+}
+
+.mitre-confidence {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 20px;
+    padding: 5px 8px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.mitre-confidence.high {
+    color: #78d8b1;
+    background: #1e4036;
+}
+
+.mitre-confidence.medium {
+    color: #e7d889;
+    background: #403b25;
+}
+
+.mitre-confidence.low {
+    color: #f0bd79;
+    background: #49351f;
+}
+
+.mitre-confidence.unknown {
+    color: #aab8cb;
+    background: #283448;
+}
+
+.mitre-table-link {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: #a9c2ff;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.mitre-table-link:hover {
+    color: white;
+    text-decoration: underline;
+}
+
+.mitre-explanation {
+    font-size: 10px;
+    line-height: 1.6;
+    margin: -5px 0 17px;
+}
+
+.mitre-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 18px;
+}
+
+.mitre-detail-header h3 {
+    margin: 8px 0;
+    font-size: 21px;
+    letter-spacing: -.5px;
+}
+
+.mitre-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.mitre-description {
+    margin-top: 20px;
+}
+
+.mitre-description h4 {
+    margin: 0 0 10px;
+    color: #dce6f5;
+    font-size: 12px;
+}
+
+.mitre-description > p {
+    color: #aebcd0;
+    font-size: 11px;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+}
+
+.mitre-description .record-card {
+    margin-top: 10px;
+}
+
+.mitre-alert-card > p {
+    color: #b9c6d8;
+    font-size: 11px;
+    line-height: 1.7;
+    margin: 12px 0;
+    overflow-wrap: anywhere;
+}
+
+.mitre-link {
+    color: #a9c2ff;
+    text-decoration: none;
+}
+
+.mitre-link:hover {
+    color: white;
+    text-decoration: underline;
+}
+
+@media (max-width: 1050px) {
+    .mitre-detail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .mitre-technique-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .mitre-detail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mitre-detail-header {
+        flex-direction: column;
+    }
+}
