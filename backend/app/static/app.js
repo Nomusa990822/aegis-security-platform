@@ -1981,10 +1981,21 @@ async function loadMitreTechniques() {
 async function loadMitreMappings() {
     const payload = await fetchJSON(`${API.mitre}/mappings`);
 
-    state.mitreMappings = normaliseList(
+    const ruleMappings = normaliseList(
         payload,
         ["mappings", "items", "results"]
     );
+
+    state.mitreMappings = ruleMappings.flatMap(rule => {
+        const mappings = Array.isArray(rule.mappings)
+            ? rule.mappings
+            : [];
+
+        return mappings.map(mapping => ({
+            ...mapping,
+            rule_id: mapping.rule_id || rule.rule_id
+        }));
+    });
 
     renderMitreMetrics();
     renderMitreMappings();
@@ -2001,7 +2012,9 @@ async function loadMitreData() {
             "mitre-techniques",
             `<div class="empty-state">
                 Could not load ATT&CK techniques:
-                ${escapeHTML(results[0].reason?.message ?? "Unknown error")}
+                ${escapeHTML(
+                    results[0].reason?.message ?? "Unknown error"
+                )}
             </div>`
         );
     }
@@ -2017,6 +2030,10 @@ async function loadMitreData() {
             )
         );
     }
+
+    renderMitreMetrics();
+    renderMitreTechniques();
+    renderMitreMappings();
 }
 
 function renderMitreMetrics() {
@@ -2252,7 +2269,7 @@ function renderMitreMappings() {
     if (!mappings.length) {
         setHTML(
             "mitre-mappings-table",
-            emptyRow(5, "No detection-rule mappings are available.")
+            emptyRow(5, "No detection rule mappings are available.")
         );
         return;
     }
@@ -2260,32 +2277,37 @@ function renderMitreMappings() {
     setHTML(
         "mitre-mappings-table",
         mappings.map(mapping => {
-            const technique = techniqueById(mapping.technique_id);
+            const technique =
+                mapping.technique ||
+                getTechniqueById(mapping.technique_id);
 
             return `
                 <tr>
                     <td>
                         <strong>${escapeHTML(mapping.rule_id)}</strong>
                     </td>
-
                     <td>
                         <button
                             type="button"
                             class="mitre-table-link"
                             data-mitre-technique="${escapeHTML(mapping.technique_id)}"
                         >
-                            ${escapeHTML(mapping.technique_id)}
-                            · ${escapeHTML(technique?.name ?? "Unknown technique")}
+                            ${escapeHTML(mapping.technique_id)} -
+                            ${escapeHTML(
+                                technique?.name ?? "Unknown technique"
+                            )}
                         </button>
                     </td>
-
-                    <td>${escapeHTML(technique?.tactic ?? "—")}</td>
-
-                    <td>${confidencePill(mapping.confidence)}</td>
-
-                    <td>${escapeHTML(mapping.mapping_type ?? "—")}</td>
-                </tr>
-            `;
+                    <td>
+                        ${escapeHTML(technique?.tactic ?? "-")}
+                    </td>
+                    <td>
+                        ${confidenceBadge(mapping.confidence)}
+                    </td>
+                    <td>
+                        ${escapeHTML(mapping.mapping_type ?? "-")}
+                    </td>
+                </tr>`;
         }).join("")
     );
 
@@ -2295,7 +2317,7 @@ function renderMitreMappings() {
         button.addEventListener("click", () => {
             selectMitreTechnique(button.dataset.mitreTechnique);
 
-            $("mitre-detail-panel")?.scrollIntoView({
+            $("#mitre-detail-panel")?.scrollIntoView({
                 behavior: "smooth",
                 block: "start"
             });
@@ -2304,7 +2326,7 @@ function renderMitreMappings() {
 }
 
 function renderAlertMitre(mitre) {
-    const container = $("alert-mitre-mapping");
+    const container = $("#alert-mitre-mapping");
 
     if (!container) return;
 
@@ -2326,7 +2348,9 @@ function renderAlertMitre(mitre) {
     setHTML(
         "alert-mitre-mapping",
         mappings.map(mapping => {
-            const technique = techniqueById(mapping.technique_id);
+            const technique =
+                mapping.technique ||
+                getTechniqueById(mapping.technique_id);
 
             const reference = technique?.url ||
                 `https://attack.mitre.org/techniques/${encodeURIComponent(
@@ -2343,47 +2367,51 @@ function renderAlertMitre(mitre) {
                                 target="_blank"
                                 rel="noopener noreferrer"
                             >
-                                ${escapeHTML(mapping.technique_id)}
-                                · ${escapeHTML(
-                                    technique?.name ??
-                                    mapping.technique_id
+                                ${escapeHTML(mapping.technique_id)} -
+                                ${escapeHTML(
+                                    technique?.name ?? mapping.technique_id
                                 )}
                             </a>
                         </strong>
 
-                        ${confidencePill(mapping.confidence)}
+                        ${confidenceBadge(mapping.confidence)}
                     </div>
 
                     <div class="evidence-details">
                         <span>
                             <small>TACTIC</small>
-                            ${escapeHTML(technique?.tactic ?? "—")}
+                            <strong>
+                                ${escapeHTML(technique?.tactic ?? "-")}
+                            </strong>
                         </span>
 
                         <span>
                             <small>MAPPING TYPE</small>
-                            ${escapeHTML(mapping.mapping_type ?? "—")}
+                            <strong>
+                                ${escapeHTML(mapping.mapping_type ?? "-")}
+                            </strong>
                         </span>
                     </div>
 
-                    <p>${escapeHTML(
-                        mapping.rationale ?? "No mapping rationale supplied."
-                    )}</p>
+                    <p>
+                        ${escapeHTML(
+                            mapping.rationale ?? "No mapping rationale supplied."
+                        )}
+                    </p>
 
                     ${
                         mapping.evidence_requirements
                             ? `<p class="muted">
-                                <strong>Evidence considerations:</strong>
+                                <strong>Evidence Considerations:</strong>
                                 ${escapeHTML(
                                     Array.isArray(mapping.evidence_requirements)
-                                        ? mapping.evidence_requirements.join("; ")
+                                        ? mapping.evidence_requirements.join(". ")
                                         : mapping.evidence_requirements
                                 )}
-                            </p>`
+                              </p>`
                             : ""
                     }
-                </article>
-            `;
+                </article>`;
         }).join("")
     );
 }
