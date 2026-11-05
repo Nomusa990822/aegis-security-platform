@@ -1,3 +1,5 @@
+import ipaddress
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
@@ -33,10 +35,48 @@ class ResponsePreviewRequest(BaseModel):
         max_length=100,
     )
 
-    @field_validator("target", "requested_by")
+    @field_validator("target", "requested_by", mode="before")
     @classmethod
     def strip_values(cls, value):
-        return value.strip()
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+def validate_alert_target(
+    alert_source_ip: str | None,
+    requested_target: str,
+) -> None:
+    if not alert_source_ip:
+        raise HTTPException(
+            status_code=422,
+            detail="The alert does not contain a source IP address.",
+        )
+
+    try:
+        source_address = ipaddress.ip_address(alert_source_ip)
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail="The alert contains an invalid source IP address.",
+        )
+
+    try:
+        target_address = ipaddress.ip_address(requested_target)
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail="The response target must be a valid IP address.",
+        )
+
+    if target_address != source_address:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "The response target must match the source IP "
+                "associated with the specified alert."
+            ),
+        )
 
 
 @router.post("/preview", status_code=201)
@@ -56,6 +96,11 @@ def preview_response(payload: ResponsePreviewRequest):
                 status_code=404,
                 detail="The specified security alert does not exist.",
             )
+
+        validate_alert_target(
+            alert["source_ip"],
+            payload.target,
+        )
 
         request = ResponseRequest(
             alert_id=payload.alert_id,
