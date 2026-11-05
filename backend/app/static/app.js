@@ -1,4 +1,3 @@
-
 /* =========================================================
    AEGIS — AUTONOMOUS THREAT DETECTION AND RESPONSE PLATFORM
    Correlation Investigation Dashboard
@@ -9,7 +8,8 @@ const API = {
     alerts: "/api/v1/alerts",
     events: "/api/v1/events",
     rules: "/api/v1/detection/rules",
-    correlations: "/api/v1/correlations"
+    correlations: "/api/v1/correlations",
+    mitre: "/api/v1/mitre"
 };
 
 const DEMO_ANALYST = "analyst-01";
@@ -19,6 +19,9 @@ const state = {
     events: [],
     rules: [],
     cases: [],
+    mitreTechniques: [],
+    mitreMappings: [],
+    selectedMitreTechnique: null,
     selectedCase: null,
     selectedAlert: null,
     alertInvestigation: null,
@@ -1914,6 +1917,472 @@ function renderCaseAudit(audit) {
                 </td>
             </tr>
         `).join("")
+    );
+}
+
+
+/* =========================================================
+   MITRE ATT&CK INTELLIGENCE WORKSPACE
+========================================================= */
+
+function techniqueById(techniqueId) {
+    return state.mitreTechniques.find(
+        technique => technique.technique_id === techniqueId
+    );
+}
+
+function confidenceClass(value) {
+    const confidence = String(value ?? "").toLowerCase();
+
+    if (confidence === "high") return "high";
+    if (confidence === "moderate" || confidence === "medium") {
+        return "medium";
+    }
+    if (confidence === "low") return "low";
+
+    return "unknown";
+}
+
+function confidencePill(value) {
+    const confidence = String(value ?? "unknown").toLowerCase();
+
+    return `
+        <span class="mitre-confidence ${confidenceClass(confidence)}">
+            ${escapeHTML(confidence)}
+        </span>
+    `;
+}
+
+function getMitreTactics() {
+    return [
+        ...new Set(
+            state.mitreTechniques
+                .map(item => item.tactic)
+                .filter(Boolean)
+        )
+    ].sort();
+}
+
+async function loadMitreTechniques() {
+    const payload = await fetchJSON(`${API.mitre}/techniques`);
+
+    state.mitreTechniques = normaliseList(
+        payload,
+        ["techniques", "items", "results"]
+    );
+
+    renderMitreMetrics();
+    renderMitreTacticFilter();
+    renderMitreTechniques();
+}
+
+async function loadMitreMappings() {
+    const payload = await fetchJSON(`${API.mitre}/mappings`);
+
+    state.mitreMappings = normaliseList(
+        payload,
+        ["mappings", "items", "results"]
+    );
+
+    renderMitreMetrics();
+    renderMitreMappings();
+}
+
+async function loadMitreData() {
+    const results = await Promise.allSettled([
+        loadMitreTechniques(),
+        loadMitreMappings()
+    ]);
+
+    if (results[0].status === "rejected") {
+        setHTML(
+            "mitre-techniques",
+            `<div class="empty-state">
+                Could not load ATT&CK techniques:
+                ${escapeHTML(results[0].reason?.message ?? "Unknown error")}
+            </div>`
+        );
+    }
+
+    if (results[1].status === "rejected") {
+        setHTML(
+            "mitre-mappings-table",
+            emptyRow(
+                5,
+                `Could not load rule mappings: ${
+                    results[1].reason?.message ?? "Unknown error"
+                }`
+            )
+        );
+    }
+}
+
+function renderMitreMetrics() {
+    const techniques = state.mitreTechniques;
+    const mappings = state.mitreMappings;
+
+    const mappedRules = new Set(
+        mappings.map(item => item.rule_id).filter(Boolean)
+    );
+
+    setText("mitre-technique-count", techniques.length);
+    setText("mitre-mapping-count", mappings.length);
+    setText("mitre-mapped-rule-count", mappedRules.size);
+    setText("mitre-tactic-count", getMitreTactics().length);
+    setText("mitre-rule-counter", mappings.length);
+}
+
+function renderMitreTacticFilter() {
+    const select = $("mitre-tactic-filter");
+
+    if (!select) return;
+
+    const currentValue = select.value || "all";
+
+    select.innerHTML = `
+        <option value="all">All tactics</option>
+        ${getMitreTactics().map(tactic => `
+            <option value="${escapeHTML(tactic)}">
+                ${escapeHTML(tactic)}
+            </option>
+        `).join("")}
+    `;
+
+    select.value = getMitreTactics().includes(currentValue)
+        ? currentValue
+        : "all";
+}
+
+function renderMitreTechniques() {
+    const search = (
+        $("mitre-search")?.value ?? ""
+    ).trim().toLowerCase();
+
+    const tactic = $("mitre-tactic-filter")?.value ?? "all";
+
+    const filtered = state.mitreTechniques.filter(technique => {
+        const searchable = [
+            technique.technique_id,
+            technique.name,
+            technique.tactic,
+            technique.tactic_id,
+            technique.description
+        ].join(" ").toLowerCase();
+
+        return searchable.includes(search) &&
+            (tactic === "all" || technique.tactic === tactic);
+    });
+
+    setText("mitre-results-count", filtered.length);
+
+    if (!filtered.length) {
+        setHTML(
+            "mitre-techniques",
+            `<div class="empty-state">
+                No techniques match your search.
+            </div>`
+        );
+        return;
+    }
+
+    setHTML(
+        "mitre-techniques",
+        filtered.map(technique => `
+            <button
+                type="button"
+                class="mitre-technique-card ${
+                    state.selectedMitreTechnique === technique.technique_id
+                        ? "selected"
+                        : ""
+                }"
+                data-mitre-technique="${escapeHTML(technique.technique_id)}"
+            >
+                <div class="mitre-card-top">
+                    <span class="mitre-technique-id">
+                        ${escapeHTML(technique.technique_id)}
+                    </span>
+                    <span class="mitre-tactic">
+                        ${escapeHTML(technique.tactic ?? "Unclassified")}
+                    </span>
+                </div>
+
+                <strong>${escapeHTML(technique.name)}</strong>
+
+                <p>
+                    ${escapeHTML(
+                        technique.description || "No description available."
+                    )}
+                </p>
+
+                <span class="mitre-card-action">View technique details →</span>
+            </button>
+        `).join("")
+    );
+
+    document.querySelectorAll("[data-mitre-technique]")
+        .forEach(button => {
+            button.addEventListener("click", () => {
+                selectMitreTechnique(
+                    button.dataset.mitreTechnique
+                );
+            });
+        });
+}
+
+function selectMitreTechnique(techniqueId) {
+    const technique = techniqueById(techniqueId);
+
+    if (!technique) {
+        showToast("Technique not found in the local catalogue.", true);
+        return;
+    }
+
+    state.selectedMitreTechnique = techniqueId;
+
+    renderMitreTechniques();
+    renderMitreTechniqueDetail(technique);
+}
+
+function renderMitreTechniqueDetail(technique) {
+    const parentId = technique.parent_technique_id;
+    const parent = parentId ? techniqueById(parentId) : null;
+
+    const relatedMappings = state.mitreMappings.filter(
+        mapping => mapping.technique_id === technique.technique_id
+    );
+
+    const reference = technique.url ||
+        `https://attack.mitre.org/techniques/${encodeURIComponent(
+            technique.technique_id.replace(".", "/")
+        )}/`;
+
+    setHTML(
+        "mitre-technique-detail",
+        `
+            <div class="mitre-detail-header">
+                <div>
+                    <span class="mitre-technique-id">
+                        ${escapeHTML(technique.technique_id)}
+                    </span>
+                    <h3>${escapeHTML(technique.name)}</h3>
+                    <span class="mitre-tactic">
+                        ${escapeHTML(technique.tactic ?? "Unclassified")}
+                    </span>
+                </div>
+
+                <a
+                    class="mitre-link"
+                    href="${escapeHTML(reference)}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    Open ATT&CK reference ↗
+                </a>
+            </div>
+
+            <div class="mitre-detail-grid">
+                <div class="detail-field">
+                    <small>TECHNIQUE ID</small>
+                    <strong>${escapeHTML(technique.technique_id)}</strong>
+                </div>
+
+                <div class="detail-field">
+                    <small>TACTIC</small>
+                    <strong>${escapeHTML(technique.tactic ?? "—")}</strong>
+                </div>
+
+                <div class="detail-field">
+                    <small>TACTIC ID</small>
+                    <strong>${escapeHTML(technique.tactic_id ?? "—")}</strong>
+                </div>
+
+                <div class="detail-field">
+                    <small>PARENT TECHNIQUE</small>
+                    <strong>
+                        ${parent
+                            ? `${escapeHTML(parent.technique_id)} · ${escapeHTML(parent.name)}`
+                            : escapeHTML(parentId ?? "None")}
+                    </strong>
+                </div>
+            </div>
+
+            <div class="mitre-description">
+                <h4>Description</h4>
+                <p>${escapeHTML(
+                    technique.description || "No description available."
+                )}</p>
+            </div>
+
+            <div class="mitre-description">
+                <h4>AEGIS detection coverage</h4>
+                ${
+                    relatedMappings.length
+                        ? relatedMappings.map(mapping => `
+                            <article class="record-card">
+                                <div class="record-card-header">
+                                    <strong>
+                                        ${escapeHTML(mapping.rule_id)}
+                                    </strong>
+                                    ${confidencePill(mapping.confidence)}
+                                </div>
+
+                                <p>${escapeHTML(
+                                    mapping.rationale ?? "No mapping rationale supplied."
+                                )}</p>
+
+                                <span class="record-id">
+                                    ${escapeHTML(mapping.mapping_type ?? "Mapping type unspecified")}
+                                </span>
+                            </article>
+                        `).join("")
+                        : `<div class="empty-state">
+                            No AEGIS detection rule is currently mapped to this technique.
+                        </div>`
+                }
+            </div>
+        `
+    );
+}
+
+function renderMitreMappings() {
+    const mappings = state.mitreMappings;
+
+    if (!mappings.length) {
+        setHTML(
+            "mitre-mappings-table",
+            emptyRow(5, "No detection-rule mappings are available.")
+        );
+        return;
+    }
+
+    setHTML(
+        "mitre-mappings-table",
+        mappings.map(mapping => {
+            const technique = techniqueById(mapping.technique_id);
+
+            return `
+                <tr>
+                    <td>
+                        <strong>${escapeHTML(mapping.rule_id)}</strong>
+                    </td>
+
+                    <td>
+                        <button
+                            type="button"
+                            class="mitre-table-link"
+                            data-mitre-technique="${escapeHTML(mapping.technique_id)}"
+                        >
+                            ${escapeHTML(mapping.technique_id)}
+                            · ${escapeHTML(technique?.name ?? "Unknown technique")}
+                        </button>
+                    </td>
+
+                    <td>${escapeHTML(technique?.tactic ?? "—")}</td>
+
+                    <td>${confidencePill(mapping.confidence)}</td>
+
+                    <td>${escapeHTML(mapping.mapping_type ?? "—")}</td>
+                </tr>
+            `;
+        }).join("")
+    );
+
+    document.querySelectorAll(
+        "#mitre-mappings-table [data-mitre-technique]"
+    ).forEach(button => {
+        button.addEventListener("click", () => {
+            selectMitreTechnique(button.dataset.mitreTechnique);
+
+            $("mitre-detail-panel")?.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+        });
+    });
+}
+
+function renderAlertMitre(mitre) {
+    const container = $("alert-mitre-mapping");
+
+    if (!container) return;
+
+    const mappings = mitre?.mappings ?? [];
+
+    setText("alert-mitre-count", mappings.length);
+
+    if (!mitre || !mitre.mapped || !mappings.length) {
+        setHTML(
+            "alert-mitre-mapping",
+            `<div class="empty-state">
+                No ATT&CK technique mapping is currently associated
+                with this detection rule.
+            </div>`
+        );
+        return;
+    }
+
+    setHTML(
+        "alert-mitre-mapping",
+        mappings.map(mapping => {
+            const technique = techniqueById(mapping.technique_id);
+
+            const reference = technique?.url ||
+                `https://attack.mitre.org/techniques/${encodeURIComponent(
+                    mapping.technique_id.replace(".", "/")
+                )}/`;
+
+            return `
+                <article class="record-card mitre-alert-card">
+                    <div class="record-card-header">
+                        <strong>
+                            <a
+                                class="mitre-link"
+                                href="${escapeHTML(reference)}"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                ${escapeHTML(mapping.technique_id)}
+                                · ${escapeHTML(
+                                    technique?.name ??
+                                    mapping.technique_id
+                                )}
+                            </a>
+                        </strong>
+
+                        ${confidencePill(mapping.confidence)}
+                    </div>
+
+                    <div class="evidence-details">
+                        <span>
+                            <small>TACTIC</small>
+                            ${escapeHTML(technique?.tactic ?? "—")}
+                        </span>
+
+                        <span>
+                            <small>MAPPING TYPE</small>
+                            ${escapeHTML(mapping.mapping_type ?? "—")}
+                        </span>
+                    </div>
+
+                    <p>${escapeHTML(
+                        mapping.rationale ?? "No mapping rationale supplied."
+                    )}</p>
+
+                    ${
+                        mapping.evidence_requirements
+                            ? `<p class="muted">
+                                <strong>Evidence considerations:</strong>
+                                ${escapeHTML(
+                                    Array.isArray(mapping.evidence_requirements)
+                                        ? mapping.evidence_requirements.join("; ")
+                                        : mapping.evidence_requirements
+                                )}
+                            </p>`
+                            : ""
+                    }
+                </article>
+            `;
+        }).join("")
     );
 }
 
