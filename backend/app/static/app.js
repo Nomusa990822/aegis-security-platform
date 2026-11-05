@@ -360,11 +360,12 @@ async function refreshDashboard() {
     }
 
     const results = await Promise.allSettled([
-        loadHealth(),
-        loadAlerts(),
-        loadEvents(),
-        loadRules(),
-        loadCases()
+       loadHealth(),
+       loadAlerts(),
+       loadEvents(),
+       loadRules(),
+       loadCases(),
+       loadMitreData()
     ]);
 
     if (results[1].status === "rejected") {
