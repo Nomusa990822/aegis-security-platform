@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+from app.response.repository import initialize_response_tables
 
 DATABASE_PATH = Path(__file__).resolve().parent.parent / "aegis.db"
 
@@ -464,5 +465,11 @@ def initialize_database():
                 WHERE t.correlation_id = c.id
             )
         """)
+
+        # --------------------------------------------------
+        # CONTROLLED AUTOMATED RESPONSE
+        # --------------------------------------------------
+
+        initialize_response_tables(connection)
 
         connection.commit()
