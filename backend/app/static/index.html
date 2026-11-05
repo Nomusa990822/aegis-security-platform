@@ -7,6 +7,7 @@
     <meta name="description" content="AEGIS Security Operations Centre — autonomous threat detection and response.">
     <title>AEGIS | Security Operations Centre</title>
     <link rel="stylesheet" href="/dashboard/styles.css">
+    <link rel="stylesheet" href="/dashboard/response.css">
 </head>
 <body>
 <div class="app-shell">
@@ -655,6 +656,124 @@
                     <p class="muted" id="alert-status-feedback" aria-live="polite"></p>
                 </section>
 
+                
+                <!-- CONTROLLED AUTOMATED RESPONSE -->
+                <section class="panel investigation-section response-panel">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">PHASE 8 / CONTROLLED RESPONSE</p>
+                            <h2>Response management</h2>
+                        </div>
+                        <span class="section-counter">DRY RUN</span>
+                    </div>
+
+                    <div class="response-safety-banner">
+                        SIMULATION MODE ONLY — AEGIS will evaluate and record
+                        the requested response. No firewall rules, network
+                        configurations or operating-system settings will change.
+                    </div>
+
+                    <div class="response-form">
+                        <div class="response-field">
+                            <label for="response-action">Response action</label>
+                            <select id="response-action" disabled>
+                                <option value="block_ip">Block source IP</option>
+                            </select>
+                        </div>
+
+                        <div class="response-field">
+                            <label for="response-target">Target IP address</label>
+                            <input
+                                id="response-target"
+                                type="text"
+                                maxlength="45"
+                                placeholder="Alert source IP"
+                                autocomplete="off"
+                            >
+                        </div>
+
+                        <div class="response-field full-width">
+                            <span class="response-source-reference">
+                                The target must match the source IP associated
+                                with the currently selected alert.
+                            </span>
+                        </div>
+
+                        <div class="response-form-actions">
+                            <button
+                                class="secondary-button"
+                                id="use-alert-source-ip"
+                                type="button"
+                            >
+                                Use alert source IP
+                            </button>
+
+                            <button
+                                class="action-button"
+                                id="submit-response-preview"
+                                type="button"
+                            >
+                                Evaluate response
+                            </button>
+                        </div>
+                    </div>
+
+                    <div
+                        id="response-feedback"
+                        class="response-feedback"
+                        aria-live="polite"
+                    ></div>
+
+                    <div
+                        id="response-result"
+                        class="response-result"
+                        aria-live="polite"
+                    ></div>
+
+                    <div class="response-history">
+                        <div class="panel-heading">
+                            <div>
+                                <p class="eyebrow">PERSISTED RESPONSE RECORDS</p>
+                                <h2>Response history</h2>
+                            </div>
+
+                            <button
+                                class="text-button"
+                                id="refresh-response-history"
+                                type="button"
+                            >
+                                Refresh history
+                            </button>
+                        </div>
+
+                        <div class="table-wrap">
+                            <table class="response-history-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>ACTION</th>
+                                        <th>TARGET</th>
+                                        <th>STATUS</th>
+                                        <th>EXECUTED</th>
+                                        <th>REQUESTER</th>
+                                        <th>CREATED</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody id="response-history-table">
+                                    <tr>
+                                        <td colspan="7" class="empty-state">
+                                            Open this section and refresh to
+                                            retrieve response history.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+
                 <!-- INVESTIGATION NOTES -->
                 <section class="panel investigation-section">
                     <div class="panel-heading">
@@ -959,5 +1078,6 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="/dashboard/app.js"></script>
+<script src="/dashboard/response.js"></script>
 </body>
 </html>
