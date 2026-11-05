@@ -1,0 +1,120 @@
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field, field_validator
+
+from app.database import get_connection
+from app.response.engine import ResponseEngine
+from app.response.models import (
+    ExecutionMode,
+    ResponseAction,
+    ResponseRequest,
+)
+from app.response.repository import (
+    get_response_history,
+    get_response_record,
+    save_response,
+)
+
+
+router = APIRouter(
+    prefix="/api/v1/response",
+    tags=["Automated Response"],
+)
+
+response_engine = ResponseEngine()
+
+
+class ResponsePreviewRequest(BaseModel):
+    alert_id: int = Field(gt=0)
+    action: ResponseAction
+    target: str = Field(min_length=1, max_length=45)
+    requested_by: str = Field(
+        default="analyst",
+        min_length=1,
+        max_length=100,
+    )
+
+    @field_validator("target", "requested_by")
+    @classmethod
+    def strip_values(cls, value):
+        return value.strip()
+
+
+@router.post("/preview", status_code=201)
+def preview_response(payload: ResponsePreviewRequest):
+    with get_connection() as connection:
+        alert = connection.execute(
+            """
+            SELECT id, source_ip, title, severity, status
+            FROM security_alerts
+            WHERE id = ?
+            """,
+            (payload.alert_id,),
+        ).fetchone()
+
+        if alert is None:
+            raise HTTPException(
+                status_code=404,
+                detail="The specified security alert does not exist.",
+            )
+
+        request = ResponseRequest(
+            alert_id=payload.alert_id,
+            action=payload.action,
+            target=payload.target,
+            mode=ExecutionMode.DRY_RUN,
+            requested_by=payload.requested_by,
+        )
+
+        result = response_engine.execute(request)
+
+        response_id = save_response(
+            connection,
+            request,
+            result,
+        )
+
+    return {
+        "message": "Response preview evaluated and recorded.",
+        "response_id": response_id,
+        "alert": dict(alert),
+        "result": result.to_dict(),
+    }
+
+
+@router.get("/history")
+def response_history(
+    limit: int = Query(default=100, ge=1, le=500),
+):
+    with get_connection() as connection:
+        records = get_response_history(
+            connection,
+            limit=limit,
+        )
+
+    return {
+        "count": len(records),
+        "responses": records,
+    }
+
+
+@router.get("/history/{response_id}")
+def response_history_detail(response_id: int):
+    if response_id <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="response_id must be positive.",
+        )
+
+    with get_connection() as connection:
+        record = get_response_record(
+            connection,
+            response_id,
+        )
+
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Response record not found.",
+        )
+
+    return record
