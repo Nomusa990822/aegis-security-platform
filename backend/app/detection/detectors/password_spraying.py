@@ -1,4 +1,3 @@
-
 from datetime import datetime, timedelta, timezone
 
 
@@ -8,10 +7,13 @@ def detect(connection, event, rule):
     authentication against multiple distinct accounts.
     """
 
-    if event.get("event_type", "").lower() != "authentication":
+    event_type = (event.get("event_type") or "").lower()
+    outcome = (event.get("outcome") or "").lower()
+
+    if event_type != "authentication":
         return None
 
-    if event.get("outcome", "").lower() not in (
+    if outcome not in (
         "failure",
         "failed",
         "unsuccessful"
