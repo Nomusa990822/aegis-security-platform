@@ -48,6 +48,10 @@
                 <span class="nav-icon">⌘</span>
                 <span>Detection rules</span>
             </button>
+            <button class="nav-item" data-view="mitre">
+                <span class="nav-icon">⌖</span>
+                <span>MITRE ATT&CK</span>
+            </button>
         </nav>
 
         <div class="sidebar-bottom">
@@ -609,6 +613,23 @@
                     </div>
                 </section>
 
+                <!-- MITRE ATT&CK MAPPING -->
+                <section class="panel investigation-section">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">THREAT CLASSIFICATION</p>
+                            <h2>MITRE ATT&CK mapping</h2>
+                        </div>
+                        <span class="section-counter" id="alert-mitre-count">0</span>
+                    </div>
+                    
+                    <div id="alert-mitre-mapping">
+                        <div class="empty-state">
+                            No MITRE mapping information available.
+                        </div>
+                    </div>
+                </section>
+
                 <!-- RESPONSE CONTROLS -->
                 <section class="panel investigation-section">
                     <div class="panel-heading">
@@ -795,6 +816,137 @@
                 </div>
             </section>
         </section>
+
+        <!-- MITRE ATT&CK -->
+        <section class="view" id="view-mitre">
+            <div class="section-intro">
+                <div>
+                    <p class="eyebrow">THREAT INTELLIGENCE FRAMEWORK</p>
+                    <h1>MITRE ATT&CK</h1>
+                    <p class="muted">
+                        Explore adversary techniques and examine how AEGIS detection
+                        rules map to the ATT&CK knowledge base.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="metric-grid mitre-metrics">
+                <article class="metric-card">
+                    <div class="metric-top">
+                        <span>CATALOGUED TECHNIQUES</span>
+                        <span class="metric-symbol">⌖</span>
+                    </div>
+                    <div class="metric-value" id="mitre-technique-count">—</div>
+                    <div class="metric-foot">Techniques available in AEGIS</div>
+                </article>
+                
+                <article class="metric-card">
+                    <div class="metric-top">
+                        <span>RULE MAPPINGS</span>
+                        <span class="metric-symbol blue">⌘</span>
+                    </div>
+                    <div class="metric-value" id="mitre-mapping-count">—</div>
+                    <div class="metric-foot">Detection-rule associations</div>
+                </article>
+                
+                <article class="metric-card">
+                    <div class="metric-top">
+                        <span>MAPPED RULES</span>
+                        <span class="metric-symbol green">✓</span>
+                    </div>
+                    <div class="metric-value" id="mitre-mapped-rule-count">—</div>
+                    <div class="metric-foot">Rules with at least one mapping</div>
+                </article>
+                
+                <article class="metric-card">
+                    <div class="metric-top">
+                        <span>TACTICS REPRESENTED</span>
+                        <span class="metric-symbol warning">◎</span>
+                    </div>
+                    <div class="metric-value" id="mitre-tactic-count">—</div>
+                    <div class="metric-foot">Distinct ATT&CK tactics</div>
+                </article>
+            </div>
+            
+            <section class="panel mitre-catalogue-panel">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">KNOWLEDGE BASE</p>
+                        <h2>Technique catalogue</h2>
+                    </div>
+                    <span class="section-counter" id="mitre-results-count">0</span>
+                </div>
+                
+                <div class="toolbar mitre-toolbar">
+                    <input
+                        type="search"
+                        id="mitre-search"
+                        placeholder="Search technique ID, name, tactic or description..."
+                        aria-label="Search MITRE ATT&CK techniques"
+                        >
+                    
+                    <select id="mitre-tactic-filter" aria-label="Filter by tactic">
+                        <option value="all">All tactics</option>
+                    </select>
+                </div>
+                
+                <div id="mitre-techniques" class="mitre-technique-grid">
+                    <div class="empty-state">Loading ATT&CK techniques...</div>
+                </div>
+            </section>
+            
+            <section class="panel investigation-section">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">DETECTION COVERAGE</p>
+                        <h2>AEGIS rule mappings</h2>
+                    </div>
+                    <span class="section-counter" id="mitre-rule-counter">0</span>
+                </div>
+                
+                <p class="muted mitre-explanation">
+                    These mappings connect AEGIS detection logic to relevant ATT&CK
+                    techniques. Confidence describes the strength of the mapping,
+                    not the certainty that an attack occurred.
+                </p>
+                
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                            <th>DETECTION RULE</th>
+                            <th>TECHNIQUE</th>
+                            <th>TACTIC</th>
+                            <th>CONFIDENCE</th>
+                            <th>MAPPING TYPE</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mitre-mappings-table">
+                        <tr>
+                            <td colspan="5" class="empty-state">
+                                Loading rule mappings...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+            
+        <section class="panel investigation-section" id="mitre-detail-panel">
+            <div class="panel-heading">
+                <div>
+                    <p class="eyebrow">TECHNIQUE INTELLIGENCE</p>
+                    <h2>Technique details</h2>
+                </div>
+            </div>
+            
+            <div id="mitre-technique-detail">
+                <div class="empty-state">
+                    Select a technique from the catalogue to inspect its details.
+                </div>
+            </div>
+        </section>
+    </section>
 
         <footer class="footer">
             <span>AEGIS AUTONOMOUS THREAT DETECTION & RESPONSE</span>
