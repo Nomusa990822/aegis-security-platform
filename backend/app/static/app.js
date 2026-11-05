@@ -2399,7 +2399,8 @@ function switchView(view) {
         "investigations",
         "case",
         "alert",
-        "rules"
+        "rules",
+        "mitre"
     ];
 
     if (!validViews.includes(view)) return;
@@ -2427,7 +2428,8 @@ function switchView(view) {
         investigations: "Investigations",
         case: "Case Workspace",
         alert: "Alert Investigation",
-        rules: "Detection Rules"
+        rules: "Detection Rules",
+        mitre: "MITRE ATT&CK"
     };
 
     setText("breadcrumb-current", names[view]);
@@ -2443,6 +2445,10 @@ function switchView(view) {
 
     if (view === "investigations") {
         renderCasesTable();
+    }
+
+    if (view === "mitre") {
+        loadMitreData();
     }
 }
 
@@ -2550,6 +2556,16 @@ $("save-case-assignment")?.addEventListener(
 $("clear-case-assignment")?.addEventListener(
     "click",
     clearCaseAssignment
+);
+
+$("mitre-search")?.addEventListener(
+    "input",
+    renderMitreTechniques
+);
+
+$("mitre-tactic-filter")?.addEventListener(
+    "change",
+    renderMitreTechniques
 );
 
 /* =========================================================
