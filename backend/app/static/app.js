@@ -2279,7 +2279,7 @@ function renderMitreMappings() {
         mappings.map(mapping => {
             const technique =
                 mapping.technique ||
-                getTechniqueById(mapping.technique_id);
+                techniqueById(mapping.technique_id);
 
             return `
                 <tr>
@@ -2298,15 +2298,9 @@ function renderMitreMappings() {
                             )}
                         </button>
                     </td>
-                    <td>
-                        ${escapeHTML(technique?.tactic ?? "-")}
-                    </td>
-                    <td>
-                        ${confidenceBadge(mapping.confidence)}
-                    </td>
-                    <td>
-                        ${escapeHTML(mapping.mapping_type ?? "-")}
-                    </td>
+                    <td>${escapeHTML(technique?.tactic ?? "-")}</td>
+                    <td>${confidencePill(mapping.confidence)}</td>
+                    <td>${escapeHTML(mapping.mapping_type ?? "-")}</td>
                 </tr>`;
         }).join("")
     );
@@ -2317,7 +2311,7 @@ function renderMitreMappings() {
         button.addEventListener("click", () => {
             selectMitreTechnique(button.dataset.mitreTechnique);
 
-            $("#mitre-detail-panel")?.scrollIntoView({
+            $("mitre-detail-panel")?.scrollIntoView({
                 behavior: "smooth",
                 block: "start"
             });
@@ -2326,7 +2320,7 @@ function renderMitreMappings() {
 }
 
 function renderAlertMitre(mitre) {
-    const container = $("#alert-mitre-mapping");
+    const container = $("alert-mitre-mapping");
 
     if (!container) return;
 
@@ -2350,7 +2344,7 @@ function renderAlertMitre(mitre) {
         mappings.map(mapping => {
             const technique =
                 mapping.technique ||
-                getTechniqueById(mapping.technique_id);
+                techniqueById(mapping.technique_id);
 
             const reference = technique?.url ||
                 `https://attack.mitre.org/techniques/${encodeURIComponent(
@@ -2374,22 +2368,18 @@ function renderAlertMitre(mitre) {
                             </a>
                         </strong>
 
-                        ${confidenceBadge(mapping.confidence)}
+                        ${confidencePill(mapping.confidence)}
                     </div>
 
                     <div class="evidence-details">
                         <span>
                             <small>TACTIC</small>
-                            <strong>
-                                ${escapeHTML(technique?.tactic ?? "-")}
-                            </strong>
+                            <strong>${escapeHTML(technique?.tactic ?? "-")}</strong>
                         </span>
 
                         <span>
                             <small>MAPPING TYPE</small>
-                            <strong>
-                                ${escapeHTML(mapping.mapping_type ?? "-")}
-                            </strong>
+                            <strong>${escapeHTML(mapping.mapping_type ?? "-")}</strong>
                         </span>
                     </div>
 
