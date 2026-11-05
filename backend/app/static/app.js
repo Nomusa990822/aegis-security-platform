@@ -1004,6 +1004,7 @@ function renderAlertWorkspace(data) {
     renderAlertEvidence(evidence);
     renderAlertTimeline(timeline);
     renderAlertAudit(audit);
+    renderAlertMitre(data.mitre);
 }
 
 
