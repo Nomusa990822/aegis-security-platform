@@ -16,6 +16,7 @@ from app.correlations import router as correlations_router
 from app.intelligence.router import router as intelligence_router
 from app.intelligence.alert_enrichment import AlertIntelligenceService
 from app.intelligence.mitre_router import router as mitre_router
+from app.response.router import router as response_router
 
 
 @asynccontextmanager
@@ -45,6 +46,7 @@ app.include_router(alerts_router)
 app.include_router(correlations_router)
 app.include_router(intelligence_router)
 app.include_router(mitre_router)
+app.include_router(response_router)
 
 alert_intelligence_service = AlertIntelligenceService()
 
