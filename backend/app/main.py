@@ -1,3 +1,4 @@
+import ipaddress
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -51,34 +52,65 @@ app.include_router(response_router)
 alert_intelligence_service = AlertIntelligenceService()
 
 
-class SecurityEvent(BaseModel):
 
+class SecurityEvent(BaseModel):
     event_type: str = Field(min_length=1, max_length=100)
 
-    source_ip: Optional[str] = None
-    username: Optional[str] = None
-    outcome: Optional[str] = None
+    source_ip: Optional[str] = Field(default=None, max_length=45)
+    username: Optional[str] = Field(default=None, max_length=256)
+    outcome: Optional[str] = Field(default=None, max_length=50)
 
-    destination_ip: Optional[str] = None
+    destination_ip: Optional[str] = Field(default=None, max_length=45)
     destination_port: Optional[int] = Field(
         default=None,
         ge=1,
-        le=65535
+        le=65535,
     )
     protocol: Optional[str] = Field(
         default=None,
-        max_length=20
+        max_length=20,
     )
 
     description: str = Field(default="", max_length=2000)
+
     occurred_at: Optional[datetime] = None
 
-    @field_validator("event_type", "outcome", "protocol")
+    @field_validator("event_type")
     @classmethod
-    def normalise_values(cls, value):
+    def validate_event_type(cls, value):
+        value = value.strip().lower()
+
+        if not value:
+            raise ValueError("event_type cannot be blank")
+
+        return value
+
+    @field_validator("outcome", "protocol")
+    @classmethod
+    def normalise_optional_values(cls, value):
         if value is None:
             return value
-        return value.strip().lower()
+
+        value = value.strip().lower()
+
+        if not value:
+            raise ValueError("Value cannot be blank")
+
+        return value
+
+    @field_validator("source_ip", "destination_ip")
+    @classmethod
+    def validate_ip_addresses(cls, value):
+        if value is None:
+            return value
+
+        try:
+            return str(ipaddress.ip_address(value.strip()))
+        except ValueError as error:
+            raise ValueError(
+                "Must be a valid IPv4 or IPv6 address"
+            ) from error
+
 
 
 @app.get("/")
