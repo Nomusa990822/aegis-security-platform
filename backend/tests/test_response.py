@@ -1,5 +1,6 @@
 import pytest
 
+from app import database
 from app.response.engine import ResponseEngine
 from app.response.models import (
     ExecutionMode,
@@ -28,6 +29,39 @@ def make_request(
         requested_by=requested_by,
     )
 
+
+def create_alert(source_ip="8.8.8.8"):
+    with database.get_connection() as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO security_alerts (
+                title,
+                severity,
+                description,
+                source_ip,
+                detection_rule,
+                created_at,
+                status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "Response API Test Alert",
+                "high",
+                "Testing controlled response validation",
+                source_ip,
+                "AEGIS-AUTH-001",
+                "2026-11-06T10:00:00+00:00",
+                "open",
+            ),
+        )
+        connection.commit()
+        return cursor.lastrowid
+
+
+# --------------------------------------------------
+# RESPONSE ENGINE UNIT TESTS
+# --------------------------------------------------
 
 def test_valid_public_ip_is_simulated(engine):
     result = engine.execute(make_request())
@@ -111,3 +145,128 @@ def test_policy_requires_approval():
 
     assert decision.allowed is True
     assert decision.approval_required is True
+
+
+# --------------------------------------------------
+# RESPONSE API INTEGRATION TESTS
+# --------------------------------------------------
+
+def test_preview_requires_target_to_match_alert(client):
+    alert_id = create_alert(source_ip="8.8.8.8")
+
+    response = client.post(
+        "/api/v1/response/preview",
+        json={
+            "alert_id": alert_id,
+            "action": "block_ip",
+            "target": "1.1.1.1",
+            "requested_by": "integration-test",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "must match" in response.json()["detail"]
+
+
+def test_valid_preview_is_persisted_with_audit_log(client):
+    alert_id = create_alert(source_ip="8.8.8.8")
+
+    response = client.post(
+        "/api/v1/response/preview",
+        json={
+            "alert_id": alert_id,
+            "action": "block_ip",
+            "target": "8.8.8.8",
+            "requested_by": "integration-test",
+        },
+    )
+
+    assert response.status_code == 201
+
+    payload = response.json()
+    response_id = payload["response_id"]
+
+    assert payload["result"]["status"] == "simulated"
+    assert payload["result"]["executed"] is False
+    assert payload["result"]["simulated"] is True
+
+    history = client.get("/api/v1/response/history")
+
+    assert history.status_code == 200
+    assert history.json()["count"] == 1
+
+    detail = client.get(
+        f"/api/v1/response/history/{response_id}"
+    )
+
+    assert detail.status_code == 200
+
+    record = detail.json()
+
+    assert record["alert_id"] == alert_id
+    assert record["requested_by"] == "integration-test"
+    assert len(record["audit_log"]) == 1
+    assert record["audit_log"][0]["event"] == (
+        "response_preview_created"
+    )
+    assert record["executed"] is False
+
+
+@pytest.mark.parametrize(
+    "source_ip",
+    [
+        None,
+        "not-an-ip",
+    ],
+)
+def test_alert_without_valid_source_ip_is_rejected(
+    client,
+    source_ip,
+):
+    alert_id = create_alert(source_ip=source_ip)
+
+    response = client.post(
+        "/api/v1/response/preview",
+        json={
+            "alert_id": alert_id,
+            "action": "block_ip",
+            "target": "8.8.8.8",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_nonexistent_alert_is_rejected(client):
+    response = client.post(
+        "/api/v1/response/preview",
+        json={
+            "alert_id": 999999,
+            "action": "block_ip",
+            "target": "8.8.8.8",
+        },
+    )
+
+    assert response.status_code == 404
+
+
+def test_matching_private_ip_is_still_rejected_by_policy(client):
+    alert_id = create_alert(source_ip="192.168.1.10")
+
+    response = client.post(
+        "/api/v1/response/preview",
+        json={
+            "alert_id": alert_id,
+            "action": "block_ip",
+            "target": "192.168.1.10",
+        },
+    )
+
+    assert response.status_code == 201
+
+    result = response.json()["result"]
+
+    assert result["status"] == "rejected"
+    assert result["policy_allowed"] is False
+    assert result["executed"] is False
+    assert result["simulated"] is False
