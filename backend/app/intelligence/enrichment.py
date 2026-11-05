@@ -9,6 +9,7 @@ from app.intelligence.models import (
     ProviderStatus,
 )
 from app.intelligence.providers import AbuseIPDBProvider
+from app.intelligence.scoring import ThreatScoringEngine
 
 
 def classify_ip(value: str) -> tuple[IPClassification, bool]:
@@ -18,6 +19,7 @@ def classify_ip(value: str) -> tuple[IPClassification, bool]:
     The boolean indicates whether the address is suitable
     for external public IP intelligence lookups.
     """
+
     address = ip_address(value)
 
     documentation_networks = (
@@ -64,26 +66,39 @@ def classify_ip(value: str) -> tuple[IPClassification, bool]:
 
 class ThreatIntelligenceEnrichmentService:
     """
-    Coordinates IP classification and external threat-intelligence lookups.
+    Coordinates IP classification, external intelligence lookups,
+    threat scoring and reputation assessment.
     """
 
     def __init__(
         self,
         providers: list | None = None,
+        scoring_engine: ThreatScoringEngine | None = None,
     ):
-        self.providers = providers if providers is not None else [
-            AbuseIPDBProvider()
-        ]
+        self.providers = (
+            providers
+            if providers is not None
+            else [AbuseIPDBProvider()]
+        )
 
-    async def enrich_ip(self, value: str) -> IPIntelligenceAssessment:
+        self.scoring_engine = (
+            scoring_engine
+            if scoring_engine is not None
+            else ThreatScoringEngine()
+        )
+
+    async def enrich_ip(
+        self,
+        value: str,
+    ) -> IPIntelligenceAssessment:
         address = ip_address(value.strip())
         normalized_ip = str(address)
 
         classification, is_global = classify_ip(normalized_ip)
-        assessed_at = datetime.now(timezone.utc)
+        accessed_at = datetime.now(timezone.utc)
 
-        # Non-global addresses are classified locally. They are not
-        # submitted to external reputation providers.
+        # Non-global addresses are classified locally.
+        # They must never be submitted to external providers.
         if not is_global:
             return IPIntelligenceAssessment(
                 ip_address=normalized_ip,
@@ -94,14 +109,16 @@ class ThreatIntelligenceEnrichmentService:
                 confidence=1.0,
                 reputation="not_applicable",
                 categories=["non_global_address"],
-                assessed_at=assessed_at,
+                accessed_at=accessed_at,
             )
 
         provider_results: list[ProviderResult] = []
 
         for provider in self.providers:
             try:
-                result = await provider.check_ip(normalized_ip)
+                result = await provider.check_ip_normalized(
+                    normalized_ip
+                )
 
                 if not isinstance(result, ProviderResult):
                     raise TypeError(
@@ -119,7 +136,10 @@ class ThreatIntelligenceEnrichmentService:
                             provider.__class__.__name__,
                         ),
                         status=ProviderStatus.ERROR,
-                        error=f"Provider execution failed: {type(exc).__name__}.",
+                        error=(
+                            "Provider execution failed: "
+                            f"{type(exc).__name__}."
+                        ),
                     )
                 )
 
@@ -129,36 +149,40 @@ class ThreatIntelligenceEnrichmentService:
             if result.status == ProviderStatus.SUCCESS
         ]
 
+        # Determine the overall enrichment outcome.
         if not provider_results:
             status = EnrichmentStatus.SKIPPED
-        elif len(successful_results) == len(provider_results):
-            status = EnrichmentStatus.COMPLETED
-        elif successful_results:
-            status = EnrichmentStatus.PARTIAL
-        else:
+
+        elif not successful_results:
             status = EnrichmentStatus.FAILED
 
-        # Only successful provider results contribute to the assessment.
-        # Failed and unavailable providers never imply a clean reputation.
-        threat_score = self._calculate_threat_score(successful_results)
+        elif len(successful_results) < len(provider_results):
+            status = EnrichmentStatus.PARTIAL
 
-        confidence = (
-            sum(result.confidence for result in successful_results)
-            / len(successful_results)
-            if successful_results
-            else 0.0
+        else:
+            status = EnrichmentStatus.COMPLETED
+
+        # All scoring and confidence calculations are delegated
+        # to the dedicated scoring engine.
+        threat_score = self.scoring_engine.calculate_score(
+            provider_results
         )
 
+        confidence = self.scoring_engine.calculate_confidence(
+            provider_results
+        )
+
+        reputation = self.scoring_engine.determine_reputation(
+            threat_score,
+            has_successful_results=bool(successful_results),
+        )
+
+        # Only successful providers contribute categories.
         categories = sorted({
             category
             for result in successful_results
             for category in result.categories
         })
-
-        reputation = self._determine_reputation(
-            successful_results,
-            threat_score,
-        )
 
         return IPIntelligenceAssessment(
             ip_address=normalized_ip,
@@ -170,7 +194,7 @@ class ThreatIntelligenceEnrichmentService:
             reputation=reputation,
             categories=categories,
             provider_results=provider_results,
-            assessed_at=assessed_at,
+            accessed_at=accessed_at,
         )
 
     @staticmethod
@@ -178,44 +202,28 @@ class ThreatIntelligenceEnrichmentService:
         results: list[ProviderResult],
     ) -> int:
         """
-        Calculate a preliminary score from successful provider results.
+        Backwards-compatible scoring method.
 
-        This initial implementation uses the strongest provider score.
-        It avoids treating multiple reports from one provider as
-        independent evidence.
+        New code should use ThreatScoringEngine directly.
         """
-        if not results:
-            return 0
 
-        scores = []
-
-        for result in results:
-            if result.provider == "abuseipdb":
-                raw_score = result.details.get(
-                    "abuse_confidence_score"
-                )
-
-                if isinstance(raw_score, (int, float)):
-                    scores.append(
-                        max(0, min(100, int(raw_score)))
-                    )
-
-        return max(scores, default=0)
+        return ThreatScoringEngine().calculate_score(results)
 
     @staticmethod
     def _determine_reputation(
         results: list[ProviderResult],
         threat_score: int,
     ) -> str:
-        if not results:
-            return "unknown"
+        """
+        Backwards-compatible reputation method.
+        """
 
-        if threat_score >= 75:
-            return "malicious"
+        has_successful_results = any(
+            result.status == ProviderStatus.SUCCESS
+            for result in results
+        )
 
-        if threat_score >= 25:
-            return "suspicious"
-
-        # A low score is meaningful only when a provider successfully
-        # returned an assessment.
-        return "low_risk"
+        return ThreatScoringEngine.determine_reputation(
+            threat_score,
+            has_successful_results,
+        )
