@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.database import get_connection
+from app.intelligence.mitre import MITREAttackMapper
 
 
 router = APIRouter(
@@ -178,13 +179,16 @@ def get_investigation(alert_id: int):
             (alert_id,)
         ).fetchall()
 
-    return {
-        "alert": dict(alert),
-        "notes": [dict(row) for row in notes],
-        "timeline": [dict(row) for row in timeline],
-        "evidence": [dict(row) for row in evidence],
-        "audit_log": [dict(row) for row in audit_log]
-    }
+        return {
+            "alert": dict(alert),
+            "mitre": MITREAttackMapper.get_rule_mapping(
+                alert["detection_rule"]
+            ),
+            "notes": [dict(row) for row in notes],
+            "timeline": [dict(row) for row in timeline],
+            "evidence": [dict(row) for row in evidence],
+            "audit_log": [dict(row) for row in audit_log]
+        }
 
 
 @router.post("/{alert_id}/notes", status_code=201)
