@@ -12,8 +12,10 @@ class ResponsePolicyEngine:
     """
     Evaluates whether a response request satisfies AEGIS safety policy.
 
-    This initial policy supports simulated public-IP containment only.
-    It never executes an operating-system or firewall command.
+    Only globally routable unicast IP addresses are eligible
+    for simulated containment.
+
+    Real operating-system and firewall commands are never executed.
     """
 
     def evaluate(
@@ -43,10 +45,12 @@ class ResponsePolicyEngine:
                 reasons=tuple(reasons),
             )
 
-        if not address.is_global:
+        # Global scope alone is insufficient:
+        # Python may classify multicast addresses as globally scoped.
+        if not address.is_global or address.is_multicast:
             reasons.append(
-                "Only globally routable IP addresses are eligible "
-                "for this simulated response."
+                "Only globally routable unicast IP addresses "
+                "are eligible for this simulated response."
             )
 
         if not request.requested_by.strip():
@@ -68,4 +72,3 @@ class ResponsePolicyEngine:
                 "Only dry-run execution is currently supported.",
             ),
         )
-
