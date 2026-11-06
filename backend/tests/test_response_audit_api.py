@@ -122,12 +122,15 @@ def test_audit_integrity_accepts_approver_role(client):
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "response_id": response_id,
-        "status": "approved",
-        "valid": True,
-        "errors": [],
-    }
+    result = response.json()
+
+    assert result["response_id"] == response_id
+    assert result["status"] == "approved"
+    assert result["valid"] is True
+    assert result["chain_valid"] is True
+    assert result["event_count"] == 2
+    assert len(result["final_hash"]) == 64
+    assert result["errors"] == []
 
 
 def test_audit_integrity_detects_tampered_audit_actor(client):
@@ -237,4 +240,114 @@ def test_audit_integrity_detects_modified_audit_details(client):
 
     assert response.status_code == 200
     assert response.json()["valid"] is False
+    assert response.json()["errors"]
+
+
+
+def test_audit_integrity_detects_deleted_tail_event(client):
+    response_id = create_pending_response(client)
+    approve_response(client, response_id)
+
+    with database.get_connection() as connection:
+        connection.execute(
+            """
+            DELETE FROM response_audit_log
+            WHERE response_id = ?
+              AND event = ?
+            """,
+            (response_id, "response_approved"),
+        )
+        connection.commit()
+
+    response = client.get(
+        f"/api/v1/response/{response_id}/audit-integrity",
+        headers=approver_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is False
+    assert response.json()["chain_valid"] is False
+    assert any(
+        "event count" in error.lower()
+        for error in response.json()["errors"]
+    )
+
+
+def test_audit_integrity_detects_modified_chain_head(client):
+    response_id = create_pending_response(client)
+
+    with database.get_connection() as connection:
+        connection.execute(
+            """
+            UPDATE response_audit_chain_heads
+            SET final_hash = ?
+            WHERE response_id = ?
+            """,
+            ("f" * 64, response_id),
+        )
+        connection.commit()
+
+    response = client.get(
+        f"/api/v1/response/{response_id}/audit-integrity",
+        headers=approver_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is False
+    assert response.json()["chain_valid"] is False
+    assert any(
+        "final hash" in error.lower()
+        for error in response.json()["errors"]
+    )
+
+
+def test_audit_integrity_detects_missing_chain_head(client):
+    response_id = create_pending_response(client)
+
+    with database.get_connection() as connection:
+        connection.execute(
+            """
+            DELETE FROM response_audit_chain_heads
+            WHERE response_id = ?
+            """,
+            (response_id,),
+        )
+        connection.commit()
+
+    response = client.get(
+        f"/api/v1/response/{response_id}/audit-integrity",
+        headers=approver_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is False
+    assert response.json()["chain_valid"] is False
+    assert any(
+        "chain head is missing" in error.lower()
+        for error in response.json()["errors"]
+    )
+
+
+def test_audit_integrity_detects_tampered_hash_chain_event(client):
+    response_id = create_pending_response(client)
+
+    with database.get_connection() as connection:
+        connection.execute(
+            """
+            UPDATE response_audit_log
+            SET actor = ?
+            WHERE response_id = ?
+            """,
+            ("tampered-actor", response_id),
+        )
+        connection.commit()
+
+    response = client.get(
+        f"/api/v1/response/{response_id}/audit-integrity",
+        headers=approver_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["valid"] is False
+    assert response.json()["chain_valid"] is False
     assert response.json()["errors"]
