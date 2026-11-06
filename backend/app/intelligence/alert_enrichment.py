@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 
 from app.intelligence.enrichment import (
@@ -9,12 +10,20 @@ from app.intelligence.repository import IntelligenceRepository
 logger = logging.getLogger(__name__)
 
 
+def normalize_ip_address(value: str) -> str:
+    """Return a canonical IP representation for reliable comparison."""
+    try:
+        return str(ipaddress.ip_address(value.strip()))
+    except (ValueError, AttributeError):
+        return str(value).strip().lower()
+
+
 class AlertIntelligenceService:
     """
     Automatically enrich security alerts with IP intelligence.
 
-    Successful and skipped assessments are reused.
-    Failed and pending assessments can be retried.
+    Successful assessments are reused only when the source IP matches.
+    Failed, pending, and outdated assessments can be retried.
     """
 
     def __init__(
@@ -40,8 +49,11 @@ class AlertIntelligenceService:
         """
         Enrich an alert's source IP and persist its assessment.
 
-        Failed or pending assessments do not permanently prevent
-        subsequent enrichment attempts.
+        An existing assessment is reusable only if:
+        - Its status is not failed or pending.
+        - Its recorded IP matches the requested source IP.
+
+        Assessments for previous source IPs remain in history.
         """
 
         if not source_ip:
@@ -53,6 +65,8 @@ class AlertIntelligenceService:
             }
 
         try:
+            requested_ip = normalize_ip_address(source_ip)
+
             existing_id = (
                 self.repository.get_assessment_by_alert_id(
                     alert_id
@@ -76,13 +90,28 @@ class AlertIntelligenceService:
                     if hasattr(existing_status, "value"):
                         existing_status = existing_status.value
 
-                    if existing_status not in ("failed", "pending"):
+                    existing_ip = existing_assessment.get(
+                        "ip_address"
+                    )
+
+                    same_source_ip = (
+                        existing_ip is not None
+                        and normalize_ip_address(existing_ip)
+                        == requested_ip
+                    )
+
+                    reusable_status = (
+                        existing_status not in ("failed", "pending")
+                    )
+
+                    if reusable_status and same_source_ip:
                         return {
                             "status": "already_enriched",
                             "alert_id": alert_id,
                             "assessment_id": existing_id,
                             "message": (
-                                "An intelligence assessment already exists."
+                                "An intelligence assessment already "
+                                "exists for this source IP."
                             ),
                         }
 
