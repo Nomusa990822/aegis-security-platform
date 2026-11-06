@@ -105,6 +105,10 @@ def test_failed_enrichment_can_be_retried():
 
 def test_completed_enrichment_is_not_repeated():
     enrichment_service = MockEnrichmentService()
+
+    # Make the first enrichment attempt return COMPLETED.
+    enrichment_service.calls = 1
+
     repository = MockRepository()
 
     service = AlertIntelligenceService(
@@ -112,15 +116,18 @@ def test_completed_enrichment_is_not_repeated():
         repository=repository,
     )
 
-    asyncio.run(
+    first_result = asyncio.run(
         service.enrich_alert(200, "8.8.8.8")
     )
+
+    assert first_result["status"] == "completed"
+    assert enrichment_service.calls == 2
 
     second_result = asyncio.run(
         service.enrich_alert(200, "8.8.8.8")
     )
 
-    assert enrichment_service.calls == 1
+    assert enrichment_service.calls == 2
     assert second_result["status"] == "already_enriched"
     assert second_result["assessment_id"] == 1
     assert len(repository.assessments) == 1
