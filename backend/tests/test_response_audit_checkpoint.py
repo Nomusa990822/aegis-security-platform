@@ -5,6 +5,7 @@ from app.response.audit_checkpoint import (
     verify_audit_checkpoint,
     write_audit_checkpoint,
 )
+from concurrent.futures import ThreadPoolExecutor
 
 
 TEST_SECRET = "test-audit-checkpoint-secret-" + ("x" * 32)
@@ -377,3 +378,59 @@ def test_failed_initial_checkpoint_write_leaves_no_partial_file(
 
     assert not (tmp_path / "response_32.json").exists()
     assert list(tmp_path.glob(".response_32_*.tmp")) == []
+
+
+def test_concurrent_checkpoint_advancement_allows_only_one_writer(
+    monkeypatch,
+    tmp_path,
+):
+    configure_checkpoint(monkeypatch, tmp_path)
+
+    previous_hash = "a" * 64
+
+    write_audit_checkpoint(
+        response_id=41,
+        event_count=1,
+        final_hash=previous_hash,
+    )
+
+    def advance_checkpoint(final_hash):
+        try:
+            write_audit_checkpoint(
+                response_id=41,
+                event_count=2,
+                final_hash=final_hash,
+                previous_event_count=1,
+                previous_final_hash=previous_hash,
+            )
+            return "success"
+        except RuntimeError:
+            return "rejected"
+
+    candidate_hashes = [
+        "b" * 64,
+        "c" * 64,
+    ]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(
+            executor.map(advance_checkpoint, candidate_hashes)
+        )
+
+    assert results.count("success") == 1
+    assert results.count("rejected") == 1
+
+    checkpoint = json.loads(
+        (tmp_path / "response_41.json").read_text()
+    )
+
+    assert checkpoint["payload"]["event_count"] == 2
+    assert checkpoint["payload"]["final_hash"] in candidate_hashes
+
+    verification = verify_audit_checkpoint(
+        response_id=41,
+        event_count=2,
+        final_hash=checkpoint["payload"]["final_hash"],
+    )
+
+    assert verification["valid"] is True

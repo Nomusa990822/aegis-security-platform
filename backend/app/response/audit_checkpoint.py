@@ -1,46 +1,84 @@
 
+import fcntl
 import hashlib
 import hmac
 import json
 import os
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
-
+from typing import Any, Iterator
 
 CHECKPOINT_SCHEMA_VERSION = 1
 GENESIS_HASH = "0" * 64
 
 
-def _load_checkpoint_configuration():
+def load_checkpoint_configuration():
     secret = os.getenv("AEGIS_AUDIT_CHECKPOINT_KEY", "")
-    directory = os.getenv("AEGIS_AUDIT_CHECKPOINT_DIR", "").strip()
+    directory = os.getenv("AEGIS_AUDIT_CHECKPOINT_DIR", "")
 
     if len(secret) < 32:
-        raise RuntimeError(
+        raise ValueError(
             "AEGIS_AUDIT_CHECKPOINT_KEY must contain at least 32 characters."
         )
 
     if not directory:
-        raise RuntimeError(
+        raise ValueError(
             "AEGIS_AUDIT_CHECKPOINT_DIR must be configured."
         )
 
     return secret.encode("utf-8"), Path(directory)
 
 
-def _checkpoint_path(directory: Path, response_id: int) -> Path:
+def checkpoint_path(directory: Path, response_id: int) -> Path:
     if (
         not isinstance(response_id, int)
         or isinstance(response_id, bool)
-        or response_id <= 0
+        or response_id < 1
     ):
         raise ValueError("response_id must be a positive integer.")
 
     return directory / f"response_{response_id}.json"
 
 
-def _canonical_json(payload: dict[str, Any]) -> bytes:
+@contextmanager
+def checkpoint_lock(
+    directory: Path,
+    response_id: int,
+) -> Iterator[None]:
+    """Serialize checkpoint writes across threads and Linux processes."""
+    lock_path = directory / f".response_{response_id}.lock"
+
+    lock_fd = os.open(
+        lock_path,
+        os.O_CREAT | os.O_RDWR,
+        0o600,
+    )
+
+    try:
+        os.chmod(lock_path, 0o600)
+
+        with os.fdopen(lock_fd, "a") as lock_file:
+            lock_fd = -1
+
+            fcntl.flock(
+                lock_file.fileno(),
+                fcntl.LOCK_EX,
+            )
+
+            try:
+                yield
+            finally:
+                fcntl.flock(
+                    lock_file.fileno(),
+                    fcntl.LOCK_UN,
+                )
+    finally:
+        if lock_fd >= 0:
+            os.close(lock_fd)
+
+
+def canonical_json(payload: dict[str, Any]) -> bytes:
     return json.dumps(
         payload,
         sort_keys=True,
@@ -49,10 +87,10 @@ def _canonical_json(payload: dict[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
-def _sign_checkpoint(payload: dict[str, Any], secret: bytes) -> str:
+def sign_checkpoint(payload: dict[str, Any], secret: bytes) -> str:
     return hmac.new(
         secret,
-        _canonical_json(payload),
+        canonical_json(payload),
         hashlib.sha256,
     ).hexdigest()
 
@@ -62,11 +100,10 @@ def verify_audit_checkpoint(
     event_count: int,
     final_hash: str,
 ) -> dict[str, Any]:
-    """Verify a signed checkpoint against an audit-chain head."""
-
+    """Verify a signed checkpoint against an audit chain head."""
     try:
-        secret, directory = _load_checkpoint_configuration()
-        path = _checkpoint_path(directory, response_id)
+        secret, directory = load_checkpoint_configuration()
+        path = checkpoint_path(directory, response_id)
 
         with path.open("r", encoding="utf-8") as checkpoint_file:
             document = json.load(checkpoint_file)
@@ -83,7 +120,7 @@ def verify_audit_checkpoint(
         if not isinstance(signature, str):
             raise ValueError("Checkpoint signature is missing or invalid.")
 
-        expected_signature = _sign_checkpoint(payload, secret)
+        expected_signature = sign_checkpoint(payload, secret)
 
         if not hmac.compare_digest(signature, expected_signature):
             raise ValueError("Checkpoint signature is invalid.")
@@ -107,15 +144,16 @@ def verify_audit_checkpoint(
         }
 
     except FileNotFoundError:
-        error = "Audit checkpoint file is missing."
-    except (OSError, json.JSONDecodeError, RuntimeError, ValueError) as exc:
-        error = str(exc)
+        return {
+            "valid": False,
+            "errors": ["Audit checkpoint file is missing."],
+        }
 
-    return {
-        "valid": False,
-        "errors": [error],
-        "checkpoint": None,
-    }
+    except (ValueError, json.JSONDecodeError, TypeError, OSError) as exc:
+        return {
+            "valid": False,
+            "errors": [str(exc)],
+        }
 
 
 def write_audit_checkpoint(
@@ -125,8 +163,7 @@ def write_audit_checkpoint(
     previous_event_count: int | None = None,
     previous_final_hash: str | None = None,
 ) -> dict[str, Any]:
-    """Write a signed checkpoint without silently replacing a compromised one."""
-
+    """Write a signed checkpoint with serialized, verified advancement."""
     if (
         not isinstance(event_count, int)
         or isinstance(event_count, bool)
@@ -146,18 +183,7 @@ def write_audit_checkpoint(
             "Previous checkpoint count and hash must be supplied together."
         )
 
-    secret, directory = _load_checkpoint_configuration()
-    directory.mkdir(parents=True, exist_ok=True)
-
-    destination = _checkpoint_path(directory, response_id)
-
-    # Verify the previous checkpoint before advancing the chain.
-    if previous_event_count is None:
-        if destination.exists():
-            raise RuntimeError(
-                "Unexpected existing checkpoint for a new audit chain."
-            )
-    else:
+    if previous_event_count is not None:
         if (
             not isinstance(previous_event_count, int)
             or isinstance(previous_event_count, bool)
@@ -175,25 +201,40 @@ def write_audit_checkpoint(
         if (
             not isinstance(previous_final_hash, str)
             or len(previous_final_hash) != 64
-            or any(
-                char not in "0123456789abcdef"
-                for char in previous_final_hash
-            )
+            or any(char not in "0123456789abcdef" for char in previous_final_hash)
         ):
             raise ValueError(
-                "previous_final_hash must be a lowercase SHA-256 digest."
+                "previous_final_hash must be a lowercase SHA-256 hex digest."
             )
 
-        if previous_event_count == 0:
-            if previous_final_hash != GENESIS_HASH:
-                raise ValueError(
-                    "The initial checkpoint must use the genesis hash."
-                )
+        if (
+            previous_event_count == 0
+            and previous_final_hash != GENESIS_HASH
+        ):
+            raise ValueError(
+                "The initial checkpoint must use the genesis hash."
+            )
 
+    secret, directory = load_checkpoint_configuration()
+    directory.mkdir(parents=True, exist_ok=True)
+
+    destination = checkpoint_path(directory, response_id)
+
+    # The lock must cover verification and replacement together.
+    with checkpoint_lock(directory, response_id):
+
+        if previous_event_count is None:
             if destination.exists():
                 raise RuntimeError(
                     "Unexpected existing checkpoint for a new audit chain."
                 )
+
+        elif previous_event_count == 0:
+            if destination.exists():
+                raise RuntimeError(
+                    "Unexpected existing checkpoint for a new audit chain."
+                )
+
         else:
             previous_verification = verify_audit_checkpoint(
                 response_id=response_id,
@@ -203,52 +244,52 @@ def write_audit_checkpoint(
 
             if not previous_verification["valid"]:
                 raise RuntimeError(
-                    "Existing audit checkpoint is missing or invalid; "
+                    "Existing audit checkpoint is missing or invalid, "
                     "refusing to replace it."
                 )
 
-    payload = {
-        "schema_version": CHECKPOINT_SCHEMA_VERSION,
-        "response_id": response_id,
-        "event_count": event_count,
-        "final_hash": final_hash,
-    }
+        payload = {
+            "schema_version": CHECKPOINT_SCHEMA_VERSION,
+            "response_id": response_id,
+            "event_count": event_count,
+            "final_hash": final_hash,
+        }
 
-    document = {
-        "payload": payload,
-        "signature": _sign_checkpoint(payload, secret),
-    }
+        document = {
+            "payload": payload,
+            "signature": sign_checkpoint(payload, secret),
+        }
 
-    temporary_path = None
+        temporary_path = None
 
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            dir=directory,
-            prefix=f".response_{response_id}_",
-            suffix=".tmp",
-            delete=False,
-        ) as temporary_file:
-            temporary_path = Path(temporary_file.name)
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=directory,
+                prefix=f"response_{response_id}_",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
 
-            json.dump(
-                document,
-                temporary_file,
-                sort_keys=True,
-                separators=(",", ":"),
-                ensure_ascii=False,
-            )
+                json.dump(
+                    document,
+                    temporary_file,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                )
 
-            temporary_file.flush()
-            os.fsync(temporary_file.fileno())
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
 
-        os.chmod(temporary_path, 0o600)
-        os.replace(temporary_path, destination)
-        os.chmod(destination, 0o600)
+            os.chmod(temporary_path, 0o600)
+            os.replace(temporary_path, destination)
+            os.chmod(destination, 0o600)
 
-    finally:
-        if temporary_path is not None and temporary_path.exists():
-            temporary_path.unlink()
+        finally:
+            if temporary_path is not None and temporary_path.exists():
+                temporary_path.unlink()
 
     return payload
