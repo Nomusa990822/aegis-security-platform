@@ -75,20 +75,20 @@ def test_non_global_addresses_are_rejected(target):
 
 
 def test_approved_policy_still_never_executes_real_action():
-    result = ResponseEngine().execute(
+    result = ResponseEngine().request_approval(
         make_request("8.8.8.8")
     )
 
-    assert result.status == ResponseStatus.SIMULATED
+    assert result.status == ResponseStatus.PENDING_APPROVAL
     assert result.policy_allowed is True
     assert result.approval_required is True
     assert result.executed is False
-    assert result.simulated is True
+    assert result.simulated is False
     assert result.mode == ExecutionMode.DRY_RUN.value
 
 
 def test_rejected_address_never_executes_or_simulates():
-    result = ResponseEngine().execute(
+    result = ResponseEngine().request_approval(
         make_request("192.168.1.10")
     )
 

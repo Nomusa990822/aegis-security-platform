@@ -176,6 +176,7 @@ def test_response_request_requires_authentication(
     client,
     seeded_alert,
 ):
+    client.headers.pop("Authorization", None)
     response = client.post(
         "/api/v1/response/preview",
         json={
@@ -207,6 +208,7 @@ def test_approver_cannot_submit_analyst_request(
 
 
 def test_history_requires_authentication(client):
+    client.headers.pop("Authorization", None)
     response = client.get(
         "/api/v1/response/history",
         headers={},
@@ -260,16 +262,15 @@ def test_preview_requires_target_to_match_alert(
     assert "must match" in response.json()["detail"]
 
 
-def test_valid_request_is_persisted_pending_approval(
-    client,
-    seeded_alert,
-):
+def test_valid_request_is_persisted_pending_approval(client):
+    alert_id = create_alert(source_ip="8.8.8.8")
+
     response = client.post(
         "/api/v1/response/preview",
         json={
-            "alert_id": seeded_alert,
+            "alert_id": alert_id,
             "action": "block_ip",
-            "target": "198.51.100.250",
+            "target": "8.8.8.8",
         },
     )
 
@@ -297,7 +298,7 @@ def test_valid_request_is_persisted_pending_approval(
 
     record = detail.json()
 
-    assert record["alert_id"] == seeded_alert
+    assert record["alert_id"] == alert_id
     assert record["requested_by"] == "analyst-alpha"
     assert record["status"] == "pending_approval"
     assert record["executed"] is False
@@ -307,7 +308,6 @@ def test_valid_request_is_persisted_pending_approval(
         "response_request_created"
     )
     assert record["audit_log"][0]["actor"] == "analyst-alpha"
-
 
 def test_client_cannot_spoof_requester_identity(
     client,
