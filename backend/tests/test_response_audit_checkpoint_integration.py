@@ -482,3 +482,188 @@ def test_database_tampering_before_checkpoint_advancement_is_detected(
         "checkpoint event count does not match" in error.lower()
         for error in result.json()["errors"]
     )
+
+
+def test_api_verifies_old_checkpoint_and_advances_with_new_key(
+    client,
+    monkeypatch,
+):
+    old_secret = os.environ["AEGIS_AUDIT_CHECKPOINT_KEY"]
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "key-v1",
+    )
+
+    response_id = create_pending_response(client)
+
+    checkpoint_path = get_checkpoint_path(response_id)
+    original_document = json.loads(checkpoint_path.read_text())
+
+    assert original_document["payload"]["key_id"] == "key-v1"
+
+    new_secret = "api-rotation-checkpoint-secret-" + ("y" * 32)
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY",
+        new_secret,
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "key-v2",
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS",
+        json.dumps({"key-v1": old_secret}),
+    )
+
+    old_checkpoint_result = inspect_integrity(client, response_id)
+
+    assert old_checkpoint_result.status_code == 200
+    assert old_checkpoint_result.json()["valid"] is True
+    assert old_checkpoint_result.json()["checkpoint_valid"] is True
+
+    approve_response(client, response_id)
+
+    updated_document = json.loads(checkpoint_path.read_text())
+
+    assert updated_document["payload"]["key_id"] == "key-v2"
+    assert updated_document["payload"]["event_count"] == 2
+
+    updated_result = inspect_integrity(client, response_id)
+
+    assert updated_result.status_code == 200
+    assert updated_result.json()["valid"] is True
+    assert updated_result.json()["chain_valid"] is True
+    assert updated_result.json()["checkpoint_valid"] is True
+
+
+def test_api_rejects_old_checkpoint_when_previous_key_is_unavailable(
+    client,
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "key-v1",
+    )
+
+    response_id = create_pending_response(client)
+
+    new_secret = "api-rotation-checkpoint-secret-" + ("z" * 32)
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY",
+        new_secret,
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "key-v2",
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS",
+        "{}",
+    )
+
+    result = inspect_integrity(client, response_id)
+
+    assert result.status_code == 200
+    assert result.json()["valid"] is False
+    assert result.json()["chain_valid"] is True
+    assert result.json()["checkpoint_valid"] is False
+
+    assert any(
+        "not available" in error.lower()
+        for error in result.json()["errors"]
+    )
+
+
+def test_api_key_rotation_integrity_inspection_is_read_only(
+    client,
+    monkeypatch,
+):
+    old_secret = os.environ["AEGIS_AUDIT_CHECKPOINT_KEY"]
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "key-v1",
+    )
+
+    response_id = create_pending_response(client)
+
+    new_secret = "api-readonly-checkpoint-secret-" + ("q" * 32)
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY",
+        new_secret,
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "key-v2",
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS",
+        json.dumps({"key-v1": old_secret}),
+    )
+
+    checkpoint_path = get_checkpoint_path(response_id)
+    original_checkpoint = checkpoint_path.read_bytes()
+
+    with database.get_connection() as connection:
+        original_events = [
+            dict(row)
+            for row in connection.execute(
+                """
+                SELECT *
+                FROM response_audit_log
+                WHERE response_id = ?
+                ORDER BY id ASC
+                """,
+                (response_id,),
+            ).fetchall()
+        ]
+
+        original_head = dict(
+            connection.execute(
+                """
+                SELECT *
+                FROM response_audit_chain_heads
+                WHERE response_id = ?
+                """,
+                (response_id,),
+            ).fetchone()
+        )
+
+    result = inspect_integrity(client, response_id)
+
+    assert result.status_code == 200
+    assert result.json()["valid"] is True
+
+    assert checkpoint_path.read_bytes() == original_checkpoint
+
+    with database.get_connection() as connection:
+        current_events = [
+            dict(row)
+            for row in connection.execute(
+                """
+                SELECT *
+                FROM response_audit_log
+                WHERE response_id = ?
+                ORDER BY id ASC
+                """,
+                (response_id,),
+            ).fetchall()
+        ]
+
+        current_head = dict(
+            connection.execute(
+                """
+                SELECT *
+                FROM response_audit_chain_heads
+                WHERE response_id = ?
+                """,
+                (response_id,),
+            ).fetchone()
+        )
+
+    assert current_events == original_events
+    assert current_head == original_head
