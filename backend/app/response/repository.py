@@ -7,6 +7,9 @@ from app.response.audit_chain_storage import (
     append_audit_event,
     initialize_audit_chain_storage,
 )
+import logging
+
+from app.response.audit_checkpoint import write_audit_checkpoint
 
 
 def initialize_response_tables(connection):
@@ -89,6 +92,41 @@ def initialize_response_tables(connection):
 
     initialize_audit_chain_storage(connection)
 
+def _write_committed_audit_checkpoint(connection, response_id: int):
+    """
+    Protect the committed audit-chain head with an external signed checkpoint.
+
+    The database transaction must already be committed before this runs.
+    Checkpoint failure is logged; it must not make a committed operation
+    appear to have rolled back.
+    """
+    try:
+        head = connection.execute(
+            """
+            SELECT event_count, final_hash
+            FROM response_audit_chain_heads
+            WHERE response_id = ?
+            """,
+            (response_id,),
+        ).fetchone()
+
+        if head is None:
+            raise RuntimeError(
+                "Cannot checkpoint a response without an audit-chain head."
+            )
+
+        write_audit_checkpoint(
+            response_id=response_id,
+            event_count=head["event_count"],
+            final_hash=head["final_hash"],
+        )
+
+    except Exception:
+        logging.exception(
+            "Failed to write external audit checkpoint for response %s.",
+            response_id,
+        )
+
 
 def save_response(
     connection,
@@ -152,7 +190,13 @@ def save_response(
     )
 
     connection.commit()
-    return response_id
+
+    _write_committed_audit_checkpoint(
+        connection,
+        response_id,
+    )
+
+    return response_id  
 
 
 def decide_response(
@@ -243,6 +287,12 @@ def decide_response(
     )
 
     connection.commit()
+
+    _write_committed_audit_checkpoint(
+        connection,
+        response_id,
+    )
+
     return "updated"
 
 
@@ -344,6 +394,13 @@ def simulate_response(
         )
 
         connection.commit()
+
+        _write_committed_audit_checkpoint(
+            connection,
+            response_id,
+        )
+
+        return "simulated"
         return "simulated"
 
     except Exception:

@@ -41,6 +41,14 @@ def isolated_database(tmp_path, monkeypatch):
         "AEGIS_APPROVER_ID",
         "approver-beta",
     )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY",
+        "aegis-test-checkpoint-secret-" + ("x" * 32),
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_DIR",
+        str(tmp_path / "audit-checkpoints"),
+    )
 
     database.initialize_database()
 

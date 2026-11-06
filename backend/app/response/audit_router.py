@@ -1,10 +1,10 @@
-
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth import AuthenticatedActor, get_approver_actor
 from app.database import get_connection
 from app.response.audit import validate_response_audit
 from app.response.audit_chain import verify_hash_chain
+from app.response.audit_checkpoint import verify_audit_checkpoint
 from app.response.repository import get_response_record
 
 
@@ -54,29 +54,66 @@ def inspect_response_audit(
         *chain_validation["errors"],
     ]
 
+    chain_head_valid = False
+
     if chain_head is None:
         errors.append("Audit chain head is missing.")
     else:
-        if chain_head["event_count"] != chain_validation["event_count"]:
+        count_matches = (
+            chain_head["event_count"]
+            == chain_validation["event_count"]
+        )
+        hash_matches = (
+            chain_head["final_hash"]
+            == chain_validation["final_hash"]
+        )
+
+        if not count_matches:
             errors.append(
                 "Audit chain event count does not match its chain head."
             )
 
-        if chain_head["final_hash"] != chain_validation["final_hash"]:
+        if not hash_matches:
             errors.append(
                 "Audit chain final hash does not match its chain head."
             )
 
+        chain_head_valid = count_matches and hash_matches
+
+    chain_valid = (
+        chain_validation["valid"]
+        and chain_head_valid
+    )
+
+    if chain_head is None:
+        checkpoint_validation = {
+            "valid": False,
+            "errors": [
+                "Cannot verify external checkpoint without a chain head."
+            ],
+            "checkpoint": None,
+        }
+    else:
+        checkpoint_validation = verify_audit_checkpoint(
+            response_id=response_id,
+            event_count=chain_head["event_count"],
+            final_hash=chain_head["final_hash"],
+        )
+
+    errors.extend(checkpoint_validation["errors"])
+
+    checkpoint_valid = checkpoint_validation["valid"]
+
     return {
         "response_id": response_id,
         "status": record["status"],
-        "valid": not errors,
-        "chain_valid": (
-            chain_validation["valid"]
-            and chain_head is not None
-            and chain_head["event_count"] == chain_validation["event_count"]
-            and chain_head["final_hash"] == chain_validation["final_hash"]
+        "valid": (
+            not errors
+            and chain_valid
+            and checkpoint_valid
         ),
+        "chain_valid": chain_valid,
+        "checkpoint_valid": checkpoint_valid,
         "event_count": chain_validation["event_count"],
         "final_hash": chain_validation["final_hash"],
         "errors": errors,
