@@ -33,6 +33,7 @@ def detect(connection, event, rule):
         AND LOWER(outcome) = 'failure'
         AND source_ip = ?
         AND username = ?
+        AND julianday(received_at) IS NOT NULL
         AND received_at >= ?
         """,
         (
