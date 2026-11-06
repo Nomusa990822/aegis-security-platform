@@ -1,18 +1,16 @@
-
-import pytest
-
 from app import main as main_module
 from app.database import get_connection
 
 
-@pytest.mark.asyncio
-async def test_enrichment_failure_does_not_fail_event_ingestion(
+def test_enrichment_failure_does_not_fail_event_ingestion(
     client,
     isolated_database,
     monkeypatch,
 ):
     async def fail_enrichment(*, alert_id, source_ip):
-        raise RuntimeError("Simulated threat intelligence provider failure")
+        raise RuntimeError(
+            "Simulated threat intelligence provider failure"
+        )
 
     def fake_evaluate_event(connection, event):
         return [
@@ -50,7 +48,6 @@ async def test_enrichment_failure_does_not_fail_event_ingestion(
         json=payload,
     )
 
-    # Ingestion must succeed even if optional enrichment fails.
     assert response.status_code == 201
 
     result = response.json()
@@ -59,8 +56,6 @@ async def test_enrichment_failure_does_not_fail_event_ingestion(
     assert result["event_id"] is not None
     assert result["detection_count"] == 1
 
-    # Enrichment failure must be visible and must not be
-    # represented as successful enrichment.
     assert len(result["intelligence_enrichments"]) == 1
 
     enrichment = result["intelligence_enrichments"][0]
@@ -68,7 +63,6 @@ async def test_enrichment_failure_does_not_fail_event_ingestion(
     assert enrichment["alert_id"] == 98765
     assert enrichment["status"] == "failed"
 
-    # The original event must remain persisted.
     with get_connection() as connection:
         stored_event = connection.execute(
             """
