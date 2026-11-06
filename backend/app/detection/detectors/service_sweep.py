@@ -1,4 +1,3 @@
-
 from datetime import datetime, timedelta, timezone
 
 
@@ -30,6 +29,7 @@ def detect(connection, event, rule):
         AND source_ip = ?
         AND destination_ip IS NOT NULL
         AND destination_port IS NOT NULL
+        AND julianday(received_at) IS NOT NULL
         AND received_at >= ?
         ORDER BY destination_ip, destination_port
         """,
