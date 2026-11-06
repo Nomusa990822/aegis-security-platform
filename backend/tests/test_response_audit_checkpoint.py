@@ -7,6 +7,11 @@ from app.response.audit_checkpoint import (
 )
 from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
+from app.response.audit_checkpoint import (
+    sign_checkpoint,
+    verify_audit_checkpoint,
+    write_audit_checkpoint,
+)
 
 TEST_SECRET = "test-audit-checkpoint-secret-" + ("x" * 32)
 TEST_HASH = "a" * 64
@@ -532,3 +537,239 @@ def test_separate_processes_cannot_overwrite_same_checkpoint(
 
         results.close()
         results.join_thread()
+
+
+def test_new_checkpoint_uses_version_two_and_active_key_id(
+    monkeypatch,
+    tmp_path,
+):
+    configure_checkpoint(monkeypatch, tmp_path)
+    monkeypatch.setenv("AEGIS_AUDIT_CHECKPOINT_KEY_ID", "key-v2")
+
+    payload = write_audit_checkpoint(
+        response_id=51,
+        event_count=1,
+        final_hash=TEST_HASH,
+    )
+
+    document = json.loads(
+        (tmp_path / "response_51.json").read_text()
+    )
+
+    assert payload["schema_version"] == 2
+    assert payload["key_id"] == "key-v2"
+    assert document["payload"] == payload
+
+    verification = verify_audit_checkpoint(
+        response_id=51,
+        event_count=1,
+        final_hash=TEST_HASH,
+    )
+
+    assert verification["valid"] is True
+
+
+def test_previous_key_verifies_existing_checkpoint_after_rotation(
+    monkeypatch,
+    tmp_path,
+):
+    configure_checkpoint(monkeypatch, tmp_path)
+    monkeypatch.setenv("AEGIS_AUDIT_CHECKPOINT_KEY_ID", "key-v1")
+
+    write_audit_checkpoint(
+        response_id=52,
+        event_count=1,
+        final_hash=TEST_HASH,
+    )
+
+    new_secret = "rotated-checkpoint-secret-" + ("y" * 32)
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY",
+        new_secret,
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "key-v2",
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS",
+        json.dumps({"key-v1": TEST_SECRET}),
+    )
+
+    verification = verify_audit_checkpoint(
+        response_id=52,
+        event_count=1,
+        final_hash=TEST_HASH,
+    )
+
+    assert verification["valid"] is True
+    assert verification["checkpoint"]["key_id"] == "key-v1"
+
+
+def test_checkpoint_advancement_uses_new_key_after_rotation(
+    monkeypatch,
+    tmp_path,
+):
+    configure_checkpoint(monkeypatch, tmp_path)
+    monkeypatch.setenv("AEGIS_AUDIT_CHECKPOINT_KEY_ID", "key-v1")
+
+    previous_hash = "a" * 64
+    current_hash = "b" * 64
+
+    write_audit_checkpoint(
+        response_id=53,
+        event_count=1,
+        final_hash=previous_hash,
+    )
+
+    new_secret = "rotated-checkpoint-secret-" + ("y" * 32)
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY",
+        new_secret,
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "key-v2",
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS",
+        json.dumps({"key-v1": TEST_SECRET}),
+    )
+
+    written = write_audit_checkpoint(
+        response_id=53,
+        event_count=2,
+        final_hash=current_hash,
+        previous_event_count=1,
+        previous_final_hash=previous_hash,
+    )
+
+    verification = verify_audit_checkpoint(
+        response_id=53,
+        event_count=2,
+        final_hash=current_hash,
+    )
+
+    assert written["key_id"] == "key-v2"
+    assert written["event_count"] == 2
+    assert verification["valid"] is True
+    assert verification["checkpoint"]["key_id"] == "key-v2"
+
+
+def test_legacy_version_one_checkpoint_survives_key_rotation(
+    monkeypatch,
+    tmp_path,
+):
+    configure_checkpoint(monkeypatch, tmp_path)
+
+    payload = {
+        "schema_version": 1,
+        "response_id": 54,
+        "event_count": 1,
+        "final_hash": TEST_HASH,
+    }
+
+    document = {
+        "payload": payload,
+        "signature": sign_checkpoint(
+            payload,
+            TEST_SECRET.encode("utf-8"),
+        ),
+    }
+
+    (tmp_path / "response_54.json").write_text(
+        json.dumps(document),
+        encoding="utf-8",
+    )
+
+    new_secret = "rotated-checkpoint-secret-" + ("y" * 32)
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY",
+        new_secret,
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "key-v2",
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_LEGACY_KEY",
+        TEST_SECRET,
+    )
+
+    verification = verify_audit_checkpoint(
+        response_id=54,
+        event_count=1,
+        final_hash=TEST_HASH,
+    )
+
+    assert verification["valid"] is True
+    assert verification["checkpoint"]["schema_version"] == 1
+
+
+def test_checkpoint_rejects_unknown_previous_signing_key(
+    monkeypatch,
+    tmp_path,
+):
+    configure_checkpoint(monkeypatch, tmp_path)
+
+    unknown_secret = "unknown-checkpoint-secret-" + ("z" * 32)
+
+    payload = {
+        "schema_version": 2,
+        "key_id": "unknown-key",
+        "response_id": 55,
+        "event_count": 1,
+        "final_hash": TEST_HASH,
+    }
+
+    document = {
+        "payload": payload,
+        "signature": sign_checkpoint(
+            payload,
+            unknown_secret.encode("utf-8"),
+        ),
+    }
+
+    (tmp_path / "response_55.json").write_text(
+        json.dumps(document),
+        encoding="utf-8",
+    )
+
+    verification = verify_audit_checkpoint(
+        response_id=55,
+        event_count=1,
+        final_hash=TEST_HASH,
+    )
+
+    assert verification["valid"] is False
+    assert any(
+        "not available" in error.lower()
+        for error in verification["errors"]
+    )
+
+
+def test_checkpoint_rejects_invalid_previous_key_configuration(
+    monkeypatch,
+    tmp_path,
+):
+    configure_checkpoint(monkeypatch, tmp_path)
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS",
+        "not-valid-json",
+    )
+
+    verification = verify_audit_checkpoint(
+        response_id=56,
+        event_count=1,
+        final_hash=TEST_HASH,
+    )
+
+    assert verification["valid"] is False
+    assert any(
+        "valid json" in error.lower()
+        for error in verification["errors"]
+    )

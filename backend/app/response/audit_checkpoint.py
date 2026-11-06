@@ -4,30 +4,100 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
 
-CHECKPOINT_SCHEMA_VERSION = 1
+CHECKPOINT_SCHEMA_VERSION = 2
+LEGACY_CHECKPOINT_SCHEMA_VERSION = 1
 GENESIS_HASH = "0" * 64
+
+KEY_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
+
+def _validate_key_id(key_id: str) -> None:
+    if not isinstance(key_id, str) or not KEY_ID_PATTERN.fullmatch(key_id):
+        raise ValueError(
+            "Checkpoint key ID must contain 1-64 letters, digits, "
+            "periods, underscores, or hyphens."
+        )
 
 
 def load_checkpoint_configuration():
-    secret = os.getenv("AEGIS_AUDIT_CHECKPOINT_KEY", "")
+    active_secret = os.getenv("AEGIS_AUDIT_CHECKPOINT_KEY", "")
+    active_key_id = os.getenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "default",
+    )
+    previous_keys_raw = os.getenv(
+        "AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS",
+        "{}",
+    )
+    legacy_secret = os.getenv(
+        "AEGIS_AUDIT_CHECKPOINT_LEGACY_KEY",
+        active_secret,
+    )
     directory = os.getenv("AEGIS_AUDIT_CHECKPOINT_DIR", "")
 
-    if len(secret) < 32:
+    if len(active_secret) < 32:
         raise ValueError(
             "AEGIS_AUDIT_CHECKPOINT_KEY must contain at least 32 characters."
         )
+
+    if len(legacy_secret) < 32:
+        raise ValueError(
+            "AEGIS_AUDIT_CHECKPOINT_LEGACY_KEY must contain at least "
+            "32 characters."
+        )
+
+    _validate_key_id(active_key_id)
 
     if not directory:
         raise ValueError(
             "AEGIS_AUDIT_CHECKPOINT_DIR must be configured."
         )
 
-    return secret.encode("utf-8"), Path(directory)
+    try:
+        previous_keys = json.loads(previous_keys_raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            "AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS must contain valid JSON."
+        ) from exc
+
+    if not isinstance(previous_keys, dict):
+        raise ValueError(
+            "AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS must be a JSON object."
+        )
+
+    keyring = {}
+
+    for key_id, secret in previous_keys.items():
+        _validate_key_id(key_id)
+
+        if key_id == active_key_id:
+            raise ValueError(
+                "The active checkpoint key ID cannot also be a previous key."
+            )
+
+        if not isinstance(secret, str) or len(secret) < 32:
+            raise ValueError(
+                f"Previous checkpoint key {key_id!r} must contain "
+                "at least 32 characters."
+            )
+
+        keyring[key_id] = secret.encode("utf-8")
+
+    keyring[active_key_id] = active_secret.encode("utf-8")
+
+    return (
+        active_secret.encode("utf-8"),
+        active_key_id,
+        keyring,
+        legacy_secret.encode("utf-8"),
+        Path(directory),
+    )
 
 
 def checkpoint_path(directory: Path, response_id: int) -> Path:
@@ -47,7 +117,7 @@ def checkpoint_lock(
     response_id: int,
 ) -> Iterator[None]:
     """Serialize checkpoint writes across threads and Linux processes."""
-    lock_path = directory / f".response_{response_id}.lock"
+    lock_path = directory / f"response_{response_id}.lock"
 
     lock_fd = os.open(
         lock_path,
@@ -56,9 +126,7 @@ def checkpoint_lock(
     )
 
     try:
-        os.chmod(lock_path, 0o600)
-
-        with os.fdopen(lock_fd, "a") as lock_file:
+        with os.fdopen(lock_fd, "r") as lock_file:
             lock_fd = -1
 
             fcntl.flock(
@@ -100,9 +168,16 @@ def verify_audit_checkpoint(
     event_count: int,
     final_hash: str,
 ) -> dict[str, Any]:
-    """Verify a signed checkpoint against an audit chain head."""
+    """Verify a signed checkpoint using its identified signing key."""
     try:
-        secret, directory = load_checkpoint_configuration()
+        (
+            active_secret,
+            active_key_id,
+            keyring,
+            legacy_secret,
+            directory,
+        ) = load_checkpoint_configuration()
+
         path = checkpoint_path(directory, response_id)
 
         with path.open("r", encoding="utf-8") as checkpoint_file:
@@ -120,13 +195,36 @@ def verify_audit_checkpoint(
         if not isinstance(signature, str):
             raise ValueError("Checkpoint signature is missing or invalid.")
 
-        expected_signature = sign_checkpoint(payload, secret)
+        schema_version = payload.get("schema_version")
 
-        if not hmac.compare_digest(signature, expected_signature):
-            raise ValueError("Checkpoint signature is invalid.")
+        if schema_version == LEGACY_CHECKPOINT_SCHEMA_VERSION:
+            signing_secret = legacy_secret
 
-        if payload.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
+        elif schema_version == CHECKPOINT_SCHEMA_VERSION:
+            key_id = payload.get("key_id")
+
+            if not isinstance(key_id, str):
+                raise ValueError(
+                    "Version 2 checkpoint is missing its key ID."
+                )
+
+            signing_secret = keyring.get(key_id)
+
+            if signing_secret is None:
+                raise ValueError(
+                    f"Checkpoint signing key {key_id!r} is not available."
+                )
+
+        else:
             raise ValueError("Unsupported checkpoint schema version.")
+
+        received_signature = sign_checkpoint(
+            payload,
+            signing_secret,
+        )
+
+        if not hmac.compare_digest(signature, received_signature):
+            raise ValueError("Checkpoint signature is invalid.")
 
         if payload.get("response_id") != response_id:
             raise ValueError("Checkpoint response ID does not match.")
@@ -147,12 +245,14 @@ def verify_audit_checkpoint(
         return {
             "valid": False,
             "errors": ["Audit checkpoint file is missing."],
+            "checkpoint": None,
         }
 
     except (ValueError, json.JSONDecodeError, TypeError, OSError) as exc:
         return {
             "valid": False,
             "errors": [str(exc)],
+            "checkpoint": None,
         }
 
 
@@ -163,7 +263,7 @@ def write_audit_checkpoint(
     previous_event_count: int | None = None,
     previous_final_hash: str | None = None,
 ) -> dict[str, Any]:
-    """Write a signed checkpoint with serialized, verified advancement."""
+    """Write a versioned signed checkpoint with serialized advancement."""
     if (
         not isinstance(event_count, int)
         or isinstance(event_count, bool)
@@ -207,22 +307,24 @@ def write_audit_checkpoint(
                 "previous_final_hash must be a lowercase SHA-256 hex digest."
             )
 
-        if (
-            previous_event_count == 0
-            and previous_final_hash != GENESIS_HASH
-        ):
+        if previous_event_count == 0 and previous_final_hash != GENESIS_HASH:
             raise ValueError(
                 "The initial checkpoint must use the genesis hash."
             )
 
-    secret, directory = load_checkpoint_configuration()
+    (
+        active_secret,
+        active_key_id,
+        keyring,
+        legacy_secret,
+        directory,
+    ) = load_checkpoint_configuration()
+
     directory.mkdir(parents=True, exist_ok=True)
 
     destination = checkpoint_path(directory, response_id)
 
-    # The lock must cover verification and replacement together.
     with checkpoint_lock(directory, response_id):
-
         if previous_event_count is None:
             if destination.exists():
                 raise RuntimeError(
@@ -250,6 +352,7 @@ def write_audit_checkpoint(
 
         payload = {
             "schema_version": CHECKPOINT_SCHEMA_VERSION,
+            "key_id": active_key_id,
             "response_id": response_id,
             "event_count": event_count,
             "final_hash": final_hash,
@@ -257,7 +360,10 @@ def write_audit_checkpoint(
 
         document = {
             "payload": payload,
-            "signature": sign_checkpoint(payload, secret),
+            "signature": sign_checkpoint(
+                payload,
+                active_secret,
+            ),
         }
 
         temporary_path = None
