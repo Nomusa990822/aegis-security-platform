@@ -1,7 +1,22 @@
-
+from app.database import get_connection
 from app.intelligence.repository import IntelligenceRepository
 
 from test_threat_intelligence_persistence import build_assessment
+
+
+class FailingConnectionProxy:
+    """Intercept provider-result inserts while preserving real SQLite operations."""
+
+    def __init__(self, connection):
+        self.connection = connection
+
+    def execute(self, sql, parameters=()):
+        if "INSERT INTO ip_intelligence_provider_results" in sql:
+            raise RuntimeError(
+                "Simulated provider result failure"
+            )
+
+        return self.connection.execute(sql, parameters)
 
 
 def test_provider_result_failure_rolls_back_entire_assessment(
@@ -10,33 +25,26 @@ def test_provider_result_failure_rolls_back_entire_assessment(
     repository = IntelligenceRepository()
     assessment = build_assessment()
 
-    with repository_connection() as connection:
-        original_execute = connection.execute
+    connection = get_connection()
 
-        def failing_execute(sql, parameters=()):
-            if "INSERT INTO ip_intelligence_provider_results" in sql:
-                raise RuntimeError("Simulated provider result failure")
-
-            return original_execute(sql, parameters)
-
-        connection.execute = failing_execute
+    try:
+        proxy = FailingConnectionProxy(connection)
 
         try:
-            try:
-                repository.save_assessment(
-                    assessment,
-                    connection=connection,
-                )
-            except RuntimeError as exc:
-                assert "Simulated provider result failure" in str(exc)
-            else:
-                raise AssertionError("Expected simulated database failure")
+            repository.save_assessment(
+                assessment,
+                connection=proxy,
+            )
+        except RuntimeError as exc:
+            assert "Simulated provider result failure" in str(exc)
+        else:
+            raise AssertionError(
+                "Expected simulated database failure"
+            )
 
-            connection.rollback()
-        finally:
-            connection.close()
+        # The caller owns this transaction and must roll it back.
+        connection.rollback()
 
-    with repository_connection() as connection:
         assessment_count = connection.execute(
             "SELECT COUNT(*) FROM ip_intelligence_assessments"
         ).fetchone()[0]
@@ -45,8 +53,11 @@ def test_provider_result_failure_rolls_back_entire_assessment(
             "SELECT COUNT(*) FROM ip_intelligence_provider_results"
         ).fetchone()[0]
 
-    assert assessment_count == 0
-    assert provider_count == 0
+        assert assessment_count == 0
+        assert provider_count == 0
+
+    finally:
+        connection.close()
 
 
 def test_successful_assessment_persists_all_provider_results(
@@ -62,9 +73,3 @@ def test_successful_assessment_persists_all_provider_results(
 
     assert stored is not None
     assert len(stored["provider_results"]) == 2
-
-
-def repository_connection():
-    from app.database import get_connection
-
-    return get_connection()
