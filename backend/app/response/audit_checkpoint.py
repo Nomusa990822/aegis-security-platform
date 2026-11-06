@@ -1,0 +1,187 @@
+
+import hashlib
+import hmac
+import json
+import os
+import tempfile
+from pathlib import Path
+from typing import Any
+
+
+CHECKPOINT_SCHEMA_VERSION = 1
+
+
+def _load_checkpoint_configuration():
+    secret = os.getenv("AEGIS_AUDIT_CHECKPOINT_KEY", "")
+    directory = os.getenv("AEGIS_AUDIT_CHECKPOINT_DIR", "").strip()
+
+    if len(secret) < 32:
+        raise RuntimeError(
+            "AEGIS_AUDIT_CHECKPOINT_KEY must contain at least 32 characters."
+        )
+
+    if not directory:
+        raise RuntimeError(
+            "AEGIS_AUDIT_CHECKPOINT_DIR must be configured."
+        )
+
+    return secret.encode("utf-8"), Path(directory)
+
+
+def _checkpoint_path(directory: Path, response_id: int) -> Path:
+    if (
+        not isinstance(response_id, int)
+        or isinstance(response_id, bool)
+        or response_id <= 0
+    ):
+        raise ValueError("response_id must be a positive integer.")
+
+    return directory / f"response_{response_id}.json"
+
+
+def _canonical_json(payload: dict[str, Any]) -> bytes:
+    return json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+
+def _sign_checkpoint(payload: dict[str, Any], secret: bytes) -> str:
+    return hmac.new(
+        secret,
+        _canonical_json(payload),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def write_audit_checkpoint(
+    response_id: int,
+    event_count: int,
+    final_hash: str,
+) -> dict[str, Any]:
+    """Write a signed checkpoint outside the SQLite database."""
+
+    if (
+        not isinstance(event_count, int)
+        or isinstance(event_count, bool)
+        or event_count <= 0
+    ):
+        raise ValueError("event_count must be a positive integer.")
+
+    if (
+        not isinstance(final_hash, str)
+        or len(final_hash) != 64
+        or any(char not in "0123456789abcdef" for char in final_hash)
+    ):
+        raise ValueError("final_hash must be a lowercase SHA-256 hex digest.")
+
+    secret, directory = _load_checkpoint_configuration()
+    directory.mkdir(parents=True, exist_ok=True)
+
+    payload = {
+        "schema_version": CHECKPOINT_SCHEMA_VERSION,
+        "response_id": response_id,
+        "event_count": event_count,
+        "final_hash": final_hash,
+    }
+
+    document = {
+        "payload": payload,
+        "signature": _sign_checkpoint(payload, secret),
+    }
+
+    destination = _checkpoint_path(directory, response_id)
+    temporary_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=directory,
+            prefix=f".response_{response_id}_",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary_file:
+            temporary_path = Path(temporary_file.name)
+            json.dump(
+                document,
+                temporary_file,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+
+        os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, destination)
+        os.chmod(destination, 0o600)
+
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
+
+    return payload
+
+
+def verify_audit_checkpoint(
+    response_id: int,
+    event_count: int,
+    final_hash: str,
+) -> dict[str, Any]:
+    """Verify a stored checkpoint against a database audit-chain head."""
+
+    try:
+        secret, directory = _load_checkpoint_configuration()
+        path = _checkpoint_path(directory, response_id)
+
+        with path.open("r", encoding="utf-8") as checkpoint_file:
+            document = json.load(checkpoint_file)
+
+        if not isinstance(document, dict):
+            raise ValueError("Checkpoint document must be a JSON object.")
+
+        payload = document.get("payload")
+        signature = document.get("signature")
+
+        if not isinstance(payload, dict):
+            raise ValueError("Checkpoint payload is missing or invalid.")
+
+        if not isinstance(signature, str):
+            raise ValueError("Checkpoint signature is missing or invalid.")
+
+        expected_signature = _sign_checkpoint(payload, secret)
+
+        if not hmac.compare_digest(signature, expected_signature):
+            raise ValueError("Checkpoint signature is invalid.")
+
+        if payload.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
+            raise ValueError("Unsupported checkpoint schema version.")
+
+        if payload.get("response_id") != response_id:
+            raise ValueError("Checkpoint response ID does not match.")
+
+        if payload.get("event_count") != event_count:
+            raise ValueError("Checkpoint event count does not match.")
+
+        if payload.get("final_hash") != final_hash:
+            raise ValueError("Checkpoint final hash does not match.")
+
+        return {
+            "valid": True,
+            "errors": [],
+            "checkpoint": payload,
+        }
+
+    except FileNotFoundError:
+        error = "Audit checkpoint file is missing."
+    except (OSError, json.JSONDecodeError, RuntimeError, ValueError) as exc:
+        error = str(exc)
+
+    return {
+        "valid": False,
+        "errors": [error],
+        "checkpoint": None,
+    }
