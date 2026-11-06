@@ -1,4 +1,3 @@
-
 import copy
 
 import pytest
@@ -19,7 +18,7 @@ from app.response.repository import (
 )
 
 
-def create_response():
+def create_response(target="8.8.8.8"):
     with database.get_connection() as connection:
         cursor = connection.execute(
             """
@@ -51,7 +50,7 @@ def create_response():
         request = ResponseRequest(
             alert_id=alert_id,
             action=ResponseAction.BLOCK_IP,
-            target="8.8.8.8",
+            target=target,
             mode=ExecutionMode.DRY_RUN,
             requested_by="analyst-alpha",
         )
@@ -125,6 +124,39 @@ def test_decided_response_has_valid_audit(
 
     assert result["valid"] is True
     assert result["errors"] == []
+
+
+def test_policy_rejected_response_has_valid_audit(isolated_database):
+    response_id = create_response(target="10.0.0.5")
+    record = get_record(response_id)
+
+    assert record["status"] == "rejected"
+    assert record["decided_by"] is None
+    assert record["decision_at"] is None
+    assert len(record["audit_log"]) == 1
+    assert record["audit_log"][0]["details"]["status"] == "rejected"
+
+    result = validate_response_audit(record)
+
+    assert result["valid"] is True
+    assert result["errors"] == []
+
+
+def test_policy_rejected_response_cannot_claim_approver(
+    isolated_database,
+):
+    response_id = create_response(target="10.0.0.5")
+    record = get_record(response_id)
+
+    record["decided_by"] = "approver-beta"
+
+    result = validate_response_audit(record)
+
+    assert result["valid"] is False
+    assert any(
+        "approver" in error.lower()
+        for error in result["errors"]
+    )
 
 
 def test_simulated_response_has_valid_audit(isolated_database):

@@ -1,4 +1,3 @@
-
 from typing import Any
 
 
@@ -9,10 +8,6 @@ EXPECTED_EVENTS = {
     "approved": [
         "response_request_created",
         "response_approved",
-    ],
-    "rejected": [
-        "response_request_created",
-        "response_rejected",
     ],
     "simulated": [
         "response_request_created",
@@ -41,28 +36,69 @@ def validate_response_audit(
             "errors": ["Audit log must be a list."],
         }
 
+    if not audit_log:
+        return {
+            "valid": False,
+            "errors": ["Response has no audit events."],
+        }
+
     response_id = record.get("id")
     alert_id = record.get("alert_id")
     status = record.get("status")
 
-    expected_events = EXPECTED_EVENTS.get(status)
-
-    if expected_events is None:
+    if status not in {
+        "pending_approval",
+        "approved",
+        "rejected",
+        "simulated",
+    }:
         errors.append(f"Unsupported response status: {status}")
-    elif [
-        event.get("event")
-        for event in audit_log
-    ] != expected_events:
-        errors.append(
-            "Audit event sequence does not match response status."
-        )
 
-    if not audit_log:
-        errors.append("Response has no audit events.")
+    if any(not isinstance(event, dict) for event in audit_log):
+        errors.append("Every audit event must be an object.")
         return {
             "valid": False,
             "errors": errors,
         }
+
+    event_names = [
+        event.get("event")
+        for event in audit_log
+    ]
+
+    valid_sequences = {
+        "pending_approval": [
+            ["response_request_created"],
+        ],
+        "approved": [
+            [
+                "response_request_created",
+                "response_approved",
+            ],
+        ],
+        "rejected": [
+            ["response_request_created"],
+            [
+                "response_request_created",
+                "response_rejected",
+            ],
+        ],
+        "simulated": [
+            [
+                "response_request_created",
+                "response_approved",
+                "response_simulated",
+            ],
+        ],
+    }
+
+    if (
+        status in valid_sequences
+        and event_names not in valid_sequences[status]
+    ):
+        errors.append(
+            "Audit event sequence does not match response status."
+        )
 
     previous_id = None
 
@@ -77,9 +113,9 @@ def validate_response_audit(
                 f"Audit event {index} references the wrong alert."
             )
 
-        if not event.get("actor"):
+        if not isinstance(event.get("actor"), str) or not event["actor"].strip():
             errors.append(
-                f"Audit event {index} has no actor."
+                f"Audit event {index} has no valid actor."
             )
 
         if not isinstance(event.get("details"), dict):
@@ -89,7 +125,7 @@ def validate_response_audit(
 
         event_id = event.get("id")
 
-        if not isinstance(event_id, int):
+        if type(event_id) is not int:
             errors.append(
                 f"Audit event {index} has an invalid ID."
             )
@@ -98,7 +134,7 @@ def validate_response_audit(
                 "Audit event IDs are not strictly increasing."
             )
 
-        if isinstance(event_id, int):
+        if type(event_id) is int:
             previous_id = event_id
 
     if errors:
@@ -122,39 +158,89 @@ def validate_response_audit(
     if creation_details.get("target") != record.get("target"):
         errors.append("Created target does not match the response record.")
 
-    if creation_details.get("status") not in {
+    initial_status = creation_details.get("status")
+
+    if initial_status not in {
         "pending_approval",
         "rejected",
     }:
         errors.append("Created event contains an invalid initial status.")
 
     if status == "pending_approval":
-        if creation_details.get("status") != "pending_approval":
-            errors.append("Pending response has an inconsistent initial status.")
+        if initial_status != "pending_approval":
+            errors.append(
+                "Pending response has an inconsistent initial status."
+            )
 
         if record.get("decided_by") is not None:
-            errors.append("Pending response unexpectedly has a decision actor.")
+            errors.append(
+                "Pending response unexpectedly has a decision actor."
+            )
 
-        if record.get("simulated"):
-            errors.append("Pending response cannot be simulated.")
+        if record.get("decision_at") is not None:
+            errors.append(
+                "Pending response unexpectedly has a decision timestamp."
+            )
 
-    if status in {"approved", "rejected"}:
+        if record.get("executed") or record.get("simulated"):
+            errors.append("Pending response cannot be executed or simulated.")
+
+    elif status == "rejected" and len(audit_log) == 1:
+        if initial_status != "rejected":
+            errors.append(
+                "Policy-rejected response must have an initial rejected status."
+            )
+
+        if record.get("decided_by") is not None:
+            errors.append(
+                "Policy-rejected response cannot have an approver."
+            )
+
+        if record.get("decision_at") is not None:
+            errors.append(
+                "Policy-rejected response cannot have a decision timestamp."
+            )
+
+        if record.get("executed") or record.get("simulated"):
+            errors.append(
+                "Policy-rejected response cannot be executed or simulated."
+            )
+
+    elif status in {"approved", "rejected"}:
+        if initial_status != "pending_approval":
+            errors.append(
+                "Approver decision must follow a pending approval request."
+            )
+
         decision = audit_log[1]
         decision_details = decision["details"]
 
         if decision["actor"] != record.get("decided_by"):
-            errors.append("Decision actor does not match the response record.")
+            errors.append(
+                "Decision actor does not match the response record."
+            )
 
         if decision_details.get("new_status") != status:
-            errors.append("Decision event does not match the response status.")
+            errors.append(
+                "Decision event does not match the response status."
+            )
 
         if record.get("decision_at") != decision.get("created_at"):
-            errors.append("Decision timestamp does not match the audit event.")
+            errors.append(
+                "Decision timestamp does not match the audit event."
+            )
 
         if record.get("executed") or record.get("simulated"):
-            errors.append("Decided response has an invalid execution state.")
+            errors.append(
+                "Decided response has an invalid execution state."
+            )
 
-    if status == "simulated":
+    elif status == "simulated":
+        if initial_status != "pending_approval":
+            errors.append(
+                "Simulated response must originate from a pending request."
+            )
+
         approval = audit_log[1]
         simulation = audit_log[2]
 
@@ -165,7 +251,9 @@ def validate_response_audit(
             errors.append("Simulation lacks a valid approval event.")
 
         if record.get("decision_at") != approval.get("created_at"):
-            errors.append("Approval timestamp does not match the audit event.")
+            errors.append(
+                "Approval timestamp does not match the audit event."
+            )
 
         if record.get("simulated") is not True:
             errors.append("Simulated status requires simulated=True.")
