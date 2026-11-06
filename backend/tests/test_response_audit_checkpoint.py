@@ -6,7 +6,7 @@ from app.response.audit_checkpoint import (
     write_audit_checkpoint,
 )
 from concurrent.futures import ThreadPoolExecutor
-
+import multiprocessing
 
 TEST_SECRET = "test-audit-checkpoint-secret-" + ("x" * 32)
 TEST_HASH = "a" * 64
@@ -434,3 +434,101 @@ def test_concurrent_checkpoint_advancement_allows_only_one_writer(
     )
 
     assert verification["valid"] is True
+
+
+def test_separate_processes_cannot_overwrite_same_checkpoint(
+    monkeypatch,
+    tmp_path,
+):
+    configure_checkpoint(monkeypatch, tmp_path)
+
+    previous_hash = "a" * 64
+
+    write_audit_checkpoint(
+        response_id=42,
+        event_count=1,
+        final_hash=previous_hash,
+    )
+
+    context = multiprocessing.get_context("fork")
+    start_event = context.Event()
+    results = context.Queue()
+
+    def advance_checkpoint(final_hash):
+        try:
+            start_event.wait(timeout=10)
+
+            write_audit_checkpoint(
+                response_id=42,
+                event_count=2,
+                final_hash=final_hash,
+                previous_event_count=1,
+                previous_final_hash=previous_hash,
+            )
+
+            results.put("success")
+
+        except RuntimeError:
+            results.put("rejected")
+
+        except Exception as exc:
+            results.put(f"error: {type(exc).__name__}: {exc}")
+
+    candidate_hashes = [
+        "b" * 64,
+        "c" * 64,
+    ]
+
+    processes = [
+        context.Process(
+            target=advance_checkpoint,
+            args=(candidate_hash, ),
+        )
+        for candidate_hash in candidate_hashes
+    ]
+
+    try:
+        for process in processes:
+            process.start()
+
+        start_event.set()
+
+        outcomes = [
+            results.get(timeout=15)
+            for _ in processes
+        ]
+
+        for process in processes:
+            process.join(timeout=15)
+
+        assert all(not process.is_alive() for process in processes)
+        assert all(process.exitcode == 0 for process in processes)
+
+        assert outcomes.count("success") == 1
+        assert outcomes.count("rejected") == 1
+
+        checkpoint = json.loads(
+            (tmp_path / "response_42.json").read_text()
+        )
+
+        assert checkpoint["payload"]["event_count"] == 2
+        assert checkpoint["payload"]["final_hash"] in candidate_hashes
+
+        verification = verify_audit_checkpoint(
+            response_id=42,
+            event_count=2,
+            final_hash=checkpoint["payload"]["final_hash"],
+        )
+
+        assert verification["valid"] is True
+
+    finally:
+        start_event.set()
+
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+
+        results.close()
+        results.join_thread()
