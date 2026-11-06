@@ -22,6 +22,7 @@ from app.response.repository import (
     get_response_history,
     get_response_record,
     save_response,
+    simulate_response,
 )
 
 
@@ -226,6 +227,71 @@ def reject_response(
         actor=actor,
         decision="rejected",
     )
+
+
+@router.post("/{response_id}/simulate")
+def simulate_approved_response(
+    response_id: int,
+    actor: AuthenticatedActor = Depends(get_analyst_actor),
+):
+    if response_id <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="response_id must be positive.",
+        )
+
+    with get_connection() as connection:
+        outcome = simulate_response(
+            connection=connection,
+            response_id=response_id,
+            actor_id=actor.actor_id,
+        )
+
+        if outcome == "not_found":
+            raise HTTPException(
+                status_code=404,
+                detail="Response record not found.",
+            )
+
+        if outcome == "already_simulated":
+            raise HTTPException(
+                status_code=409,
+                detail="This response has already been simulated.",
+            )
+
+        if outcome == "not_approved":
+            raise HTTPException(
+                status_code=409,
+                detail="Only approved response requests can be simulated.",
+            )
+
+        if outcome == "already_executed":
+            raise HTTPException(
+                status_code=409,
+                detail="This response has already been executed.",
+            )
+
+        if outcome == "unsupported_action":
+            raise HTTPException(
+                status_code=422,
+                detail="Only approved block_ip dry-run responses are supported.",
+            )
+
+        if outcome == "conflict":
+            raise HTTPException(
+                status_code=409,
+                detail="The response could not be simulated because its state changed.",
+            )
+
+        record = get_response_record(
+            connection,
+            response_id,
+        )
+
+    return {
+        "message": "Dry-run response simulation completed.",
+        "response": record,
+    }
 
 
 @router.get("/history")

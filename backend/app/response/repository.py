@@ -30,7 +30,6 @@ def initialize_response_tables(connection):
         )
     """)
 
-    # Safely migrate existing response tables.
     existing_columns = {
         row["name"]
         for row in connection.execute(
@@ -263,6 +262,123 @@ def decide_response(
 
     connection.commit()
     return "updated"
+
+
+def simulate_response(
+    connection,
+    response_id: int,
+    actor_id: str,
+) -> str:
+    """
+    Simulate an approved dry-run response.
+
+    This function never performs real firewall, operating-system,
+    or network operations.
+    """
+
+    simulation_at = datetime.now(timezone.utc).isoformat()
+
+    connection.execute("BEGIN IMMEDIATE")
+
+    try:
+        record = connection.execute(
+            """
+            SELECT
+                id,
+                alert_id,
+                action,
+                target,
+                mode,
+                status,
+                executed,
+                simulated
+            FROM response_records
+            WHERE id = ?
+            """,
+            (response_id,),
+        ).fetchone()
+
+        if record is None:
+            connection.rollback()
+            return "not_found"
+
+        if record["simulated"]:
+            connection.rollback()
+            return "already_simulated"
+
+        if record["status"] != "approved":
+            connection.rollback()
+            return "not_approved"
+
+        if record["executed"]:
+            connection.rollback()
+            return "already_executed"
+
+        if (
+            record["action"] != "block_ip"
+            or record["mode"] != "dry_run"
+        ):
+            connection.rollback()
+            return "unsupported_action"
+
+        cursor = connection.execute(
+            """
+            UPDATE response_records
+            SET
+                status = 'simulated',
+                simulated = 1
+            WHERE id = ?
+              AND status = 'approved'
+              AND simulated = 0
+              AND executed = 0
+              AND action = 'block_ip'
+              AND mode = 'dry_run'
+            """,
+            (response_id,),
+        )
+
+        if cursor.rowcount != 1:
+            connection.rollback()
+            return "conflict"
+
+        connection.execute(
+            """
+            INSERT INTO response_audit_log (
+                response_id,
+                alert_id,
+                event,
+                actor,
+                details,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                response_id,
+                record["alert_id"],
+                "response_simulated",
+                actor_id,
+                json.dumps({
+                    "simulation_mode": "dry_run",
+                    "action": record["action"],
+                    "target": record["target"],
+                    "outcome": "would_block",
+                    "firewall_modified": False,
+                    "network_modified": False,
+                    "operating_system_command_executed": False,
+                    "executed": False,
+                    "simulated": True,
+                }),
+                simulation_at,
+            ),
+        )
+
+        connection.commit()
+        return "simulated"
+
+    except Exception:
+        connection.rollback()
+        raise
 
 
 def get_response_history(connection, limit: int = 100):
