@@ -303,6 +303,7 @@ async def ingest_event(
 
             connection.commit()
 
+        
         intelligence_enrichments = []
 
         for detection in detections:
@@ -311,16 +312,30 @@ async def ingest_event(
             if alert_id is None:
                 continue
 
-            enrichment_result = (
-                await alert_intelligence_service.enrich_alert(
-                    alert_id=alert_id,
-                    source_ip=event.source_ip,
+            try:
+                enrichment_result = (
+                    await alert_intelligence_service.enrich_alert(
+                        alert_id=alert_id,
+                        source_ip=event.source_ip,
+                    )
                 )
-            )
 
-            intelligence_enrichments.append(
-                enrichment_result
-            )
+                intelligence_enrichments.append(
+                    enrichment_result
+                )
+
+            except Exception:
+                # Event ingestion and detection have already been committed.
+                # Enrichment is supplementary and must not turn a successful
+                # ingestion into an HTTP 500 response.
+                intelligence_enrichments.append(
+                    {
+                        "alert_id": alert_id,
+                        "status": "failed",
+                        "message": "Threat intelligence enrichment failed",
+                    }
+                )
+
 
         return {
             "message": "Security event ingested",
