@@ -184,6 +184,15 @@ def _process_response_decision(
                 detail="This response request has already been decided.",
             )
 
+        if outcome == "audit_integrity_failure":
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Response decision blocked because existing audit "
+                    "evidence failed integrity verification."
+                ),
+            )
+
         if outcome == "conflict":
             raise HTTPException(
                 status_code=409,
@@ -275,6 +284,15 @@ def simulate_approved_response(
             raise HTTPException(
                 status_code=422,
                 detail="Only approved block_ip dry-run responses are supported.",
+            )
+
+        if outcome == "audit_integrity_failure":
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Response simulation blocked because existing audit "
+                    "evidence failed integrity verification."
+                ),
             )
 
         if outcome == "conflict":
