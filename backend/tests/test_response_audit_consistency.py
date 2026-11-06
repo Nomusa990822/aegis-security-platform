@@ -1,4 +1,3 @@
-
 import copy
 
 import pytest
@@ -8,14 +7,20 @@ from app.response.audit import validate_response_audit
 
 CREATED = "2026-11-06T10:00:00+00:00"
 DECIDED = "2026-11-06T10:01:00+00:00"
-SIMULATED = "2026-11-06T10:02:00+00:00"
+SIMULATED = "2026-11-06T10:03:00+00:00"
 
 
 def make_record(status="pending_approval"):
-    policy_allowed = status != "rejected"
+    policy_allowed = status != "policy_rejected"
+
     initial_status = (
-        "rejected" if status == "rejected"
+        "rejected" if status == "policy_rejected"
         else "pending_approval"
+    )
+
+    final_status = (
+        "rejected" if status == "policy_rejected"
+        else status
     )
 
     record = {
@@ -24,8 +29,8 @@ def make_record(status="pending_approval"):
         "action": "block_ip",
         "target": "8.8.8.8",
         "mode": "dry_run",
-        "requested_by": "analyst-alpha",
-        "status": status,
+        "requested_by": "analyst alpha",
+        "status": final_status,
         "policy_allowed": policy_allowed,
         "approval_required": True,
         "executed": False,
@@ -41,7 +46,7 @@ def make_record(status="pending_approval"):
         "response_id": 10,
         "alert_id": 20,
         "event": "response_request_created",
-        "actor": "analyst-alpha",
+        "actor": "analyst alpha",
         "created_at": CREATED,
         "details": {
             "status": initial_status,
@@ -56,11 +61,12 @@ def make_record(status="pending_approval"):
 
     record["audit_log"] = [creation]
 
-    if status in {"approved", "rejected", "simulated"}:
+    if status in ("approved", "rejected", "simulated"):
         decision_status = (
             "approved" if status == "simulated" else status
         )
-        record["decided_by"] = "approver-beta"
+
+        record["decided_by"] = "approver beta"
         record["decision_at"] = DECIDED
         record["decision_reason"] = "Approved for testing."
 
@@ -70,15 +76,15 @@ def make_record(status="pending_approval"):
             "alert_id": 20,
             "event": (
                 "response_approved"
-                if decision_status == "approved"
+                if status in ("approved", "simulated")
                 else "response_rejected"
             ),
-            "actor": "approver-beta",
+            "actor": "approver beta",
             "created_at": DECIDED,
             "details": {
                 "previous_status": "pending_approval",
                 "new_status": decision_status,
-                "decided_by": "approver-beta",
+                "decided_by": "approver beta",
                 "decision_reason": "Approved for testing.",
                 "executed": False,
                 "simulated": False,
@@ -91,7 +97,7 @@ def make_record(status="pending_approval"):
             "response_id": 10,
             "alert_id": 20,
             "event": "response_simulated",
-            "actor": "analyst-alpha",
+            "actor": "analyst alpha",
             "created_at": SIMULATED,
             "details": {
                 "simulation_mode": "dry_run",
@@ -116,6 +122,7 @@ def make_record(status="pending_approval"):
         "approved",
         "rejected",
         "simulated",
+        "policy_rejected",
     ],
 )
 def test_valid_lifecycle_records_pass(status):
@@ -128,7 +135,7 @@ def test_valid_lifecycle_records_pass(status):
 
 
 @pytest.mark.parametrize(
-    ("field", "value"),
+    "field,value",
     [
         ("policy_allowed", False),
         ("approval_required", False),
@@ -146,7 +153,7 @@ def test_creation_record_mismatches_are_detected(field, value):
 
 
 @pytest.mark.parametrize(
-    ("field", "value"),
+    "field,value",
     [
         ("policy_allowed", False),
         ("approval_required", False),
@@ -164,7 +171,7 @@ def test_creation_event_mismatches_are_detected(field, value):
 
 
 @pytest.mark.parametrize(
-    ("field", "value"),
+    "field,value",
     [
         ("previous_status", "approved"),
         ("new_status", "rejected"),
@@ -210,6 +217,27 @@ def test_simulation_action_tampering_is_detected():
     assert result["valid"] is False
 
 
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("firewall_modified", True),
+        ("network_modified", True),
+        ("operating_system_command_executed", True),
+        ("executed", True),
+        ("simulated", False),
+        ("outcome", "blocked"),
+        ("simulation_mode", "live"),
+    ],
+)
+def test_simulation_safety_tampering_is_detected(field, value):
+    record = make_record("simulated")
+    record["audit_log"][2]["details"][field] = value
+
+    result = validate_response_audit(record)
+
+    assert result["valid"] is False
+
+
 def test_non_chronological_timestamps_are_detected():
     record = make_record("simulated")
     record["audit_log"][2]["created_at"] = CREATED
@@ -222,6 +250,24 @@ def test_non_chronological_timestamps_are_detected():
 def test_creation_timestamp_mismatch_is_detected():
     record = make_record()
     record["created_at"] = DECIDED
+
+    result = validate_response_audit(record)
+
+    assert result["valid"] is False
+
+
+def test_wrong_simulation_actor_is_detected():
+    record = make_record("simulated")
+    record["audit_log"][2]["actor"] = "different-analyst"
+
+    result = validate_response_audit(record)
+
+    assert result["valid"] is False
+
+
+def test_approver_rejection_must_follow_pending_request():
+    record = make_record("rejected")
+    record["audit_log"][0]["details"]["status"] = "rejected"
 
     result = validate_response_audit(record)
 

@@ -3,6 +3,9 @@ import json
 from datetime import datetime, timezone
 
 from app.response.models import ResponseRequest, ResponseResult
+from app.response.audit_chain_storage import (
+    initialize_audit_chain_storage,
+)
 
 
 def initialize_response_tables(connection):
@@ -82,6 +85,8 @@ def initialize_response_tables(connection):
         CREATE INDEX IF NOT EXISTS idx_response_audit_response
         ON response_audit_log(response_id)
     """)
+
+    initialize_audit_chain_storage(connection)
 
 
 def save_response(
