@@ -112,7 +112,10 @@ def test_bootstrap_apply_creates_and_verifies_initial_checkpoint(client):
     document = json.loads(checkpoint.read_text(encoding="utf-8"))
     assert document["payload"]["schema_version"] == 2
     assert document["payload"]["response_id"] == response_id
-    assert document["payload"]["key_id"] == "default"
+    assert document["payload"]["key_id"] == os.environ.get(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "default",
+    )
 
     inspected = next(
         item
