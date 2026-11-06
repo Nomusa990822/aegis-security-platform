@@ -287,3 +287,93 @@ def test_checkpoint_rejects_nonsequential_event_count(
         raise AssertionError(
             "A nonsequential checkpoint update was accepted."
         )
+
+
+def test_failed_checkpoint_replacement_preserves_previous_checkpoint(
+    monkeypatch,
+    tmp_path,
+):
+    from app.response import audit_checkpoint
+
+    configure_checkpoint(monkeypatch, tmp_path)
+
+    previous_hash = "a" * 64
+    next_hash = "b" * 64
+
+    write_audit_checkpoint(
+        response_id=31,
+        event_count=1,
+        final_hash=previous_hash,
+    )
+
+    checkpoint_path = tmp_path / "response_31.json"
+    original_document = json.loads(checkpoint_path.read_text())
+
+    def fail_replace(source, destination):
+        raise OSError("Simulated atomic replacement failure.")
+
+    monkeypatch.setattr(
+        audit_checkpoint.os,
+        "replace",
+        fail_replace,
+    )
+
+    try:
+        write_audit_checkpoint(
+            response_id=31,
+            event_count=2,
+            final_hash=next_hash,
+            previous_event_count=1,
+            previous_final_hash=previous_hash,
+        )
+    except OSError as exc:
+        assert "replacement failure" in str(exc).lower()
+    else:
+        raise AssertionError(
+            "Failed checkpoint replacement was not reported."
+        )
+
+    assert json.loads(checkpoint_path.read_text()) == original_document
+
+    verification = verify_audit_checkpoint(
+        response_id=31,
+        event_count=1,
+        final_hash=previous_hash,
+    )
+
+    assert verification["valid"] is True
+    assert list(tmp_path.glob(".response_31_*.tmp")) == []
+
+
+def test_failed_initial_checkpoint_write_leaves_no_partial_file(
+    monkeypatch,
+    tmp_path,
+):
+    from app.response import audit_checkpoint
+
+    configure_checkpoint(monkeypatch, tmp_path)
+
+    def fail_replace(source, destination):
+        raise OSError("Simulated initial checkpoint write failure.")
+
+    monkeypatch.setattr(
+        audit_checkpoint.os,
+        "replace",
+        fail_replace,
+    )
+
+    try:
+        write_audit_checkpoint(
+            response_id=32,
+            event_count=1,
+            final_hash="c" * 64,
+        )
+    except OSError as exc:
+        assert "write failure" in str(exc).lower()
+    else:
+        raise AssertionError(
+            "Failed initial checkpoint write was not reported."
+        )
+
+    assert not (tmp_path / "response_32.json").exists()
+    assert list(tmp_path.glob(".response_32_*.tmp")) == []
