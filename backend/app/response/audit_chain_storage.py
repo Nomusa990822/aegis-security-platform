@@ -18,20 +18,16 @@ def initialize_audit_chain_storage(connection):
     }
 
     if "previous_hash" not in columns:
-        connection.execute(
-            """
+        connection.execute("""
             ALTER TABLE response_audit_log
             ADD COLUMN previous_hash TEXT
-            """
-        )
+        """)
 
     if "event_hash" not in columns:
-        connection.execute(
-            """
+        connection.execute("""
             ALTER TABLE response_audit_log
             ADD COLUMN event_hash TEXT
-            """
-        )
+        """)
 
     connection.execute("""
         CREATE TABLE IF NOT EXISTS response_audit_chain_heads (
@@ -45,26 +41,21 @@ def initialize_audit_chain_storage(connection):
         )
     """)
 
-    response_rows = connection.execute(
-        """
+    response_rows = connection.execute("""
         SELECT DISTINCT response_id
         FROM response_audit_log
         ORDER BY response_id ASC
-        """
-    ).fetchall()
+    """).fetchall()
 
     for response_row in response_rows:
         response_id = response_row["response_id"]
 
-        events = connection.execute(
-            """
+        events = connection.execute("""
             SELECT *
             FROM response_audit_log
             WHERE response_id = ?
             ORDER BY id ASC
-            """,
-            (response_id,),
-        ).fetchall()
+        """, (response_id,)).fetchall()
 
         previous_hash = GENESIS_HASH
         event_count = 0
@@ -117,27 +108,23 @@ def initialize_audit_chain_storage(connection):
                     previous_hash,
                 )
 
-                connection.execute(
-                    """
+                connection.execute("""
                     UPDATE response_audit_log
                     SET previous_hash = ?,
                         event_hash = ?
                     WHERE id = ?
-                    """,
-                    (
-                        previous_hash,
-                        event_hash,
-                        event["id"],
-                    ),
-                )
+                """, (
+                    previous_hash,
+                    event_hash,
+                    event["id"],
+                ))
 
                 previous_hash = event_hash
 
             event_count += 1
 
         if event_count:
-            connection.execute(
-                """
+            connection.execute("""
                 INSERT INTO response_audit_chain_heads (
                     response_id,
                     event_count,
@@ -150,10 +137,127 @@ def initialize_audit_chain_storage(connection):
                     event_count = excluded.event_count,
                     final_hash = excluded.final_hash,
                     updated_at = CURRENT_TIMESTAMP
-                """,
-                (
-                    response_id,
-                    event_count,
-                    previous_hash,
-                ),
+            """, (
+                response_id,
+                event_count,
+                previous_hash,
+            ))
+
+
+def append_audit_event(
+    connection,
+    response_id: int,
+    alert_id: int,
+    event: str,
+    actor: str,
+    details: dict,
+    created_at: str,
+) -> int:
+    """
+    Append one cryptographically linked audit event.
+
+    The caller owns the transaction. This function never commits.
+    """
+
+    if not isinstance(details, dict):
+        raise ValueError("Audit event details must be a dictionary.")
+
+    head = connection.execute("""
+        SELECT event_count, final_hash
+        FROM response_audit_chain_heads
+        WHERE response_id = ?
+    """, (response_id,)).fetchone()
+
+    if head is None:
+        existing = connection.execute("""
+            SELECT COUNT(*) AS event_count
+            FROM response_audit_log
+            WHERE response_id = ?
+        """, (response_id,)).fetchone()
+
+        if existing["event_count"] > 0:
+            raise ValueError(
+                "Existing audit events have no chain head. "
+                "Run the audit-chain migration before appending."
             )
+
+        previous_hash = GENESIS_HASH
+        event_count = 0
+    else:
+        previous_hash = head["final_hash"]
+        event_count = head["event_count"]
+
+    details_json = json.dumps(
+        details,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+
+    cursor = connection.execute("""
+        INSERT INTO response_audit_log (
+            response_id,
+            alert_id,
+            event,
+            actor,
+            details,
+            created_at,
+            previous_hash,
+            event_hash
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+    """, (
+        response_id,
+        alert_id,
+        event,
+        actor,
+        details_json,
+        created_at,
+        previous_hash,
+    ))
+
+    event_id = cursor.lastrowid
+
+    event_payload = {
+        "id": event_id,
+        "response_id": response_id,
+        "alert_id": alert_id,
+        "event": event,
+        "actor": actor,
+        "details": details,
+        "created_at": created_at,
+        "previous_hash": previous_hash,
+    }
+
+    event_hash = calculate_event_hash(
+        event_payload,
+        previous_hash,
+    )
+
+    connection.execute("""
+        UPDATE response_audit_log
+        SET event_hash = ?
+        WHERE id = ?
+    """, (event_hash, event_id))
+
+    connection.execute("""
+        INSERT INTO response_audit_chain_heads (
+            response_id,
+            event_count,
+            final_hash,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(response_id)
+        DO UPDATE SET
+            event_count = excluded.event_count,
+            final_hash = excluded.final_hash,
+            updated_at = excluded.updated_at
+    """, (
+        response_id,
+        event_count + 1,
+        event_hash,
+        created_at,
+    ))
+
+    return event_id

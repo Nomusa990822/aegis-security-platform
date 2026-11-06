@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from app.response.models import ResponseRequest, ResponseResult
 from app.response.audit_chain_storage import (
+    append_audit_event,
     initialize_audit_chain_storage,
 )
 
@@ -132,34 +133,22 @@ def save_response(
 
     response_id = cursor.lastrowid
 
-    connection.execute(
-        """
-        INSERT INTO response_audit_log (
-            response_id,
-            alert_id,
-            event,
-            actor,
-            details,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (
-            response_id,
-            request.alert_id,
-            "response_request_created",
-            request.requested_by,
-            json.dumps({
-                "status": result.status.value,
-                "action": request.action.value,
-                "target": request.target,
-                "policy_allowed": result.policy_allowed,
-                "approval_required": result.approval_required,
-                "executed": result.executed,
-                "simulated": result.simulated,
-            }),
-            created_at,
-        ),
+    append_audit_event(
+        connection=connection,
+        response_id=response_id,
+        alert_id=request.alert_id,
+        event="response_request_created",
+        actor=request.requested_by,
+        details={
+            "status": result.status.value,
+            "action": request.action.value,
+            "target": request.target,
+            "policy_allowed": result.policy_allowed,
+            "approval_required": result.approval_required,
+            "executed": result.executed,
+            "simulated": result.simulated,
+        },
+        created_at=created_at,
     )
 
     connection.commit()
@@ -236,33 +225,21 @@ def decide_response(
         else "response_rejected"
     )
 
-    connection.execute(
-        """
-        INSERT INTO response_audit_log (
-            response_id,
-            alert_id,
-            event,
-            actor,
-            details,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (
-            response_id,
-            record["alert_id"],
-            event,
-            actor_id,
-            json.dumps({
-                "previous_status": "pending_approval",
-                "new_status": decision,
-                "decided_by": actor_id,
-                "decision_reason": reason,
-                "executed": False,
-                "simulated": False,
-            }),
-            decision_at,
-        ),
+    append_audit_event(
+        connection=connection,
+        response_id=response_id,
+        alert_id=record["alert_id"],
+        event=event,
+        actor=actor_id,
+        details={
+            "previous_status": "pending_approval",
+            "new_status": decision,
+            "decided_by": actor_id,
+            "decision_reason": reason,
+            "executed": False,
+            "simulated": False,
+        },
+        created_at=decision_at,
     )
 
     connection.commit()
@@ -346,36 +323,24 @@ def simulate_response(
             connection.rollback()
             return "conflict"
 
-        connection.execute(
-            """
-            INSERT INTO response_audit_log (
-                response_id,
-                alert_id,
-                event,
-                actor,
-                details,
-                created_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                response_id,
-                record["alert_id"],
-                "response_simulated",
-                actor_id,
-                json.dumps({
-                    "simulation_mode": "dry_run",
-                    "action": record["action"],
-                    "target": record["target"],
-                    "outcome": "would_block",
-                    "firewall_modified": False,
-                    "network_modified": False,
-                    "operating_system_command_executed": False,
-                    "executed": False,
-                    "simulated": True,
-                }),
-                simulation_at,
-            ),
+        append_audit_event(
+            connection=connection,
+            response_id=response_id,
+            alert_id=record["alert_id"],
+            event="response_simulated",
+            actor=actor_id,
+            details={
+                "simulation_mode": "dry_run",
+                "action": record["action"],
+                "target": record["target"],
+                "outcome": "would_block",
+                "firewall_modified": False,
+                "network_modified": False,
+                "operating_system_command_executed": False,
+                "executed": False,
+                "simulated": True,
+            },
+            created_at=simulation_at,
         )
 
         connection.commit()
