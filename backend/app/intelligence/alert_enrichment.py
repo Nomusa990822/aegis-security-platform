@@ -13,7 +13,8 @@ class AlertIntelligenceService:
     """
     Automatically enrich security alerts with IP intelligence.
 
-    Existing assessments are reused to prevent duplicate lookups.
+    Successful and skipped assessments are reused.
+    Failed and pending assessments can be retried.
     """
 
     def __init__(
@@ -39,8 +40,8 @@ class AlertIntelligenceService:
         """
         Enrich an alert's source IP and persist its assessment.
 
-        Returns a structured result without allowing an
-        intelligence-provider failure to invalidate an alert.
+        Failed or pending assessments do not permanently prevent
+        subsequent enrichment attempts.
         """
 
         if not source_ip:
@@ -59,12 +60,31 @@ class AlertIntelligenceService:
             )
 
             if existing_id is not None:
-                return {
-                    "status": "already_enriched",
-                    "alert_id": alert_id,
-                    "assessment_id": existing_id,
-                    "message": "An intelligence assessment already exists.",
-                }
+                existing_assessment = (
+                    self.repository.get_assessment(
+                        existing_id
+                    )
+                )
+
+                if existing_assessment is not None:
+                    existing_status = (
+                        existing_assessment.get(
+                            "enrichment_status"
+                        )
+                    )
+
+                    if hasattr(existing_status, "value"):
+                        existing_status = existing_status.value
+
+                    if existing_status not in ("failed", "pending"):
+                        return {
+                            "status": "already_enriched",
+                            "alert_id": alert_id,
+                            "assessment_id": existing_id,
+                            "message": (
+                                "An intelligence assessment already exists."
+                            ),
+                        }
 
             assessment = (
                 await self.enrichment_service.enrich_ip(
@@ -98,5 +118,7 @@ class AlertIntelligenceService:
                 "status": "error",
                 "alert_id": alert_id,
                 "assessment_id": None,
-                "message": "Intelligence enrichment could not be completed.",
+                "message": (
+                    "Intelligence enrichment could not be completed."
+                ),
             }
