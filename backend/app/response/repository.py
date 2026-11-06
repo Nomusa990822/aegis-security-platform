@@ -21,11 +21,35 @@ def initialize_response_tables(connection):
             simulated INTEGER NOT NULL,
             reasons TEXT NOT NULL,
             created_at TEXT NOT NULL,
+            decided_by TEXT,
+            decision_at TEXT,
+            decision_reason TEXT,
             FOREIGN KEY (alert_id)
                 REFERENCES security_alerts(id)
                 ON DELETE CASCADE
         )
     """)
+
+    # Safely migrate existing response tables.
+    existing_columns = {
+        row["name"]
+        for row in connection.execute(
+            "PRAGMA table_info(response_records)"
+        ).fetchall()
+    }
+
+    decision_columns = {
+        "decided_by": "TEXT",
+        "decision_at": "TEXT",
+        "decision_reason": "TEXT",
+    }
+
+    for column_name, column_type in decision_columns.items():
+        if column_name not in existing_columns:
+            connection.execute(
+                f"ALTER TABLE response_records "
+                f"ADD COLUMN {column_name} {column_type}"
+            )
 
     connection.execute("""
         CREATE TABLE IF NOT EXISTS response_audit_log (
@@ -136,6 +160,109 @@ def save_response(
 
     connection.commit()
     return response_id
+
+
+def decide_response(
+    connection,
+    response_id: int,
+    actor_id: str,
+    decision: str,
+    reason: str = "",
+) -> str:
+    if decision not in {"approved", "rejected"}:
+        raise ValueError("Unsupported response decision.")
+
+    decision_at = datetime.now(timezone.utc).isoformat()
+
+    cursor = connection.execute(
+        """
+        UPDATE response_records
+        SET
+            status = ?,
+            decided_by = ?,
+            decision_at = ?,
+            decision_reason = ?
+        WHERE id = ?
+          AND status = 'pending_approval'
+          AND requested_by != ?
+        """,
+        (
+            decision,
+            actor_id,
+            decision_at,
+            reason,
+            response_id,
+            actor_id,
+        ),
+    )
+
+    if cursor.rowcount != 1:
+        existing = connection.execute(
+            """
+            SELECT id, requested_by, status
+            FROM response_records
+            WHERE id = ?
+            """,
+            (response_id,),
+        ).fetchone()
+
+        if existing is None:
+            return "not_found"
+
+        if existing["requested_by"] == actor_id:
+            return "self_decision"
+
+        if existing["status"] != "pending_approval":
+            return "already_decided"
+
+        return "conflict"
+
+    record = connection.execute(
+        """
+        SELECT alert_id
+        FROM response_records
+        WHERE id = ?
+        """,
+        (response_id,),
+    ).fetchone()
+
+    event = (
+        "response_approved"
+        if decision == "approved"
+        else "response_rejected"
+    )
+
+    connection.execute(
+        """
+        INSERT INTO response_audit_log (
+            response_id,
+            alert_id,
+            event,
+            actor,
+            details,
+            created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            response_id,
+            record["alert_id"],
+            event,
+            actor_id,
+            json.dumps({
+                "previous_status": "pending_approval",
+                "new_status": decision,
+                "decided_by": actor_id,
+                "decision_reason": reason,
+                "executed": False,
+                "simulated": False,
+            }),
+            decision_at,
+        ),
+    )
+
+    connection.commit()
+    return "updated"
 
 
 def get_response_history(connection, limit: int = 100):

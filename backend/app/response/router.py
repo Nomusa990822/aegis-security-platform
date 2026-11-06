@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.auth import (
     AuthenticatedActor,
     get_analyst_actor,
+    get_approver_actor,
     get_current_actor,
 )
 from app.database import get_connection
@@ -17,6 +18,7 @@ from app.response.models import (
     ResponseRequest,
 )
 from app.response.repository import (
+    decide_response,
     get_response_history,
     get_response_record,
     save_response,
@@ -42,6 +44,15 @@ class ResponsePreviewRequest(BaseModel):
         if isinstance(value, str):
             return value.strip()
         return value
+
+
+class ResponseDecisionRequest(BaseModel):
+    reason: str = Field(default="", max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def strip_reason(cls, value):
+        return value.strip()
 
 
 def validate_alert_target(
@@ -128,6 +139,93 @@ def preview_response(
         "alert": dict(alert),
         "result": result.to_dict(),
     }
+
+
+def _process_response_decision(
+    response_id: int,
+    payload: ResponseDecisionRequest,
+    actor: AuthenticatedActor,
+    decision: str,
+):
+    if response_id <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="response_id must be positive.",
+        )
+
+    with get_connection() as connection:
+        outcome = decide_response(
+            connection=connection,
+            response_id=response_id,
+            actor_id=actor.actor_id,
+            decision=decision,
+            reason=payload.reason,
+        )
+
+        if outcome == "not_found":
+            raise HTTPException(
+                status_code=404,
+                detail="Response record not found.",
+            )
+
+        if outcome == "self_decision":
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "The requester cannot approve or reject "
+                    "their own response request."
+                ),
+            )
+
+        if outcome == "already_decided":
+            raise HTTPException(
+                status_code=409,
+                detail="This response request has already been decided.",
+            )
+
+        if outcome == "conflict":
+            raise HTTPException(
+                status_code=409,
+                detail="The response request could not be updated.",
+            )
+
+        record = get_response_record(
+            connection,
+            response_id,
+        )
+
+    return {
+        "message": f"Response request {decision}.",
+        "response": record,
+    }
+
+
+@router.post("/{response_id}/approve")
+def approve_response(
+    response_id: int,
+    payload: ResponseDecisionRequest,
+    actor: AuthenticatedActor = Depends(get_approver_actor),
+):
+    return _process_response_decision(
+        response_id=response_id,
+        payload=payload,
+        actor=actor,
+        decision="approved",
+    )
+
+
+@router.post("/{response_id}/reject")
+def reject_response(
+    response_id: int,
+    payload: ResponseDecisionRequest,
+    actor: AuthenticatedActor = Depends(get_approver_actor),
+):
+    return _process_response_decision(
+        response_id=response_id,
+        payload=payload,
+        actor=actor,
+        decision="rejected",
+    )
 
 
 @router.get("/history")
