@@ -1,5 +1,6 @@
-from datetime import datetime, timezone
 import asyncio
+
+from datetime import datetime, timezone
 
 from app.intelligence.alert_enrichment import AlertIntelligenceService
 from app.intelligence.models import (
@@ -57,6 +58,7 @@ class MockRepository:
                 return {
                     "id": assessment["id"],
                     "enrichment_status": assessment["status"],
+                    "ip_address": assessment["ip_address"],
                 }
 
         return None
@@ -70,6 +72,7 @@ class MockRepository:
                 "id": assessment_id,
                 "alert_id": alert_id,
                 "status": assessment.enrichment_status,
+                "ip_address": assessment.ip_address,
             }
         )
 
