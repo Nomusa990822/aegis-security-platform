@@ -4,12 +4,16 @@ import logging
 from datetime import datetime, timezone
 
 from app.response.models import ResponseRequest, ResponseResult
-from app.response.audit_chain import GENESIS_HASH
+from app.response.audit import validate_response_audit
+from app.response.audit_chain import GENESIS_HASH, verify_hash_chain
 from app.response.audit_chain_storage import (
     append_audit_event,
     initialize_audit_chain_storage,
 )
-from app.response.audit_checkpoint import write_audit_checkpoint
+from app.response.audit_checkpoint import (
+    verify_audit_checkpoint,
+    write_audit_checkpoint,
+)
 
 
 def initialize_response_tables(connection):
@@ -171,6 +175,86 @@ def _write_committed_audit_checkpoint(connection, response_id: int):
         )
 
 
+
+def verify_response_audit_before_mutation(connection, response_id: int):
+    """
+    Verify all existing response evidence before a lifecycle mutation.
+
+    The caller must hold a write transaction (BEGIN IMMEDIATE) so another
+    SQLite writer cannot change the response or its audit chain mid-check.
+    """
+    errors = []
+
+    try:
+        record = get_response_record(connection, response_id)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        return {
+            "valid": False,
+            "errors": [f"Response record could not be read: {exc}"],
+        }
+
+    if record is None:
+        return {
+            "valid": False,
+            "errors": ["Response record does not exist."],
+        }
+
+    lifecycle = validate_response_audit(record)
+    if not lifecycle["valid"]:
+        errors.extend(
+            f"Lifecycle validation: {error}"
+            for error in lifecycle["errors"]
+        )
+
+    chain_result = verify_hash_chain(record["audit_log"])
+    if not chain_result["valid"]:
+        errors.extend(
+            f"Hash-chain validation: {error}"
+            for error in chain_result["errors"]
+        )
+
+    head = connection.execute(
+        """
+        SELECT event_count, final_hash
+        FROM response_audit_chain_heads
+        WHERE response_id = ?
+        """,
+        (response_id,),
+    ).fetchone()
+
+    if head is None:
+        errors.append("Database audit-chain head is missing.")
+        return {"valid": False, "errors": errors}
+
+    if head["event_count"] != chain_result["event_count"]:
+        errors.append(
+            "Database audit-chain head event count does not match "
+            "the verified audit events."
+        )
+
+    if head["final_hash"] != chain_result["final_hash"]:
+        errors.append(
+            "Database audit-chain head final hash does not match "
+            "the verified audit events."
+        )
+
+    if chain_result["valid"] and not errors:
+        checkpoint = verify_audit_checkpoint(
+            response_id=response_id,
+            event_count=head["event_count"],
+            final_hash=head["final_hash"],
+        )
+        if not checkpoint["valid"]:
+            errors.extend(
+                f"Signed checkpoint validation: {error}"
+                for error in checkpoint["errors"]
+            )
+
+    return {
+        "valid": not errors,
+        "errors": errors,
+    }
+
 def save_response(
     connection,
     request: ResponseRequest,
@@ -253,30 +337,9 @@ def decide_response(
         raise ValueError("Unsupported response decision.")
 
     decision_at = datetime.now(timezone.utc).isoformat()
+    connection.execute("BEGIN IMMEDIATE")
 
-    cursor = connection.execute(
-        """
-        UPDATE response_records
-        SET
-            status = ?,
-            decided_by = ?,
-            decision_at = ?,
-            decision_reason = ?
-        WHERE id = ?
-          AND status = 'pending_approval'
-          AND requested_by != ?
-        """,
-        (
-            decision,
-            actor_id,
-            decision_at,
-            reason,
-            response_id,
-            actor_id,
-        ),
-    )
-
-    if cursor.rowcount != 1:
+    try:
         existing = connection.execute(
             """
             SELECT id, requested_by, status
@@ -287,49 +350,94 @@ def decide_response(
         ).fetchone()
 
         if existing is None:
+            connection.rollback()
             return "not_found"
 
         if existing["requested_by"] == actor_id:
+            connection.rollback()
             return "self_decision"
 
         if existing["status"] != "pending_approval":
+            connection.rollback()
             return "already_decided"
 
-        return "conflict"
+        integrity = verify_response_audit_before_mutation(
+            connection,
+            response_id,
+        )
+        if not integrity["valid"]:
+            logging.error(
+                "Blocked response decision for %s because audit "
+                "integrity verification failed: %s",
+                response_id,
+                integrity["errors"],
+            )
+            connection.rollback()
+            return "audit_integrity_failure"
 
-    record = connection.execute(
-        """
-        SELECT alert_id
-        FROM response_records
-        WHERE id = ?
-        """,
-        (response_id,),
-    ).fetchone()
+        cursor = connection.execute(
+            """
+            UPDATE response_records
+            SET
+                status = ?,
+                decided_by = ?,
+                decision_at = ?,
+                decision_reason = ?
+            WHERE id = ?
+              AND status = 'pending_approval'
+              AND requested_by != ?
+            """,
+            (
+                decision,
+                actor_id,
+                decision_at,
+                reason,
+                response_id,
+                actor_id,
+            ),
+        )
 
-    event = (
-        "response_approved"
-        if decision == "approved"
-        else "response_rejected"
-    )
+        if cursor.rowcount != 1:
+            connection.rollback()
+            return "conflict"
 
-    append_audit_event(
-        connection=connection,
-        response_id=response_id,
-        alert_id=record["alert_id"],
-        event=event,
-        actor=actor_id,
-        details={
-            "previous_status": "pending_approval",
-            "new_status": decision,
-            "decided_by": actor_id,
-            "decision_reason": reason,
-            "executed": False,
-            "simulated": False,
-        },
-        created_at=decision_at,
-    )
+        record = connection.execute(
+            """
+            SELECT alert_id
+            FROM response_records
+            WHERE id = ?
+            """,
+            (response_id,),
+        ).fetchone()
 
-    connection.commit()
+        event = (
+            "response_approved"
+            if decision == "approved"
+            else "response_rejected"
+        )
+
+        append_audit_event(
+            connection=connection,
+            response_id=response_id,
+            alert_id=record["alert_id"],
+            event=event,
+            actor=actor_id,
+            details={
+                "previous_status": "pending_approval",
+                "new_status": decision,
+                "decided_by": actor_id,
+                "decision_reason": reason,
+                "executed": False,
+                "simulated": False,
+            },
+            created_at=decision_at,
+        )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
 
     _write_committed_audit_checkpoint(
         connection,
@@ -352,7 +460,6 @@ def simulate_response(
     """
 
     simulation_at = datetime.now(timezone.utc).isoformat()
-
     connection.execute("BEGIN IMMEDIATE")
 
     try:
@@ -396,6 +503,20 @@ def simulate_response(
             connection.rollback()
             return "unsupported_action"
 
+        integrity = verify_response_audit_before_mutation(
+            connection,
+            response_id,
+        )
+        if not integrity["valid"]:
+            logging.error(
+                "Blocked response simulation for %s because audit "
+                "integrity verification failed: %s",
+                response_id,
+                integrity["errors"],
+            )
+            connection.rollback()
+            return "audit_integrity_failure"
+
         cursor = connection.execute(
             """
             UPDATE response_records
@@ -438,16 +559,16 @@ def simulate_response(
 
         connection.commit()
 
-        _write_committed_audit_checkpoint(
-            connection,
-            response_id,
-        )
-
-        return "simulated"
-
     except Exception:
         connection.rollback()
         raise
+
+    _write_committed_audit_checkpoint(
+        connection,
+        response_id,
+    )
+
+    return "simulated"
 
 
 def get_response_history(connection, limit: int = 100):
