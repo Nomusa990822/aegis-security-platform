@@ -165,3 +165,125 @@ def test_checkpoint_rejects_invalid_hash(monkeypatch, tmp_path):
         assert "final_hash" in str(exc)
     else:
         raise AssertionError("Invalid final hash was accepted.")
+
+
+def test_checkpoint_can_advance_from_valid_previous_checkpoint(
+    monkeypatch,
+    tmp_path,
+):
+    configure_checkpoint(monkeypatch, tmp_path)
+
+    previous_hash = "a" * 64
+    current_hash = "b" * 64
+
+    write_audit_checkpoint(
+        response_id=21,
+        event_count=3,
+        final_hash=previous_hash,
+    )
+
+    written = write_audit_checkpoint(
+        response_id=21,
+        event_count=4,
+        final_hash=current_hash,
+        previous_event_count=3,
+        previous_final_hash=previous_hash,
+    )
+
+    result = verify_audit_checkpoint(
+        response_id=21,
+        event_count=4,
+        final_hash=current_hash,
+    )
+
+    assert written["event_count"] == 4
+    assert result["valid"] is True
+
+
+def test_checkpoint_cannot_recover_when_previous_checkpoint_is_missing(
+    monkeypatch,
+    tmp_path,
+):
+    configure_checkpoint(monkeypatch, tmp_path)
+
+    try:
+        write_audit_checkpoint(
+            response_id=22,
+            event_count=4,
+            final_hash="b" * 64,
+            previous_event_count=3,
+            previous_final_hash="a" * 64,
+        )
+    except RuntimeError as exc:
+        assert "missing or invalid" in str(exc).lower()
+    else:
+        raise AssertionError(
+            "Recovery accepted a missing previous checkpoint."
+        )
+
+
+def test_checkpoint_cannot_recover_from_tampered_previous_checkpoint(
+    monkeypatch,
+    tmp_path,
+):
+    configure_checkpoint(monkeypatch, tmp_path)
+
+    previous_hash = "a" * 64
+
+    write_audit_checkpoint(
+        response_id=23,
+        event_count=3,
+        final_hash=previous_hash,
+    )
+
+    checkpoint_path = tmp_path / "response_23.json"
+    document = json.loads(checkpoint_path.read_text())
+    document["signature"] = "0" * 64
+    checkpoint_path.write_text(json.dumps(document))
+
+    try:
+        write_audit_checkpoint(
+            response_id=23,
+            event_count=4,
+            final_hash="b" * 64,
+            previous_event_count=3,
+            previous_final_hash=previous_hash,
+        )
+    except RuntimeError as exc:
+        assert "missing or invalid" in str(exc).lower()
+    else:
+        raise AssertionError(
+            "Recovery accepted a tampered previous checkpoint."
+        )
+
+    assert json.loads(checkpoint_path.read_text()) == document
+
+
+def test_checkpoint_rejects_nonsequential_event_count(
+    monkeypatch,
+    tmp_path,
+):
+    configure_checkpoint(monkeypatch, tmp_path)
+
+    previous_hash = "a" * 64
+
+    write_audit_checkpoint(
+        response_id=24,
+        event_count=3,
+        final_hash=previous_hash,
+    )
+
+    try:
+        write_audit_checkpoint(
+            response_id=24,
+            event_count=5,
+            final_hash="b" * 64,
+            previous_event_count=3,
+            previous_final_hash=previous_hash,
+        )
+    except ValueError as exc:
+        assert "sequential" in str(exc).lower()
+    else:
+        raise AssertionError(
+            "A nonsequential checkpoint update was accepted."
+        )

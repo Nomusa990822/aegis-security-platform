@@ -167,6 +167,11 @@ def write_audit_checkpoint(
                 "previous_event_count must be a non-negative integer."
             )
 
+        if event_count != previous_event_count + 1:
+            raise ValueError(
+                "event_count must be sequential with the previous checkpoint."
+            )
+
         if (
             not isinstance(previous_final_hash, str)
             or len(previous_final_hash) != 64
