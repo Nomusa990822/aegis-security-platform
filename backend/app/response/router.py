@@ -1,8 +1,14 @@
+
 import ipaddress
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
+from app.auth import (
+    AuthenticatedActor,
+    get_analyst_actor,
+    get_current_actor,
+)
 from app.database import get_connection
 from app.response.engine import ResponseEngine
 from app.response.models import (
@@ -29,15 +35,10 @@ class ResponsePreviewRequest(BaseModel):
     alert_id: int = Field(gt=0)
     action: ResponseAction
     target: str = Field(min_length=1, max_length=45)
-    requested_by: str = Field(
-        default="analyst",
-        min_length=1,
-        max_length=100,
-    )
 
-    @field_validator("target", "requested_by", mode="before")
+    @field_validator("target", mode="before")
     @classmethod
-    def strip_values(cls, value):
+    def strip_target(cls, value):
         if isinstance(value, str):
             return value.strip()
         return value
@@ -80,7 +81,10 @@ def validate_alert_target(
 
 
 @router.post("/preview", status_code=201)
-def preview_response(payload: ResponsePreviewRequest):
+def preview_response(
+    payload: ResponsePreviewRequest,
+    actor: AuthenticatedActor = Depends(get_analyst_actor),
+):
     with get_connection() as connection:
         alert = connection.execute(
             """
@@ -107,10 +111,10 @@ def preview_response(payload: ResponsePreviewRequest):
             action=payload.action,
             target=payload.target,
             mode=ExecutionMode.DRY_RUN,
-            requested_by=payload.requested_by,
+            requested_by=actor.actor_id,
         )
 
-        result = response_engine.execute(request)
+        result = response_engine.request_approval(request)
 
         response_id = save_response(
             connection,
@@ -119,7 +123,7 @@ def preview_response(payload: ResponsePreviewRequest):
         )
 
     return {
-        "message": "Response preview evaluated and recorded.",
+        "message": "Response request evaluated and recorded.",
         "response_id": response_id,
         "alert": dict(alert),
         "result": result.to_dict(),
@@ -129,6 +133,7 @@ def preview_response(payload: ResponsePreviewRequest):
 @router.get("/history")
 def response_history(
     limit: int = Query(default=100, ge=1, le=500),
+    actor: AuthenticatedActor = Depends(get_current_actor),
 ):
     with get_connection() as connection:
         records = get_response_history(
@@ -143,7 +148,10 @@ def response_history(
 
 
 @router.get("/history/{response_id}")
-def response_history_detail(response_id: int):
+def response_history_detail(
+    response_id: int,
+    actor: AuthenticatedActor = Depends(get_current_actor),
+):
     if response_id <= 0:
         raise HTTPException(
             status_code=400,

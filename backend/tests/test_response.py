@@ -1,3 +1,4 @@
+
 import pytest
 
 from app import database
@@ -9,6 +10,10 @@ from app.response.models import (
     ResponseStatus,
 )
 from app.response.policy import ResponsePolicyEngine
+
+
+ANALYST_TOKEN = "a" * 48
+APPROVER_TOKEN = "b" * 48
 
 
 @pytest.fixture
@@ -59,18 +64,30 @@ def create_alert(source_ip="8.8.8.8"):
         return cursor.lastrowid
 
 
+def analyst_headers():
+    return {
+        "Authorization": f"Bearer {ANALYST_TOKEN}",
+    }
+
+
+def approver_headers():
+    return {
+        "Authorization": f"Bearer {APPROVER_TOKEN}",
+    }
+
+
 # --------------------------------------------------
 # RESPONSE ENGINE UNIT TESTS
 # --------------------------------------------------
 
-def test_valid_public_ip_is_simulated(engine):
-    result = engine.execute(make_request())
+def test_valid_public_ip_enters_pending_approval(engine):
+    result = engine.request_approval(make_request())
 
-    assert result.status == ResponseStatus.SIMULATED
+    assert result.status == ResponseStatus.PENDING_APPROVAL
     assert result.policy_allowed is True
     assert result.approval_required is True
     assert result.executed is False
-    assert result.simulated is True
+    assert result.simulated is False
 
 
 @pytest.mark.parametrize(
@@ -83,7 +100,9 @@ def test_valid_public_ip_is_simulated(engine):
     ],
 )
 def test_non_global_ip_is_rejected(engine, target):
-    result = engine.execute(make_request(target=target))
+    result = engine.request_approval(
+        make_request(target=target)
+    )
 
     assert result.status == ResponseStatus.REJECTED
     assert result.policy_allowed is False
@@ -92,16 +111,17 @@ def test_non_global_ip_is_rejected(engine, target):
 
 
 def test_invalid_ip_is_rejected(engine):
-    result = engine.execute(
+    result = engine.request_approval(
         make_request(target="not-an-ip")
     )
 
     assert result.status == ResponseStatus.REJECTED
     assert result.executed is False
+    assert result.simulated is False
 
 
 def test_invalid_alert_id_is_rejected(engine):
-    result = engine.execute(
+    result = engine.request_approval(
         make_request(alert_id=0)
     )
 
@@ -110,7 +130,7 @@ def test_invalid_alert_id_is_rejected(engine):
 
 
 def test_blank_requester_is_rejected(engine):
-    result = engine.execute(
+    result = engine.request_approval(
         make_request(requested_by="   ")
     )
 
@@ -118,24 +138,25 @@ def test_blank_requester_is_rejected(engine):
     assert result.policy_allowed is False
 
 
-def test_dry_run_never_executes_real_action(engine):
-    result = engine.execute(make_request())
+def test_request_approval_never_simulates_or_executes(engine):
+    result = engine.request_approval(make_request())
 
     assert result.mode == ExecutionMode.DRY_RUN.value
     assert result.executed is False
-    assert result.simulated is True
+    assert result.simulated is False
+    assert result.status == ResponseStatus.PENDING_APPROVAL
 
 
 def test_response_result_serializes_to_dictionary(engine):
-    result = engine.execute(make_request())
+    result = engine.request_approval(make_request())
     data = result.to_dict()
 
-    assert data["status"] == "simulated"
+    assert data["status"] == "pending_approval"
     assert data["action"] == "block_ip"
     assert data["target"] == "8.8.8.8"
     assert data["mode"] == "dry_run"
     assert data["executed"] is False
-    assert data["simulated"] is True
+    assert data["simulated"] is False
     assert isinstance(data["reasons"], list)
 
 
@@ -148,19 +169,90 @@ def test_policy_requires_approval():
 
 
 # --------------------------------------------------
-# RESPONSE API INTEGRATION TESTS
+# RESPONSE API AUTHENTICATION TESTS
 # --------------------------------------------------
 
-def test_preview_requires_target_to_match_alert(client):
-    alert_id = create_alert(source_ip="8.8.8.8")
-
+def test_response_request_requires_authentication(
+    client,
+    seeded_alert,
+):
     response = client.post(
         "/api/v1/response/preview",
         json={
-            "alert_id": alert_id,
+            "alert_id": seeded_alert,
+            "action": "block_ip",
+            "target": "198.51.100.250",
+        },
+        headers={},
+    )
+
+    assert response.status_code == 401
+
+
+def test_approver_cannot_submit_analyst_request(
+    client,
+    seeded_alert,
+):
+    response = client.post(
+        "/api/v1/response/preview",
+        json={
+            "alert_id": seeded_alert,
+            "action": "block_ip",
+            "target": "198.51.100.250",
+        },
+        headers=approver_headers(),
+    )
+
+    assert response.status_code == 403
+
+
+def test_history_requires_authentication(client):
+    response = client.get(
+        "/api/v1/response/history",
+        headers={},
+    )
+
+    assert response.status_code == 401
+
+
+def test_approver_can_inspect_response_history(
+    client,
+    seeded_alert,
+):
+    created = client.post(
+        "/api/v1/response/preview",
+        json={
+            "alert_id": seeded_alert,
+            "action": "block_ip",
+            "target": "198.51.100.250",
+        },
+    )
+
+    assert created.status_code == 201
+
+    history = client.get(
+        "/api/v1/response/history",
+        headers=approver_headers(),
+    )
+
+    assert history.status_code == 200
+    assert history.json()["count"] == 1
+
+
+# --------------------------------------------------
+# RESPONSE API INTEGRATION TESTS
+# --------------------------------------------------
+
+def test_preview_requires_target_to_match_alert(
+    client,
+    seeded_alert,
+):
+    response = client.post(
+        "/api/v1/response/preview",
+        json={
+            "alert_id": seeded_alert,
             "action": "block_ip",
             "target": "1.1.1.1",
-            "requested_by": "integration-test",
         },
     )
 
@@ -168,16 +260,16 @@ def test_preview_requires_target_to_match_alert(client):
     assert "must match" in response.json()["detail"]
 
 
-def test_valid_preview_is_persisted_with_audit_log(client):
-    alert_id = create_alert(source_ip="8.8.8.8")
-
+def test_valid_request_is_persisted_pending_approval(
+    client,
+    seeded_alert,
+):
     response = client.post(
         "/api/v1/response/preview",
         json={
-            "alert_id": alert_id,
+            "alert_id": seeded_alert,
             "action": "block_ip",
-            "target": "8.8.8.8",
-            "requested_by": "integration-test",
+            "target": "198.51.100.250",
         },
     )
 
@@ -186,9 +278,11 @@ def test_valid_preview_is_persisted_with_audit_log(client):
     payload = response.json()
     response_id = payload["response_id"]
 
-    assert payload["result"]["status"] == "simulated"
+    assert payload["result"]["status"] == "pending_approval"
+    assert payload["result"]["policy_allowed"] is True
+    assert payload["result"]["approval_required"] is True
     assert payload["result"]["executed"] is False
-    assert payload["result"]["simulated"] is True
+    assert payload["result"]["simulated"] is False
 
     history = client.get("/api/v1/response/history")
 
@@ -203,13 +297,42 @@ def test_valid_preview_is_persisted_with_audit_log(client):
 
     record = detail.json()
 
-    assert record["alert_id"] == alert_id
-    assert record["requested_by"] == "integration-test"
+    assert record["alert_id"] == seeded_alert
+    assert record["requested_by"] == "analyst-alpha"
+    assert record["status"] == "pending_approval"
+    assert record["executed"] is False
+    assert record["simulated"] is False
     assert len(record["audit_log"]) == 1
     assert record["audit_log"][0]["event"] == (
-        "response_preview_created"
+        "response_request_created"
     )
-    assert record["executed"] is False
+    assert record["audit_log"][0]["actor"] == "analyst-alpha"
+
+
+def test_client_cannot_spoof_requester_identity(
+    client,
+    seeded_alert,
+):
+    response = client.post(
+        "/api/v1/response/preview",
+        json={
+            "alert_id": seeded_alert,
+            "action": "block_ip",
+            "target": "198.51.100.250",
+            "requested_by": "approver-beta",
+        },
+    )
+
+    assert response.status_code == 201
+
+    response_id = response.json()["response_id"]
+
+    detail = client.get(
+        f"/api/v1/response/history/{response_id}"
+    )
+
+    assert detail.status_code == 200
+    assert detail.json()["requested_by"] == "analyst-alpha"
 
 
 @pytest.mark.parametrize(

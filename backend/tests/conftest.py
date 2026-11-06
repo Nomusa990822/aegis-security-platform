@@ -1,3 +1,4 @@
+
 import pytest
 
 from fastapi.testclient import TestClient
@@ -6,19 +7,39 @@ from app import database
 from app.main import app
 
 
+ANALYST_TEST_TOKEN = "a" * 48
+APPROVER_TEST_TOKEN = "b" * 48
+
+
 @pytest.fixture
 def isolated_database(tmp_path, monkeypatch):
     """
     Give each test its own temporary SQLite database.
-
-    The real backend/aegis.db is never used by this fixture.
+    The real backend database is never used.
     """
     test_database = tmp_path / "aegis_test.db"
 
     monkeypatch.setattr(
         database,
         "DATABASE_PATH",
-        test_database
+        test_database,
+    )
+
+    monkeypatch.setenv(
+        "AEGIS_ANALYST_TOKEN",
+        ANALYST_TEST_TOKEN,
+    )
+    monkeypatch.setenv(
+        "AEGIS_APPROVER_TOKEN",
+        APPROVER_TEST_TOKEN,
+    )
+    monkeypatch.setenv(
+        "AEGIS_ANALYST_ID",
+        "analyst-alpha",
+    )
+    monkeypatch.setenv(
+        "AEGIS_APPROVER_ID",
+        "approver-beta",
     )
 
     database.initialize_database()
@@ -28,18 +49,17 @@ def isolated_database(tmp_path, monkeypatch):
 
 @pytest.fixture
 def client(isolated_database):
-    """
-    Provide a FastAPI test client.
-    """
-    with TestClient(app) as test_client:
+    with TestClient(
+        app,
+        headers={
+            "Authorization": f"Bearer {ANALYST_TEST_TOKEN}",
+        },
+    ) as test_client:
         yield test_client
 
 
 @pytest.fixture
 def seeded_alert(isolated_database):
-    """
-    Insert a test alert into the temporary database.
-    """
     with database.get_connection() as connection:
         cursor = connection.execute(
             """
@@ -61,8 +81,8 @@ def seeded_alert(isolated_database):
                 "198.51.100.250",
                 "AEGIS-AUTH-001",
                 "2026-11-03T10:00:00+00:00",
-                "open"
-            )
+                "open",
+            ),
         )
 
         alert_id = cursor.lastrowid
@@ -73,9 +93,6 @@ def seeded_alert(isolated_database):
 
 @pytest.fixture
 def seeded_event(isolated_database):
-    """
-    Insert a test security event.
-    """
     with database.get_connection() as connection:
         cursor = connection.execute(
             """
@@ -103,8 +120,8 @@ def seeded_event(isolated_database):
                 "2026-11-03T10:00:00+00:00",
                 None,
                 None,
-                None
-            )
+                None,
+            ),
         )
 
         event_id = cursor.lastrowid
@@ -115,9 +132,6 @@ def seeded_event(isolated_database):
 
 @pytest.fixture
 def seeded_correlation(isolated_database, seeded_alert):
-    """
-    Insert a test correlation case and link the test alert.
-    """
     with database.get_connection() as connection:
         cursor = connection.execute(
             """
@@ -143,8 +157,8 @@ def seeded_correlation(isolated_database, seeded_alert):
                 "open",
                 "2026-11-03T10:00:00+00:00",
                 "2026-11-03T10:00:00+00:00",
-                None
-            )
+                None,
+            ),
         )
 
         correlation_id = cursor.lastrowid
@@ -161,8 +175,8 @@ def seeded_correlation(isolated_database, seeded_alert):
             (
                 correlation_id,
                 seeded_alert,
-                "2026-11-03T10:00:00+00:00"
-            )
+                "2026-11-03T10:00:00+00:00",
+            ),
         )
 
         connection.commit()

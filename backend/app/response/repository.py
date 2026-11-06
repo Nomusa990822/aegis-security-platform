@@ -119,12 +119,14 @@ def save_response(
         (
             response_id,
             request.alert_id,
-            "response_preview_created",
+            "response_request_created",
             request.requested_by,
             json.dumps({
                 "status": result.status.value,
                 "action": request.action.value,
                 "target": request.target,
+                "policy_allowed": result.policy_allowed,
+                "approval_required": result.approval_required,
                 "executed": result.executed,
                 "simulated": result.simulated,
             }),

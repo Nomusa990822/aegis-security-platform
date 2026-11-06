@@ -10,9 +10,10 @@ from app.response.policy import ResponsePolicyEngine
 
 class ResponseEngine:
     """
-    Coordinates policy evaluation and safe response simulation.
+    Evaluates response requests and places valid requests
+    into the approval queue.
 
-    Real response execution is intentionally disabled.
+    This stage does not simulate or execute responses.
     """
 
     def __init__(
@@ -23,7 +24,7 @@ class ResponseEngine:
             policy_engine or ResponsePolicyEngine()
         )
 
-    def execute(
+    def request_approval(
         self,
         request: ResponseRequest,
     ) -> ResponseResult:
@@ -53,21 +54,23 @@ class ResponseEngine:
                 executed=False,
                 simulated=False,
                 reasons=(
-                    "Only dry-run execution is supported.",
+                    "Only dry-run mode is supported.",
                 ),
             )
 
         return ResponseResult(
-            status=ResponseStatus.SIMULATED,
+            status=ResponseStatus.PENDING_APPROVAL,
             action=request.action.value,
             target=request.target,
             mode=request.mode.value,
             policy_allowed=True,
             approval_required=True,
             executed=False,
-            simulated=True,
+            simulated=False,
             reasons=decision.reasons + (
-                "Simulation completed. No firewall or network changes were made.",
+                "Response request recorded.",
+                "A separate authorised approver must approve "
+                "this request before simulation.",
+                "No firewall or network changes were made.",
             ),
         )
-

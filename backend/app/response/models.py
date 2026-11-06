@@ -13,6 +13,7 @@ class ExecutionMode(str, Enum):
 
 
 class ResponseStatus(str, Enum):
+    PENDING_APPROVAL = "pending_approval"
     APPROVED = "approved"
     REJECTED = "rejected"
     SIMULATED = "simulated"
@@ -53,4 +54,3 @@ class ResponseResult:
         result["mode"] = self.mode
         result["reasons"] = list(self.reasons)
         return result
-
