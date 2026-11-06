@@ -28,6 +28,7 @@ class AlertIntelligenceService:
     Failed, pending, and outdated assessments can be retried.
 
     Concurrent enrichment requests for the same alert are serialized.
+    Unused per-alert locks are removed safely.
     """
 
     def __init__(
@@ -48,13 +49,39 @@ class AlertIntelligenceService:
         self._alert_locks = {}
         self._alert_locks_guard = threading.Lock()
 
-    def _get_alert_lock(self, alert_id: int) -> asyncio.Lock:
-        """Get or create the asynchronous lock for an alert."""
-        with self._alert_locks_guard:
-            if alert_id not in self._alert_locks:
-                self._alert_locks[alert_id] = asyncio.Lock()
+    def _register_alert_lock(self, alert_id: int) -> asyncio.Lock:
+        """
+        Register a request against an alert lock.
 
-            return self._alert_locks[alert_id]
+        The user count includes both the current lock holder
+        and requests waiting to acquire the lock.
+        """
+        with self._alert_locks_guard:
+            entry = self._alert_locks.get(alert_id)
+
+            if entry is None:
+                entry = {
+                    "lock": asyncio.Lock(),
+                    "users": 0,
+                }
+                self._alert_locks[alert_id] = entry
+
+            entry["users"] += 1
+
+            return entry["lock"]
+
+    def _release_alert_lock_reference(self, alert_id: int) -> None:
+        """Remove a lock only after its final registered request exits."""
+        with self._alert_locks_guard:
+            entry = self._alert_locks.get(alert_id)
+
+            if entry is None:
+                return
+
+            entry["users"] -= 1
+
+            if entry["users"] == 0:
+                del self._alert_locks[alert_id]
 
     async def enrich_alert(
         self,
@@ -64,16 +91,19 @@ class AlertIntelligenceService:
         """
         Serialize enrichment requests for the same alert.
 
-        A waiting request checks the repository again after acquiring
+        Waiting requests check the repository again after acquiring
         the lock, preventing duplicate provider calls and assessments.
         """
-        lock = self._get_alert_lock(alert_id)
+        lock = self._register_alert_lock(alert_id)
 
-        async with lock:
-            return await self._enrich_alert_locked(
-                alert_id,
-                source_ip,
-            )
+        try:
+            async with lock:
+                return await self._enrich_alert_locked(
+                    alert_id,
+                    source_ip,
+                )
+        finally:
+            self._release_alert_lock_reference(alert_id)
 
     async def _enrich_alert_locked(
         self,
