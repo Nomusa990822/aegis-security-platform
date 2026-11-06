@@ -401,7 +401,6 @@ def simulate_response(
         )
 
         return "simulated"
-        return "simulated"
 
     except Exception:
         connection.rollback()
