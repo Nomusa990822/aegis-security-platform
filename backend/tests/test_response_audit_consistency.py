@@ -281,3 +281,113 @@ def test_validator_does_not_modify_record():
     validate_response_audit(record)
 
     assert record == original
+
+
+
+def make_legacy_policy_rejected_record():
+    record = make_record("policy_rejected")
+    creation = record["audit_log"][0]
+
+    creation["event"] = "response_preview_created"
+    creation["details"] = {
+        "status": "rejected",
+        "action": "block_ip",
+        "target": "8.8.8.8",
+        "executed": False,
+        "simulated": False,
+    }
+
+    return record
+
+
+def test_legacy_policy_rejected_creation_event_passes():
+    record = make_legacy_policy_rejected_record()
+
+    result = validate_response_audit(record)
+
+    assert result["valid"] is True
+    assert result["errors"] == []
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("status", "pending_approval"),
+        ("action", "other_action"),
+        ("target", "1.1.1.1"),
+        ("executed", True),
+        ("simulated", True),
+    ],
+)
+def test_legacy_creation_event_mismatches_are_detected(field, value):
+    record = make_legacy_policy_rejected_record()
+    record["audit_log"][0]["details"][field] = value
+
+    result = validate_response_audit(record)
+
+    assert result["valid"] is False
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("policy_allowed", True),
+        ("executed", True),
+        ("simulated", True),
+    ],
+)
+def test_legacy_response_record_safety_mismatches_are_detected(
+    field,
+    value,
+):
+    record = make_legacy_policy_rejected_record()
+    record[field] = value
+
+    result = validate_response_audit(record)
+
+    assert result["valid"] is False
+
+
+def test_legacy_creation_event_is_rejected_for_pending_response():
+    record = make_record("pending_approval")
+    creation = record["audit_log"][0]
+
+    creation["event"] = "response_preview_created"
+    creation["details"] = {
+        "status": "pending_approval",
+        "action": "block_ip",
+        "target": "8.8.8.8",
+        "executed": False,
+        "simulated": False,
+    }
+
+    result = validate_response_audit(record)
+
+    assert result["valid"] is False
+
+
+def test_legacy_creation_event_is_rejected_for_approver_rejection():
+    record = make_record("rejected")
+    creation = record["audit_log"][0]
+
+    creation["event"] = "response_preview_created"
+    creation["details"] = {
+        "status": "rejected",
+        "action": "block_ip",
+        "target": "8.8.8.8",
+        "executed": False,
+        "simulated": False,
+    }
+
+    result = validate_response_audit(record)
+
+    assert result["valid"] is False
+
+
+def test_unknown_creation_event_is_rejected():
+    record = make_record("policy_rejected")
+    record["audit_log"][0]["event"] = "unrecognised_creation_event"
+
+    result = validate_response_audit(record)
+
+    assert result["valid"] is False

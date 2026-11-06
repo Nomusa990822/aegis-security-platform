@@ -1,6 +1,9 @@
+
 from datetime import datetime
 from typing import Any
 
+
+LEGACY_CREATION_EVENT = "response_preview_created"
 
 VALID_SEQUENCES = {
     "pending_approval": [
@@ -12,6 +15,7 @@ VALID_SEQUENCES = {
     "rejected": [
         ["response_request_created"],
         ["response_request_created", "response_rejected"],
+        [LEGACY_CREATION_EVENT],
     ],
     "simulated": [
         [
@@ -137,29 +141,65 @@ def validate_response_audit(
 
     creation = audit_log[0]
     creation_details = creation["details"]
+    legacy_creation = creation.get("event") == LEGACY_CREATION_EVENT
 
-    if creation.get("event") != "response_request_created":
-        err("First audit event must record request creation.")
-
-    if creation.get("actor") != record.get("requested_by"):
-        err("Request creator does not match the response record.")
-
-    for field in (
-        "action",
-        "target",
-        "policy_allowed",
-        "approval_required",
-        "executed",
-    ):
-        if creation_details.get(field) != record.get(field):
+    if legacy_creation:
+        if status != "rejected" or len(audit_log) != 1:
             err(
-                f"Creation event {field} does not match the response record."
+                "Legacy preview event is only valid for a "
+                "single-event policy rejection."
             )
 
-    # The creation event records the original request state.
-    # Simulation happens later and must not alter this event.
-    if creation_details.get("simulated") is not False:
-        err("Creation event cannot claim that a response was simulated.")
+        if creation.get("actor") != record.get("requested_by"):
+            err("Request creator does not match the response record.")
+
+        # The historical event recorded only these five fields.
+        # Do not require fields that did not exist in that schema.
+        for field in (
+            "status",
+            "action",
+            "target",
+            "executed",
+            "simulated",
+        ):
+            if creation_details.get(field) != record.get(field):
+                err(
+                    f"Legacy creation event {field} does not match "
+                    "the response record."
+                )
+
+        if record.get("policy_allowed") is not False:
+            err("Legacy policy-rejected response must have a denied policy.")
+
+        if record.get("executed") is not False:
+            err("Legacy policy-rejected response cannot claim execution.")
+
+        if record.get("simulated") is not False:
+            err("Legacy policy-rejected response cannot claim simulation.")
+
+    else:
+        if creation.get("event") != "response_request_created":
+            err("First audit event must record request creation.")
+
+        if creation.get("actor") != record.get("requested_by"):
+            err("Request creator does not match the response record.")
+
+        for field in (
+            "action",
+            "target",
+            "policy_allowed",
+            "approval_required",
+            "executed",
+        ):
+            if creation_details.get(field) != record.get(field):
+                err(
+                    f"Creation event {field} does not match the response record."
+                )
+
+        # The creation event records the original request state.
+        # Simulation happens later and must not alter this event.
+        if creation_details.get("simulated") is not False:
+            err("Creation event cannot claim that a response was simulated.")
 
     if record.get("action") != "block_ip":
         err("Unsupported response action.")
@@ -187,6 +227,9 @@ def validate_response_audit(
 
     if initial_status not in {"pending_approval", "rejected"}:
         err("Created event contains an invalid initial status.")
+
+    if legacy_creation and initial_status != "rejected":
+        err("Legacy preview event must record a rejected initial status.")
 
     if initial_status == "pending_approval":
         if record.get("policy_allowed") is not True:
