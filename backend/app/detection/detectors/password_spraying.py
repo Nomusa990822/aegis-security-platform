@@ -1,3 +1,4 @@
+
 from datetime import datetime, timedelta, timezone
 
 
@@ -40,6 +41,7 @@ def detect(connection, event, rule):
         AND LOWER(outcome) IN ('failure', 'failed', 'unsuccessful')
         AND source_ip = ?
         AND username IS NOT NULL
+        AND julianday(occurred_at) IS NOT NULL
         AND occurred_at >= ?
         """,
         (source_ip, cutoff)
@@ -119,3 +121,4 @@ def detect(connection, event, rule):
         "targeted_account_count": account_count,
         "severity": rule["severity"]
     }
+
