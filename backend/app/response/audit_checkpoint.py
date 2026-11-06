@@ -59,12 +59,17 @@ def load_checkpoint_configuration():
             "AEGIS_AUDIT_CHECKPOINT_DIR must be configured."
         )
 
+    
     try:
-        previous_keys = json.loads(previous_keys_raw)
+        previous_keys = json.loads(
+            previous_keys_raw,
+            object_pairs_hook=reject_duplicate_json_keys,
+        )
     except json.JSONDecodeError as exc:
         raise ValueError(
             "AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS must contain valid JSON."
         ) from exc
+
 
     if not isinstance(previous_keys, dict):
         raise ValueError(
@@ -98,6 +103,24 @@ def load_checkpoint_configuration():
         legacy_secret.encode("utf-8"),
         Path(directory),
     )
+
+
+
+def reject_duplicate_json_keys(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    """Reject duplicate keys instead of silently overwriting them."""
+    result = {}
+
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(
+                f"Duplicate JSON key in checkpoint configuration: {key}"
+            )
+
+        result[key] = value
+
+    return result
 
 
 def checkpoint_path(directory: Path, response_id: int) -> Path:

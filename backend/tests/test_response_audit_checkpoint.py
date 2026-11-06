@@ -773,3 +773,72 @@ def test_checkpoint_rejects_invalid_previous_key_configuration(
         "valid json" in error.lower()
         for error in verification["errors"]
     )
+
+
+def test_duplicate_previous_key_ids_are_rejected(
+    tmp_path,
+    monkeypatch,
+):
+    import pytest
+
+    from app.response.audit_checkpoint import load_checkpoint_configuration
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY",
+        "active-checkpoint-secret-" + ("a" * 32),
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "active-v2",
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_DIR",
+        str(tmp_path),
+    )
+
+    duplicate_configuration = (
+        '{"old-key":"' + ("b" * 32) +
+        '","old-key":"' + ("c" * 32) + '"}'
+    )
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS",
+        duplicate_configuration,
+    )
+
+    with pytest.raises(ValueError, match="Duplicate JSON key"):
+        load_checkpoint_configuration()
+
+
+def test_duplicate_nested_json_keys_are_rejected(
+    tmp_path,
+    monkeypatch,
+):
+    import pytest
+
+    from app.response.audit_checkpoint import load_checkpoint_configuration
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY",
+        "active-checkpoint-secret-" + ("a" * 32),
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_KEY_ID",
+        "active-v2",
+    )
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_DIR",
+        str(tmp_path),
+    )
+
+    duplicate_configuration = (
+        '{"old-key":{"nested":"first","nested":"second"}}'
+    )
+
+    monkeypatch.setenv(
+        "AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS",
+        duplicate_configuration,
+    )
+
+    with pytest.raises(ValueError, match="Duplicate JSON key"):
+        load_checkpoint_configuration()
