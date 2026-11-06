@@ -112,4 +112,4 @@ def test_mixed_duplicate_and_distinct_events_concurrently(client):
     assert sum(
         response.status_code == 200
         for response in responses
-    ) == 10
+    ) == 15
