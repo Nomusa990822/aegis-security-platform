@@ -1,5 +1,7 @@
+import asyncio
 import ipaddress
 import logging
+import threading
 
 from app.intelligence.enrichment import (
     ThreatIntelligenceEnrichmentService,
@@ -24,6 +26,8 @@ class AlertIntelligenceService:
 
     Successful assessments are reused only when the source IP matches.
     Failed, pending, and outdated assessments can be retried.
+
+    Concurrent enrichment requests for the same alert are serialized.
     """
 
     def __init__(
@@ -41,20 +45,42 @@ class AlertIntelligenceService:
             or IntelligenceRepository()
         )
 
+        self._alert_locks = {}
+        self._alert_locks_guard = threading.Lock()
+
+    def _get_alert_lock(self, alert_id: int) -> asyncio.Lock:
+        """Get or create the asynchronous lock for an alert."""
+        with self._alert_locks_guard:
+            if alert_id not in self._alert_locks:
+                self._alert_locks[alert_id] = asyncio.Lock()
+
+            return self._alert_locks[alert_id]
+
     async def enrich_alert(
         self,
         alert_id: int,
         source_ip: str,
     ) -> dict:
         """
-        Enrich an alert's source IP and persist its assessment.
+        Serialize enrichment requests for the same alert.
 
-        An existing assessment is reusable only if:
-        - Its status is not failed or pending.
-        - Its recorded IP matches the requested source IP.
-
-        Assessments for previous source IPs remain in history.
+        A waiting request checks the repository again after acquiring
+        the lock, preventing duplicate provider calls and assessments.
         """
+        lock = self._get_alert_lock(alert_id)
+
+        async with lock:
+            return await self._enrich_alert_locked(
+                alert_id,
+                source_ip,
+            )
+
+    async def _enrich_alert_locked(
+        self,
+        alert_id: int,
+        source_ip: str,
+    ) -> dict:
+        """Perform enrichment while holding the alert lock."""
 
         if not source_ip:
             return {
