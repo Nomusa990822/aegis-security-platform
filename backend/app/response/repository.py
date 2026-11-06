@@ -1,14 +1,14 @@
 
 import json
+import logging
 from datetime import datetime, timezone
 
 from app.response.models import ResponseRequest, ResponseResult
+from app.response.audit_chain import GENESIS_HASH
 from app.response.audit_chain_storage import (
     append_audit_event,
     initialize_audit_chain_storage,
 )
-import logging
-
 from app.response.audit_checkpoint import write_audit_checkpoint
 
 
@@ -92,11 +92,17 @@ def initialize_response_tables(connection):
 
     initialize_audit_chain_storage(connection)
 
+
 def _write_committed_audit_checkpoint(connection, response_id: int):
     """
     Protect the committed audit-chain head with an external signed checkpoint.
 
     The database transaction must already be committed before this runs.
+
+    Before advancing the checkpoint, verify the previous checkpoint.
+    A missing or invalid checkpoint must never be silently recreated
+    or overwritten.
+
     Checkpoint failure is logged; it must not make a committed operation
     appear to have rolled back.
     """
@@ -115,10 +121,47 @@ def _write_committed_audit_checkpoint(connection, response_id: int):
                 "Cannot checkpoint a response without an audit-chain head."
             )
 
+        event_count = head["event_count"]
+        previous_event_count = event_count - 1
+
+        if previous_event_count < 0:
+            raise RuntimeError(
+                "Invalid audit-chain event count."
+            )
+
+        if previous_event_count == 0:
+            previous_final_hash = GENESIS_HASH
+
+        else:
+            previous_event = connection.execute(
+                """
+                SELECT event_hash
+                FROM response_audit_log
+                WHERE response_id = ?
+                ORDER BY id DESC
+                LIMIT 1 OFFSET 1
+                """,
+                (response_id,),
+            ).fetchone()
+
+            if previous_event is None:
+                raise RuntimeError(
+                    "Cannot locate the previous audit-chain event."
+                )
+
+            previous_final_hash = previous_event["event_hash"]
+
+            if not previous_final_hash:
+                raise RuntimeError(
+                    "Previous audit-chain event has no hash."
+                )
+
         write_audit_checkpoint(
             response_id=response_id,
-            event_count=head["event_count"],
+            event_count=event_count,
             final_hash=head["final_hash"],
+            previous_event_count=previous_event_count,
+            previous_final_hash=previous_final_hash,
         )
 
     except Exception:
@@ -196,7 +239,7 @@ def save_response(
         response_id,
     )
 
-    return response_id  
+    return response_id
 
 
 def decide_response(

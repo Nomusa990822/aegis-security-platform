@@ -9,6 +9,7 @@ from typing import Any
 
 
 CHECKPOINT_SCHEMA_VERSION = 1
+GENESIS_HASH = "0" * 64
 
 
 def _load_checkpoint_configuration():
@@ -56,82 +57,12 @@ def _sign_checkpoint(payload: dict[str, Any], secret: bytes) -> str:
     ).hexdigest()
 
 
-def write_audit_checkpoint(
-    response_id: int,
-    event_count: int,
-    final_hash: str,
-) -> dict[str, Any]:
-    """Write a signed checkpoint outside the SQLite database."""
-
-    if (
-        not isinstance(event_count, int)
-        or isinstance(event_count, bool)
-        or event_count <= 0
-    ):
-        raise ValueError("event_count must be a positive integer.")
-
-    if (
-        not isinstance(final_hash, str)
-        or len(final_hash) != 64
-        or any(char not in "0123456789abcdef" for char in final_hash)
-    ):
-        raise ValueError("final_hash must be a lowercase SHA-256 hex digest.")
-
-    secret, directory = _load_checkpoint_configuration()
-    directory.mkdir(parents=True, exist_ok=True)
-
-    payload = {
-        "schema_version": CHECKPOINT_SCHEMA_VERSION,
-        "response_id": response_id,
-        "event_count": event_count,
-        "final_hash": final_hash,
-    }
-
-    document = {
-        "payload": payload,
-        "signature": _sign_checkpoint(payload, secret),
-    }
-
-    destination = _checkpoint_path(directory, response_id)
-    temporary_path = None
-
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            dir=directory,
-            prefix=f".response_{response_id}_",
-            suffix=".tmp",
-            delete=False,
-        ) as temporary_file:
-            temporary_path = Path(temporary_file.name)
-            json.dump(
-                document,
-                temporary_file,
-                sort_keys=True,
-                separators=(",", ":"),
-                ensure_ascii=False,
-            )
-            temporary_file.flush()
-            os.fsync(temporary_file.fileno())
-
-        os.chmod(temporary_path, 0o600)
-        os.replace(temporary_path, destination)
-        os.chmod(destination, 0o600)
-
-    finally:
-        if temporary_path is not None and temporary_path.exists():
-            temporary_path.unlink()
-
-    return payload
-
-
 def verify_audit_checkpoint(
     response_id: int,
     event_count: int,
     final_hash: str,
 ) -> dict[str, Any]:
-    """Verify a stored checkpoint against a database audit-chain head."""
+    """Verify a signed checkpoint against an audit-chain head."""
 
     try:
         secret, directory = _load_checkpoint_configuration()
@@ -185,3 +116,134 @@ def verify_audit_checkpoint(
         "errors": [error],
         "checkpoint": None,
     }
+
+
+def write_audit_checkpoint(
+    response_id: int,
+    event_count: int,
+    final_hash: str,
+    previous_event_count: int | None = None,
+    previous_final_hash: str | None = None,
+) -> dict[str, Any]:
+    """Write a signed checkpoint without silently replacing a compromised one."""
+
+    if (
+        not isinstance(event_count, int)
+        or isinstance(event_count, bool)
+        or event_count <= 0
+    ):
+        raise ValueError("event_count must be a positive integer.")
+
+    if (
+        not isinstance(final_hash, str)
+        or len(final_hash) != 64
+        or any(char not in "0123456789abcdef" for char in final_hash)
+    ):
+        raise ValueError("final_hash must be a lowercase SHA-256 hex digest.")
+
+    if (previous_event_count is None) != (previous_final_hash is None):
+        raise ValueError(
+            "Previous checkpoint count and hash must be supplied together."
+        )
+
+    secret, directory = _load_checkpoint_configuration()
+    directory.mkdir(parents=True, exist_ok=True)
+
+    destination = _checkpoint_path(directory, response_id)
+
+    # Verify the previous checkpoint before advancing the chain.
+    if previous_event_count is None:
+        if destination.exists():
+            raise RuntimeError(
+                "Unexpected existing checkpoint for a new audit chain."
+            )
+    else:
+        if (
+            not isinstance(previous_event_count, int)
+            or isinstance(previous_event_count, bool)
+            or previous_event_count < 0
+        ):
+            raise ValueError(
+                "previous_event_count must be a non-negative integer."
+            )
+
+        if (
+            not isinstance(previous_final_hash, str)
+            or len(previous_final_hash) != 64
+            or any(
+                char not in "0123456789abcdef"
+                for char in previous_final_hash
+            )
+        ):
+            raise ValueError(
+                "previous_final_hash must be a lowercase SHA-256 digest."
+            )
+
+        if previous_event_count == 0:
+            if previous_final_hash != GENESIS_HASH:
+                raise ValueError(
+                    "The initial checkpoint must use the genesis hash."
+                )
+
+            if destination.exists():
+                raise RuntimeError(
+                    "Unexpected existing checkpoint for a new audit chain."
+                )
+        else:
+            previous_verification = verify_audit_checkpoint(
+                response_id=response_id,
+                event_count=previous_event_count,
+                final_hash=previous_final_hash,
+            )
+
+            if not previous_verification["valid"]:
+                raise RuntimeError(
+                    "Existing audit checkpoint is missing or invalid; "
+                    "refusing to replace it."
+                )
+
+    payload = {
+        "schema_version": CHECKPOINT_SCHEMA_VERSION,
+        "response_id": response_id,
+        "event_count": event_count,
+        "final_hash": final_hash,
+    }
+
+    document = {
+        "payload": payload,
+        "signature": _sign_checkpoint(payload, secret),
+    }
+
+    temporary_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=directory,
+            prefix=f".response_{response_id}_",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary_file:
+            temporary_path = Path(temporary_file.name)
+
+            json.dump(
+                document,
+                temporary_file,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
+
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+
+        os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, destination)
+        os.chmod(destination, 0o600)
+
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
+
+    return payload

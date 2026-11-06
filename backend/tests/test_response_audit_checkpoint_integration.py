@@ -341,3 +341,55 @@ def test_checkpoint_write_failure_does_not_undo_committed_response(
         "checkpoint file is missing" in error.lower()
         for error in result.json()["errors"]
     )
+
+
+def test_missing_checkpoint_cannot_be_silently_recreated(
+    client,
+):
+    response_id = create_pending_response(client)
+    checkpoint_path = get_checkpoint_path(response_id)
+
+    checkpoint_path.unlink()
+
+    # The approval may commit, but must not recreate the missing checkpoint.
+    approve_response(client, response_id)
+
+    assert not checkpoint_path.exists()
+
+    result = inspect_integrity(client, response_id)
+
+    assert result.status_code == 200
+    assert result.json()["valid"] is False
+    assert result.json()["checkpoint_valid"] is False
+
+
+def test_tampered_checkpoint_cannot_be_silently_replaced(
+    client,
+):
+    response_id = create_pending_response(client)
+    checkpoint_path = get_checkpoint_path(response_id)
+
+    original_document = json.loads(checkpoint_path.read_text())
+    tampered_document = json.loads(
+        json.dumps(original_document)
+    )
+    tampered_document["signature"] = "0" * 64
+
+    checkpoint_path.write_text(
+        json.dumps(tampered_document)
+    )
+
+    # A subsequent lifecycle event must not overwrite the evidence.
+    approve_response(client, response_id)
+
+    current_document = json.loads(
+        checkpoint_path.read_text()
+    )
+
+    assert current_document == tampered_document
+
+    result = inspect_integrity(client, response_id)
+
+    assert result.status_code == 200
+    assert result.json()["valid"] is False
+    assert result.json()["checkpoint_valid"] is False
