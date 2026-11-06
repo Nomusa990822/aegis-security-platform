@@ -343,7 +343,7 @@ def test_checkpoint_write_failure_does_not_undo_committed_response(
     )
 
 
-def test_missing_checkpoint_cannot_be_silently_recreated(
+def test_missing_checkpoint_blocks_approval_without_mutation(
     client,
 ):
     response_id = create_pending_response(client)
@@ -351,45 +351,64 @@ def test_missing_checkpoint_cannot_be_silently_recreated(
 
     checkpoint_path.unlink()
 
-    # The approval may commit, but must not recreate the missing checkpoint.
-    approve_response(client, response_id)
+    approval = client.post(
+        f"/api/v1/response/{response_id}/approve",
+        json={"reason": "Must fail closed."},
+        headers=approver_headers(),
+    )
 
+    assert approval.status_code == 409
+    assert "audit evidence failed integrity verification" in (
+        approval.json()["detail"].lower()
+    )
     assert not checkpoint_path.exists()
 
-    result = inspect_integrity(client, response_id)
+    history = client.get(
+        f"/api/v1/response/history/{response_id}",
+        headers=analyst_headers(),
+    )
+    assert history.status_code == 200
+    assert history.json()["status"] == "pending_approval"
+    assert history.json()["decided_by"] is None
+    assert len(history.json()["audit_log"]) == 1
 
+    result = inspect_integrity(client, response_id)
     assert result.status_code == 200
     assert result.json()["valid"] is False
     assert result.json()["checkpoint_valid"] is False
 
 
-def test_tampered_checkpoint_cannot_be_silently_replaced(
+def test_tampered_checkpoint_blocks_approval_without_mutation(
     client,
 ):
     response_id = create_pending_response(client)
     checkpoint_path = get_checkpoint_path(response_id)
 
     original_document = json.loads(checkpoint_path.read_text())
-    tampered_document = json.loads(
-        json.dumps(original_document)
-    )
+    tampered_document = json.loads(json.dumps(original_document))
     tampered_document["signature"] = "0" * 64
 
-    checkpoint_path.write_text(
-        json.dumps(tampered_document)
+    checkpoint_path.write_text(json.dumps(tampered_document))
+
+    approval = client.post(
+        f"/api/v1/response/{response_id}/approve",
+        json={"reason": "Must fail closed."},
+        headers=approver_headers(),
     )
 
-    # A subsequent lifecycle event must not overwrite the evidence.
-    approve_response(client, response_id)
+    assert approval.status_code == 409
+    assert json.loads(checkpoint_path.read_text()) == tampered_document
 
-    current_document = json.loads(
-        checkpoint_path.read_text()
+    history = client.get(
+        f"/api/v1/response/history/{response_id}",
+        headers=analyst_headers(),
     )
-
-    assert current_document == tampered_document
+    assert history.status_code == 200
+    assert history.json()["status"] == "pending_approval"
+    assert history.json()["decided_by"] is None
+    assert len(history.json()["audit_log"]) == 1
 
     result = inspect_integrity(client, response_id)
-
     assert result.status_code == 200
     assert result.json()["valid"] is False
     assert result.json()["checkpoint_valid"] is False
@@ -462,14 +481,27 @@ def test_database_tampering_before_checkpoint_advancement_is_detected(
 
     # The database has been rewritten, but the external checkpoint
     # still contains the original trusted hash.
-    approve_response(client, response_id)
-
-    current_checkpoint = json.loads(
-        checkpoint_path.read_text()
+    approval = client.post(
+        f"/api/v1/response/{response_id}/approve",
+        json={"reason": "Must fail closed."},
+        headers=approver_headers(),
     )
+    assert approval.status_code == 409
 
-    # The attempted checkpoint advancement must not overwrite evidence.
+    current_checkpoint = json.loads(checkpoint_path.read_text())
+
+    # The failed operation must neither advance the checkpoint nor mutate
+    # the response lifecycle.
     assert current_checkpoint == original_checkpoint
+
+    history = client.get(
+        f"/api/v1/response/history/{response_id}",
+        headers=analyst_headers(),
+    )
+    assert history.status_code == 200
+    assert history.json()["status"] == "pending_approval"
+    assert history.json()["decided_by"] is None
+    assert len(history.json()["audit_log"]) == 1
 
     result = inspect_integrity(client, response_id)
 
@@ -479,7 +511,7 @@ def test_database_tampering_before_checkpoint_advancement_is_detected(
     assert result.json()["checkpoint_valid"] is False
 
     assert any(
-        "checkpoint event count does not match" in error.lower()
+        "checkpoint final hash does not match" in error.lower()
         for error in result.json()["errors"]
     )
 
@@ -667,3 +699,68 @@ def test_api_key_rotation_integrity_inspection_is_read_only(
 
     assert current_events == original_events
     assert current_head == original_head
+
+
+def test_missing_checkpoint_blocks_simulation_without_mutation(
+    client,
+):
+    response_id = create_pending_response(client)
+    approve_response(client, response_id)
+
+    checkpoint_path = get_checkpoint_path(response_id)
+    checkpoint_path.unlink()
+
+    simulation = client.post(
+        f"/api/v1/response/{response_id}/simulate",
+        headers=analyst_headers(),
+    )
+
+    assert simulation.status_code == 409
+    assert "audit evidence failed integrity verification" in (
+        simulation.json()["detail"].lower()
+    )
+    assert not checkpoint_path.exists()
+
+    history = client.get(
+        f"/api/v1/response/history/{response_id}",
+        headers=analyst_headers(),
+    )
+    assert history.status_code == 200
+    assert history.json()["status"] == "approved"
+    assert history.json()["simulated"] is False
+    assert len(history.json()["audit_log"]) == 2
+
+
+def test_hash_chain_tampering_blocks_approval_without_mutation(
+    client,
+):
+    response_id = create_pending_response(client)
+
+    with database.get_connection() as connection:
+        connection.execute(
+            """
+            UPDATE response_audit_log
+            SET actor = ?
+            WHERE response_id = ?
+            """,
+            ("tampered-actor", response_id),
+        )
+        connection.commit()
+
+    approval = client.post(
+        f"/api/v1/response/{response_id}/approve",
+        json={"reason": "Must fail closed."},
+        headers=approver_headers(),
+    )
+
+    assert approval.status_code == 409
+
+    history = client.get(
+        f"/api/v1/response/history/{response_id}",
+        headers=analyst_headers(),
+    )
+    assert history.status_code == 200
+    assert history.json()["status"] == "pending_approval"
+    assert history.json()["decided_by"] is None
+    assert len(history.json()["audit_log"]) == 1
+
