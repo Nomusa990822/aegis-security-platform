@@ -13,15 +13,13 @@ from app.intelligence.repository import IntelligenceRepository
 class ConcurrentEnrichmentService:
     def __init__(self):
         self.calls = []
-        self.both_requests_started = asyncio.Event()
 
     async def enrich_ip(self, source_ip):
         self.calls.append(source_ip)
 
-        if len(self.calls) == 2:
-            self.both_requests_started.set()
-
-        await self.both_requests_started.wait()
+        # Give the second concurrent request an opportunity
+        # to attempt enrichment while the first is running.
+        await asyncio.sleep(0.05)
 
         return IPIntelligenceAssessment(
             ip_address=source_ip,
@@ -56,10 +54,16 @@ def test_concurrent_enrichment_does_not_duplicate_assessments(
     results = asyncio.run(run_concurrent_requests())
 
     assert len(results) == 2
-    assert all(
-        result["status"] in ("completed", "already_enriched")
+
+    statuses = sorted(
+        result["status"]
         for result in results
     )
+
+    assert statuses == [
+        "already_enriched",
+        "completed",
+    ]
 
     assert len(enrichment_service.calls) == 1
 
