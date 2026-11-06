@@ -393,3 +393,92 @@ def test_tampered_checkpoint_cannot_be_silently_replaced(
     assert result.status_code == 200
     assert result.json()["valid"] is False
     assert result.json()["checkpoint_valid"] is False
+
+
+
+def test_database_tampering_before_checkpoint_advancement_is_detected(
+    client,
+):
+    response_id = create_pending_response(client)
+    checkpoint_path = get_checkpoint_path(response_id)
+
+    original_checkpoint = json.loads(
+        checkpoint_path.read_text()
+    )
+
+    # Rewrite the existing database event and its hash.
+    with database.get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT *
+            FROM response_audit_log
+            WHERE response_id = ?
+            ORDER BY id ASC
+            LIMIT 1
+            """,
+            (response_id,),
+        ).fetchone()
+
+        assert row is not None
+
+        event = dict(row)
+        details = json.loads(event["details"])
+        details["attacker_added_marker"] = "modified_before_approval"
+
+        event["details"] = details
+
+        rewritten_hash = calculate_event_hash(
+            event,
+            event["previous_hash"],
+        )
+
+        connection.execute(
+            """
+            UPDATE response_audit_log
+            SET details = ?, event_hash = ?
+            WHERE id = ?
+            """,
+            (
+                json.dumps(
+                    details,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+                rewritten_hash,
+                event["id"],
+            ),
+        )
+
+        connection.execute(
+            """
+            UPDATE response_audit_chain_heads
+            SET final_hash = ?
+            WHERE response_id = ?
+            """,
+            (rewritten_hash, response_id),
+        )
+
+        connection.commit()
+
+    # The database has been rewritten, but the external checkpoint
+    # still contains the original trusted hash.
+    approve_response(client, response_id)
+
+    current_checkpoint = json.loads(
+        checkpoint_path.read_text()
+    )
+
+    # The attempted checkpoint advancement must not overwrite evidence.
+    assert current_checkpoint == original_checkpoint
+
+    result = inspect_integrity(client, response_id)
+
+    assert result.status_code == 200
+    assert result.json()["valid"] is False
+    assert result.json()["chain_valid"] is True
+    assert result.json()["checkpoint_valid"] is False
+
+    assert any(
+        "checkpoint event count does not match" in error.lower()
+        for error in result.json()["errors"]
+    )
