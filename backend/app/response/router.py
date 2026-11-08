@@ -136,10 +136,14 @@ def preview_response(
             result,
         )
 
-        checkpoint_result = verify_response_audit_before_mutation(
-            connection,
-            response_id,
-        )
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            checkpoint_result = verify_response_audit_before_mutation(
+                connection,
+                response_id,
+            )
+        finally:
+            connection.rollback()
 
     if not checkpoint_result["valid"]:
         response.status_code = 202
