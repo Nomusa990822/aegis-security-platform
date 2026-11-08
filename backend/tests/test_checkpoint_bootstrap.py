@@ -402,3 +402,47 @@ def test_quarantine_refuses_invalid_signed_intent():
     assert report["quarantined_response_ids"] == []
     assert report["skipped"][0]["classification"] == "intent_corrupt_or_unverifiable"
     assert intent_path.read_bytes() == original_bytes
+
+
+def test_quarantine_refuses_intent_with_missing_predecessor_checkpoint():
+    from app.response.audit_checkpoint import write_audit_checkpoint
+    from app.response.checkpoint_intent import write_checkpoint_intent
+    from app.response.checkpoint_intent_quarantine import (
+        quarantine_stale_checkpoint_intents,
+    )
+
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    with _read_only_connection() as connection:
+        maximum = connection.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM response_records"
+        ).fetchone()[0]
+    response_id = maximum + 30000
+    previous_hash = "c" * 64
+    target_hash = "d" * 64
+
+    write_audit_checkpoint(
+        response_id=response_id,
+        event_count=1,
+        final_hash=previous_hash,
+    )
+    write_checkpoint_intent(
+        response_id=response_id,
+        event_count=2,
+        final_hash=target_hash,
+        previous_event_count=1,
+        previous_final_hash=previous_hash,
+    )
+    (directory / f"response_{response_id}.json").unlink()
+
+    with _read_only_connection() as connection:
+        report = quarantine_stale_checkpoint_intents(
+            connection,
+            directory,
+            apply=True,
+            response_ids={response_id},
+            reason="Must preserve an intent that references prior audit history.",
+        )
+
+    assert report["quarantined_response_ids"] == []
+    assert report["skipped"][0]["classification"] == "intent_has_predecessor"
+    assert (directory / f"response_{response_id}.pending.json").exists()
