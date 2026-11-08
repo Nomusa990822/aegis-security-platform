@@ -168,11 +168,14 @@ def _write_committed_audit_checkpoint(connection, response_id: int):
             previous_final_hash=previous_final_hash,
         )
 
+        return True
+
     except Exception:
         logging.exception(
             "Failed to write external audit checkpoint for response %s.",
             response_id,
         )
+        return False
 
 
 
@@ -439,12 +442,12 @@ def decide_response(
         connection.rollback()
         raise
 
-    _write_committed_audit_checkpoint(
+    checkpoint_written = _write_committed_audit_checkpoint(
         connection,
         response_id,
     )
 
-    return "updated"
+    return "updated" if checkpoint_written else "checkpoint_pending"
 
 
 def simulate_response(
@@ -563,12 +566,12 @@ def simulate_response(
         connection.rollback()
         raise
 
-    _write_committed_audit_checkpoint(
+    checkpoint_written = _write_committed_audit_checkpoint(
         connection,
         response_id,
     )
 
-    return "simulated"
+    return "simulated" if checkpoint_written else "checkpoint_pending"
 
 
 def get_response_history(connection, limit: int = 100):
