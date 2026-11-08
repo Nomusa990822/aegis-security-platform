@@ -84,6 +84,11 @@ def get_checkpoint_path(response_id):
     return directory / f"response_{response_id}.json"
 
 
+def get_checkpoint_intent_path(response_id):
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    return directory / f"response_{response_id}.pending.json"
+
+
 def inspect_integrity(client, response_id):
     return client.get(
         f"/api/v1/response/{response_id}/audit-integrity",
@@ -313,7 +318,7 @@ def test_checkpoint_write_failure_does_not_undo_committed_response(
 
     monkeypatch.setattr(
         repository,
-        "write_audit_checkpoint",
+        "publish_checkpoint_intent",
         fail_checkpoint_write,
     )
 
@@ -344,6 +349,9 @@ def test_checkpoint_write_failure_does_not_undo_committed_response(
         "checkpoint file is missing" in error.lower()
         for error in result.json()["errors"]
     )
+
+    # The signed pre-commit intent is retained for explicit recovery.
+    assert get_checkpoint_intent_path(response_id).exists()
 
 
 def test_missing_checkpoint_blocks_approval_without_mutation(
@@ -783,7 +791,7 @@ def test_approval_reports_committed_checkpoint_failure(
 
     monkeypatch.setattr(
         repository,
-        "write_audit_checkpoint",
+        "publish_checkpoint_intent",
         fail_checkpoint_write,
     )
 
@@ -809,6 +817,7 @@ def test_approval_reports_committed_checkpoint_failure(
     assert integrity.status_code == 200
     assert integrity.json()["valid"] is False
     assert integrity.json()["checkpoint_valid"] is False
+    assert get_checkpoint_intent_path(response_id).exists()
 
 
 def test_simulation_reports_committed_checkpoint_failure(
@@ -825,7 +834,7 @@ def test_simulation_reports_committed_checkpoint_failure(
 
     monkeypatch.setattr(
         repository,
-        "write_audit_checkpoint",
+        "publish_checkpoint_intent",
         fail_checkpoint_write,
     )
 
@@ -851,3 +860,4 @@ def test_simulation_reports_committed_checkpoint_failure(
     assert integrity.status_code == 200
     assert integrity.json()["valid"] is False
     assert integrity.json()["checkpoint_valid"] is False
+    assert get_checkpoint_intent_path(response_id).exists()
