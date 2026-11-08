@@ -108,6 +108,7 @@ def test_request_creation_writes_signed_checkpoint(client):
     assert result.json()["event_count"] == 1
 
     assert get_checkpoint_path(response_id).exists()
+    assert not get_checkpoint_intent_path(response_id).exists()
 
 
 def test_approval_updates_signed_checkpoint(client):
@@ -861,3 +862,103 @@ def test_simulation_reports_committed_checkpoint_failure(
     assert integrity.json()["valid"] is False
     assert integrity.json()["checkpoint_valid"] is False
     assert get_checkpoint_intent_path(response_id).exists()
+
+
+
+def test_signed_checkpoint_intent_supports_safe_recovery(
+    client,
+    monkeypatch,
+):
+    from app.response import repository
+    from app.response.checkpoint_recovery import recover_checkpoint_intents
+
+    def fail_checkpoint_publication(**kwargs):
+        raise OSError("Simulated publication interruption.")
+
+    monkeypatch.setattr(
+        repository,
+        "publish_checkpoint_intent",
+        fail_checkpoint_publication,
+    )
+
+    response_id = create_pending_response(
+        client,
+        expected_status=202,
+    )
+
+    intent_path = get_checkpoint_intent_path(response_id)
+    checkpoint_file = get_checkpoint_path(response_id)
+    assert intent_path.exists()
+    assert not checkpoint_file.exists()
+
+    with database.get_connection() as connection:
+        dry_run = recover_checkpoint_intents(
+            connection,
+            Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"]),
+            apply=False,
+        )
+
+    assert dry_run["eligible_response_ids"] == [response_id]
+    assert dry_run["recovered_response_ids"] == []
+    assert intent_path.exists()
+    assert not checkpoint_file.exists()
+
+    with database.get_connection() as connection:
+        applied = recover_checkpoint_intents(
+            connection,
+            Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"]),
+            apply=True,
+        )
+
+    assert applied["recovered_response_ids"] == [response_id]
+    assert not intent_path.exists()
+    assert checkpoint_file.exists()
+
+    integrity = inspect_integrity(client, response_id)
+    assert integrity.status_code == 200
+    assert integrity.json()["valid"] is True
+    assert integrity.json()["checkpoint_valid"] is True
+
+
+def test_recovery_refuses_tampered_checkpoint_intent(
+    client,
+    monkeypatch,
+):
+    from app.response import repository
+    from app.response.checkpoint_recovery import recover_checkpoint_intents
+
+    def fail_checkpoint_publication(**kwargs):
+        raise OSError("Simulated publication interruption.")
+
+    monkeypatch.setattr(
+        repository,
+        "publish_checkpoint_intent",
+        fail_checkpoint_publication,
+    )
+
+    response_id = create_pending_response(
+        client,
+        expected_status=202,
+    )
+
+    intent_path = get_checkpoint_intent_path(response_id)
+    document = json.loads(intent_path.read_text())
+    document["signature"] = "0" * 64
+    intent_path.write_text(json.dumps(document))
+
+    with database.get_connection() as connection:
+        report = recover_checkpoint_intents(
+            connection,
+            Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"]),
+            apply=True,
+        )
+
+    assert report["recovered_response_ids"] == []
+    assert report["skipped"]
+    assert intent_path.exists()
+    assert not get_checkpoint_path(response_id).exists()
+
+    integrity = inspect_integrity(client, response_id)
+    assert integrity.status_code == 200
+    assert integrity.json()["valid"] is False
+    assert integrity.json()["checkpoint_valid"] is False
