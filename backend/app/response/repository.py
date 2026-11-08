@@ -10,9 +10,11 @@ from app.response.audit_chain_storage import (
     append_audit_event,
     initialize_audit_chain_storage,
 )
-from app.response.audit_checkpoint import (
-    verify_audit_checkpoint,
-    write_audit_checkpoint,
+from app.response.audit_checkpoint import verify_audit_checkpoint
+from app.response.checkpoint_intent import (
+    publish_checkpoint_intent,
+    verify_checkpoint_intent,
+    write_checkpoint_intent,
 )
 
 
@@ -97,20 +99,89 @@ def initialize_response_tables(connection):
     initialize_audit_chain_storage(connection)
 
 
-def _write_committed_audit_checkpoint(connection, response_id: int):
-    """
-    Protect the committed audit-chain head with an external signed checkpoint.
+def _prepare_audit_checkpoint_intent(connection, response_id: int) -> None:
+    """Sign the exact new audit head before the surrounding DB transaction commits."""
+    head = connection.execute(
+        """
+        SELECT event_count, final_hash
+        FROM response_audit_chain_heads
+        WHERE response_id = ?
+        """,
+        (response_id,),
+    ).fetchone()
 
-    The database transaction must already be committed before this runs.
+    if head is None or head["event_count"] < 1:
+        raise RuntimeError("Cannot prepare an intent without an audit-chain head.")
 
-    Before advancing the checkpoint, verify the previous checkpoint.
-    A missing or invalid checkpoint must never be silently recreated
-    or overwritten.
+    record = get_response_record(connection, response_id)
+    if record is None:
+        raise RuntimeError("Cannot prepare an intent without its response record.")
 
-    Checkpoint failure is logged; it must not make a committed operation
-    appear to have rolled back.
-    """
+    lifecycle = validate_response_audit(record)
+    if not lifecycle["valid"]:
+        raise RuntimeError(
+            "Response lifecycle is invalid before checkpoint intent creation: "
+            + "; ".join(lifecycle["errors"])
+        )
+
+    chain = verify_hash_chain(record["audit_log"])
+    if (
+        not chain["valid"]
+        or chain["event_count"] != head["event_count"]
+        or chain["final_hash"] != head["final_hash"]
+    ):
+        raise RuntimeError(
+            "Audit chain and database head do not agree before checkpoint intent creation."
+        )
+
+    previous_event_count = head["event_count"] - 1
+    if previous_event_count == 0:
+        previous_final_hash = GENESIS_HASH
+    else:
+        previous_event = connection.execute(
+            """
+            SELECT event_hash
+            FROM response_audit_log
+            WHERE response_id = ?
+            ORDER BY id DESC
+            LIMIT 1 OFFSET 1
+            """,
+            (response_id,),
+        ).fetchone()
+        if previous_event is None or not previous_event["event_hash"]:
+            raise RuntimeError("Cannot locate the previous audit-chain hash.")
+        previous_final_hash = previous_event["event_hash"]
+
+    write_checkpoint_intent(
+        response_id=response_id,
+        event_count=head["event_count"],
+        final_hash=head["final_hash"],
+        previous_event_count=previous_event_count,
+        previous_final_hash=previous_final_hash,
+    )
+
+
+def _write_committed_audit_checkpoint(connection, response_id: int) -> bool:
+    """Publish only a signed pre-commit intent matching the committed DB state."""
     try:
+        record = get_response_record(connection, response_id)
+        if record is None:
+            raise RuntimeError("Committed response record is missing.")
+
+        lifecycle = validate_response_audit(record)
+        if not lifecycle["valid"]:
+            raise RuntimeError(
+                "Committed response lifecycle is invalid: "
+                + "; ".join(lifecycle["errors"])
+            )
+
+        chain = verify_hash_chain(record["audit_log"])
+        if not chain["valid"]:
+            raise RuntimeError(
+                "Committed response audit chain is invalid: "
+                + "; ".join(chain["errors"])
+            )
+
         head = connection.execute(
             """
             SELECT event_count, final_hash
@@ -120,63 +191,35 @@ def _write_committed_audit_checkpoint(connection, response_id: int):
             (response_id,),
         ).fetchone()
 
-        if head is None:
+        if (
+            head is None
+            or head["event_count"] != chain["event_count"]
+            or head["final_hash"] != chain["final_hash"]
+        ):
             raise RuntimeError(
-                "Cannot checkpoint a response without an audit-chain head."
+                "Committed database audit head does not match the verified chain."
             )
 
-        event_count = head["event_count"]
-        previous_event_count = event_count - 1
-
-        if previous_event_count < 0:
+        intent = verify_checkpoint_intent(response_id)
+        if not intent["valid"]:
             raise RuntimeError(
-                "Invalid audit-chain event count."
+                "Committed response has no valid checkpoint intent: "
+                + "; ".join(intent["errors"])
             )
 
-        if previous_event_count == 0:
-            previous_final_hash = GENESIS_HASH
-
-        else:
-            previous_event = connection.execute(
-                """
-                SELECT event_hash
-                FROM response_audit_log
-                WHERE response_id = ?
-                ORDER BY id DESC
-                LIMIT 1 OFFSET 1
-                """,
-                (response_id,),
-            ).fetchone()
-
-            if previous_event is None:
-                raise RuntimeError(
-                    "Cannot locate the previous audit-chain event."
-                )
-
-            previous_final_hash = previous_event["event_hash"]
-
-            if not previous_final_hash:
-                raise RuntimeError(
-                    "Previous audit-chain event has no hash."
-                )
-
-        write_audit_checkpoint(
+        publish_checkpoint_intent(
             response_id=response_id,
-            event_count=event_count,
+            event_count=head["event_count"],
             final_hash=head["final_hash"],
-            previous_event_count=previous_event_count,
-            previous_final_hash=previous_final_hash,
         )
-
         return True
 
     except Exception:
         logging.exception(
-            "Failed to write external audit checkpoint for response %s.",
+            "Failed to publish signed audit checkpoint for response %s.",
             response_id,
         )
         return False
-
 
 
 def verify_response_audit_before_mutation(connection, response_id: int):
@@ -264,70 +307,72 @@ def save_response(
     result: ResponseResult,
 ) -> int:
     created_at = datetime.now(timezone.utc).isoformat()
+    connection.execute("BEGIN IMMEDIATE")
 
-    cursor = connection.execute(
-        """
-        INSERT INTO response_records (
-            alert_id,
-            action,
-            target,
-            mode,
-            requested_by,
-            status,
-            policy_allowed,
-            approval_required,
-            executed,
-            simulated,
-            reasons,
-            created_at
+    try:
+        cursor = connection.execute(
+            """
+            INSERT INTO response_records (
+                alert_id,
+                action,
+                target,
+                mode,
+                requested_by,
+                status,
+                policy_allowed,
+                approval_required,
+                executed,
+                simulated,
+                reasons,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                request.alert_id,
+                request.action.value,
+                request.target,
+                request.mode.value,
+                request.requested_by,
+                result.status.value,
+                int(result.policy_allowed),
+                int(result.approval_required),
+                int(result.executed),
+                int(result.simulated),
+                json.dumps(list(result.reasons)),
+                created_at,
+            ),
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            request.alert_id,
-            request.action.value,
-            request.target,
-            request.mode.value,
-            request.requested_by,
-            result.status.value,
-            int(result.policy_allowed),
-            int(result.approval_required),
-            int(result.executed),
-            int(result.simulated),
-            json.dumps(list(result.reasons)),
-            created_at,
-        ),
-    )
 
-    response_id = cursor.lastrowid
+        response_id = cursor.lastrowid
 
-    append_audit_event(
-        connection=connection,
-        response_id=response_id,
-        alert_id=request.alert_id,
-        event="response_request_created",
-        actor=request.requested_by,
-        details={
-            "status": result.status.value,
-            "action": request.action.value,
-            "target": request.target,
-            "policy_allowed": result.policy_allowed,
-            "approval_required": result.approval_required,
-            "executed": result.executed,
-            "simulated": result.simulated,
-        },
-        created_at=created_at,
-    )
+        append_audit_event(
+            connection=connection,
+            response_id=response_id,
+            alert_id=request.alert_id,
+            event="response_request_created",
+            actor=request.requested_by,
+            details={
+                "status": result.status.value,
+                "action": request.action.value,
+                "target": request.target,
+                "policy_allowed": result.policy_allowed,
+                "approval_required": result.approval_required,
+                "executed": result.executed,
+                "simulated": result.simulated,
+            },
+            created_at=created_at,
+        )
 
-    connection.commit()
+        _prepare_audit_checkpoint_intent(connection, response_id)
+        connection.commit()
 
-    _write_committed_audit_checkpoint(
-        connection,
-        response_id,
-    )
+    except Exception:
+        connection.rollback()
+        raise
 
+    _write_committed_audit_checkpoint(connection, response_id)
     return response_id
-
 
 def decide_response(
     connection,
@@ -436,6 +481,7 @@ def decide_response(
             created_at=decision_at,
         )
 
+        _prepare_audit_checkpoint_intent(connection, response_id)
         connection.commit()
 
     except Exception:
@@ -560,6 +606,7 @@ def simulate_response(
             created_at=simulation_at,
         )
 
+        _prepare_audit_checkpoint_intent(connection, response_id)
         connection.commit()
 
     except Exception:
