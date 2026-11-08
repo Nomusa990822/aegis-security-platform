@@ -39,6 +39,17 @@ def _inspect_signed_document(
         if not isinstance(payload, dict) or not isinstance(signature, str):
             raise ValueError("Signed document payload or signature is invalid.")
 
+        filename_match = (
+            CHECKPOINT_PATTERN.fullmatch(path.name)
+            if document_type == "checkpoint"
+            else INTENT_PATTERN.fullmatch(path.name)
+        )
+        if filename_match is None:
+            raise ValueError("Signed document filename is invalid.")
+        expected_response_id = int(filename_match.group(1))
+        if payload.get("response_id") != expected_response_id:
+            raise ValueError("Signed document response ID does not match its filename.")
+
         if document_type == "checkpoint":
             schema_version = payload.get("schema_version")
             if schema_version == LEGACY_CHECKPOINT_SCHEMA_VERSION:
@@ -97,7 +108,10 @@ def inspect_checkpoint_key_usage(
         configured_directory,
     ) = load_checkpoint_configuration()
 
-    checkpoint_directory = Path(checkpoint_directory).resolve()
+    checkpoint_directory = Path(checkpoint_directory).expanduser()
+    if checkpoint_directory.is_symlink():
+        raise ValueError("Checkpoint directory must not be a symbolic link.")
+    checkpoint_directory = checkpoint_directory.resolve()
     if checkpoint_directory != Path(configured_directory).resolve():
         raise ValueError(
             "Key-usage inventory directory does not match "
