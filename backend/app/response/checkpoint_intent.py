@@ -9,7 +9,6 @@ from app.response.audit_checkpoint import (
     CHECKPOINT_SCHEMA_VERSION,
     checkpoint_lock,
     checkpoint_path,
-    canonical_json,
     load_checkpoint_configuration,
     sign_checkpoint,
     verify_audit_checkpoint,
