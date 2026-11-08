@@ -211,6 +211,7 @@ New regression test file — all authored but NOT RUN:
 - `tests/test_checkpoint_key_rotation.py::test_preflight_rejects_rotation_that_drops_a_required_previous_key`
 - `tests/test_checkpoint_key_rotation.py::test_preflight_rejects_wrong_legacy_key`
 - `tests/test_checkpoint_key_rotation.py::test_preflight_rejects_tampered_checkpoint_signature`
+- `tests/test_checkpoint_key_rotation.py::test_preflight_checks_quarantined_intent_evidence`
 
 Run this module separately during deferred verification:
 
