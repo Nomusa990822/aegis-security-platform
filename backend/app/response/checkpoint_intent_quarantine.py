@@ -76,7 +76,7 @@ def _write_manifest(path: Path, manifest: dict[str, Any]) -> None:
         finally:
             os.close(directory_fd)
     finally:
-        if temporary_path.exists():
+        if temporary_path is not None and temporary_path.exists():
             temporary_path.unlink()
 
 
