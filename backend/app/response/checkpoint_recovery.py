@@ -162,7 +162,10 @@ def recover_checkpoint_intents(
     response_ids: set[int] | None = None,
 ) -> dict[str, Any]:
     """Inspect or publish signed intents; never modify the SQLite database."""
-    checkpoint_directory = Path(checkpoint_directory).resolve()
+    checkpoint_directory = Path(checkpoint_directory)
+    if checkpoint_directory.is_symlink():
+        raise ValueError("Checkpoint directory must not be a symlink.")
+    checkpoint_directory = checkpoint_directory.resolve()
     configured_directory = Path(
         load_checkpoint_configuration()[4]
     ).resolve()
@@ -185,8 +188,6 @@ def recover_checkpoint_intents(
 
     intent_ids = set()
     temporary_artifacts = []
-    if checkpoint_directory.is_symlink():
-        raise ValueError("Checkpoint directory must not be a symlink.")
     if checkpoint_directory.exists():
         if not checkpoint_directory.is_dir():
             raise ValueError("Checkpoint path is not a directory.")
@@ -244,6 +245,12 @@ def recover_checkpoint_intents(
             checkpoint_directory,
             response_id,
         )
+        if intent_path.is_symlink():
+            report["skipped"].append({
+                "response_id": response_id,
+                "reasons": ["Pending checkpoint intent is a symlink; manual inspection is required."],
+            })
+            continue
         if not intent_path.is_file():
             report["skipped"].append({
                 "response_id": response_id,
