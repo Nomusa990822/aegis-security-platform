@@ -1,4 +1,6 @@
+import hashlib
 import json
+import os
 from pathlib import Path
 
 from app.response.audit_checkpoint import (
@@ -7,6 +9,7 @@ from app.response.audit_checkpoint import (
     write_audit_checkpoint,
 )
 from app.response.checkpoint_intent import (
+    checkpoint_intent_path,
     write_checkpoint_intent,
 )
 from app.response.checkpoint_key_rotation import (
@@ -156,3 +159,36 @@ def test_preflight_rejects_tampered_checkpoint_signature(
 
     assert report["valid"] is False
     assert report["verification_failures"][0]["signature_valid"] is False
+
+
+def test_preflight_checks_quarantined_intent_evidence(
+    tmp_path,
+    monkeypatch,
+):
+    directory = tmp_path / "checkpoints"
+    configure_current_key(monkeypatch, directory)
+    response_id = 86
+
+    write_checkpoint_intent(
+        response_id=response_id,
+        event_count=1,
+        final_hash="f" * 64,
+        previous_event_count=0,
+        previous_final_hash="0" * 64,
+    )
+
+    quarantine_directory = directory / "quarantine"
+    quarantine_directory.mkdir(mode=0o700)
+    original_path = checkpoint_intent_path(directory, response_id)
+    digest = hashlib.sha256(original_path.read_bytes()).hexdigest()
+    evidence_path = quarantine_directory / (
+        f"response_{response_id}_{digest}.pending.json"
+    )
+    os.replace(original_path, evidence_path)
+
+    report = proposed_configuration(directory)
+
+    assert report["valid"] is False
+    assert report["documents_inspected"] == 1
+    assert report["verification_failures"][0]["document_type"] == "quarantined_intent"
+    assert report["verification_failures"][0]["key_id"] == "key-v1"
