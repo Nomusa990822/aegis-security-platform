@@ -1,7 +1,7 @@
 
 import ipaddress
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field, field_validator
 
 from app.auth import (
@@ -23,6 +23,7 @@ from app.response.repository import (
     get_response_record,
     save_response,
     simulate_response,
+    verify_response_audit_before_mutation,
 )
 
 
@@ -95,6 +96,7 @@ def validate_alert_target(
 @router.post("/preview", status_code=201)
 def preview_response(
     payload: ResponsePreviewRequest,
+    response: Response,
     actor: AuthenticatedActor = Depends(get_analyst_actor),
 ):
     with get_connection() as connection:
@@ -134,9 +136,32 @@ def preview_response(
             result,
         )
 
+        checkpoint_result = verify_response_audit_before_mutation(
+            connection,
+            response_id,
+        )
+
+    if not checkpoint_result["valid"]:
+        response.status_code = 202
+        return {
+            "message": (
+                "Response request was committed, but its signed audit "
+                "checkpoint could not be confirmed. Further lifecycle "
+                "changes are blocked until the evidence is safely recovered."
+            ),
+            "response_id": response_id,
+            "committed": True,
+            "checkpoint_status": "pending",
+            "checkpoint_errors": checkpoint_result["errors"],
+            "alert": dict(alert),
+            "result": result.to_dict(),
+        }
+
     return {
         "message": "Response request evaluated and recorded.",
         "response_id": response_id,
+        "committed": True,
+        "checkpoint_status": "verified",
         "alert": dict(alert),
         "result": result.to_dict(),
     }
@@ -147,6 +172,7 @@ def _process_response_decision(
     payload: ResponseDecisionRequest,
     actor: AuthenticatedActor,
     decision: str,
+    response: Response,
 ):
     if response_id <= 0:
         raise HTTPException(
@@ -204,8 +230,25 @@ def _process_response_decision(
             response_id,
         )
 
+    if outcome == "checkpoint_pending":
+        response_status = 202
+        message = (
+            f"Response request was {decision}, and the database change "
+            "was committed, but signed checkpoint publication failed. "
+            "Further lifecycle changes are blocked pending safe recovery."
+        )
+        checkpoint_status = "pending"
+    else:
+        response_status = 200
+        message = f"Response request {decision}."
+        checkpoint_status = "verified"
+
+    response.status_code = response_status
+
     return {
-        "message": f"Response request {decision}.",
+        "message": message,
+        "committed": True,
+        "checkpoint_status": checkpoint_status,
         "response": record,
     }
 
@@ -214,6 +257,7 @@ def _process_response_decision(
 def approve_response(
     response_id: int,
     payload: ResponseDecisionRequest,
+    response: Response,
     actor: AuthenticatedActor = Depends(get_approver_actor),
 ):
     return _process_response_decision(
@@ -221,6 +265,7 @@ def approve_response(
         payload=payload,
         actor=actor,
         decision="approved",
+        response=response,
     )
 
 
@@ -228,6 +273,7 @@ def approve_response(
 def reject_response(
     response_id: int,
     payload: ResponseDecisionRequest,
+    response: Response,
     actor: AuthenticatedActor = Depends(get_approver_actor),
 ):
     return _process_response_decision(
@@ -235,12 +281,14 @@ def reject_response(
         payload=payload,
         actor=actor,
         decision="rejected",
+        response=response,
     )
 
 
 @router.post("/{response_id}/simulate")
 def simulate_approved_response(
     response_id: int,
+    response: Response,
     actor: AuthenticatedActor = Depends(get_analyst_actor),
 ):
     if response_id <= 0:
@@ -306,8 +354,23 @@ def simulate_approved_response(
             response_id,
         )
 
+    if outcome == "checkpoint_pending":
+        response.status_code = 202
+        return {
+            "message": (
+                "Dry-run simulation was committed, but signed checkpoint "
+                "publication failed. Further lifecycle changes are blocked "
+                "pending safe recovery."
+            ),
+            "committed": True,
+            "checkpoint_status": "pending",
+            "response": record,
+        }
+
     return {
         "message": "Dry-run response simulation completed.",
+        "committed": True,
+        "checkpoint_status": "verified",
         "response": record,
     }
 
