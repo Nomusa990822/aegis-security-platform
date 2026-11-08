@@ -54,6 +54,16 @@ In `tests/test_response_audit_checkpoint_integration.py`:
 
 All are authored but unverified.
 
+## Interrupted checkpoint-publication artifacts — NOT RUN
+
+`checkpoint_recovery.py` now inventories checkpoint and pending-intent temporary files, including symlinked temporary artifacts, but deliberately does not parse, publish, delete, or quarantine them. A final checkpoint is written through a temporary file followed by an atomic replace; a leftover temporary file is therefore an interrupted staging artifact, not authoritative evidence. Preserve it for manual forensic review. A corrupt final checkpoint is also preserved: recovery only publishes through a valid signed intent and refuses when the existing checkpoint is not the expected target or verified predecessor.
+
+New regression test — authored but NOT RUN:
+
+- `tests/test_response_audit_checkpoint_integration.py::test_recovery_inventories_and_preserves_interrupted_temporary_files`
+
+The existing targeted audit test batch includes this module. No tests have been executed against these changes.
+
 ## New manual recovery procedure — NOT RUN
 
 Only use this when inventory identifies a pending intent and the database and intent need to be reconciled. Stop the API server first.
