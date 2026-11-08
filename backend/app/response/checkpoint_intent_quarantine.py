@@ -169,6 +169,21 @@ def quarantine_stale_checkpoint_intents(
             })
             continue
 
+        intent_payload = verification["intent"]
+        if (
+            intent_payload["previous_event_count"] != 0
+            or intent_payload["previous_final_hash"] != "0" * 64
+        ):
+            report["skipped"].append({
+                "response_id": response_id,
+                "classification": "intent_has_predecessor",
+                "reasons": [
+                    "The intent describes an existing audit-chain continuation, "
+                    "not an initial response creation; preserve it for investigation."
+                ],
+            })
+            continue
+
         references = _database_references_response(connection, response_id)
         if any(references.values()):
             report["skipped"].append({
