@@ -12,7 +12,7 @@ from app.response.checkpoint_bootstrap import (
 ANALYST_TOKEN = "a" * 48
 
 
-def _create_response(client):
+def _create_response(client, expected_status=201):
     with database.get_connection() as connection:
         cursor = connection.execute(
             """
@@ -52,7 +52,7 @@ def _create_response(client):
         },
     )
 
-    assert response.status_code == 201
+    assert response.status_code == expected_status
     return response.json()["response_id"]
 
 
@@ -199,3 +199,53 @@ def test_bootstrap_can_target_specific_response_ids(client):
     assert report["selected_response_ids"] == [second_response_id]
     assert report["eligible_response_ids"] == [second_response_id]
     assert first_response_id not in report["selected_response_ids"]
+
+
+
+def test_bootstrap_does_not_bypass_a_pending_signed_intent(
+    client,
+    monkeypatch,
+):
+    from app.response import repository
+
+    def fail_checkpoint_publication(**kwargs):
+        raise OSError("Simulated checkpoint publication interruption.")
+
+    monkeypatch.setattr(
+        repository,
+        "publish_checkpoint_intent",
+        fail_checkpoint_publication,
+    )
+
+    response_id = _create_response(
+        client,
+        expected_status=202,
+    )
+    checkpoint = _checkpoint_path(response_id)
+    intent = (
+        Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+        / f"response_{response_id}.pending.json"
+    )
+
+    assert not checkpoint.exists()
+    assert intent.exists()
+
+    with _read_only_connection() as connection:
+        report = bootstrap_audit_checkpoints(
+            connection,
+            Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"]),
+            apply=True,
+        )
+
+    assert response_id not in report["created_response_ids"]
+    assert not checkpoint.exists()
+    skipped = next(
+        item
+        for item in report["skipped"]
+        if item["response_id"] == response_id
+    )
+    assert any(
+        "pending checkpoint intent" in reason.lower()
+        for reason in skipped["reasons"]
+    )
+    assert intent.exists()
