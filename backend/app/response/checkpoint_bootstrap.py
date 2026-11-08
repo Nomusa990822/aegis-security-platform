@@ -24,6 +24,7 @@ def _is_bootstrap_candidate(item: dict[str, Any]) -> bool:
         and item.get("hash_chain_valid") is True
         and item.get("chain_head_matches") is True
         and item.get("checkpoint_exists") is False
+        and item.get("pending_checkpoint_intent") is False
         and item.get("calculated_event_count") == item.get("event_count")
         and item.get("calculated_final_hash") == item.get("final_hash")
         and item.get("errors") == []
@@ -49,6 +50,11 @@ def _candidate_reasons(item: dict[str, Any]) -> list[str]:
 
     if item.get("checkpoint_exists"):
         reasons.append("A checkpoint already exists; it will not be overwritten.")
+
+    if item.get("pending_checkpoint_intent"):
+        reasons.append(
+            "A signed pending checkpoint intent exists; use the recovery workflow."
+        )
 
     if "orphan_checkpoint" in item.get("classification", []):
         reasons.append("Checkpoint is orphaned from the database.")
