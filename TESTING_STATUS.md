@@ -169,6 +169,8 @@ New regression test file — all authored but NOT RUN:
 - `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_tracks_old_checkpoint_and_pending_intent`
 - `tests/test_checkpoint_key_usage.py::test_pending_intent_survives_rotation_and_publishes_with_new_key`
 - `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_blocks_retirement_when_old_key_is_missing`
+- `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_retains_quarantined_intent_key_reference`
+- `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_accounts_for_legacy_checkpoint_signing_key`
 
 Run this module separately during the deferred verification session:
 
@@ -176,8 +178,6 @@ Run this module separately during the deferred verification session:
 ./.venv/bin/python -m pytest tests/test_checkpoint_key_usage.py -v
 ```
 
-- `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_retains_quarantined_intent_key_reference`
-- `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_accounts_for_legacy_checkpoint_signing_key`
 
 
 ## Checkpoint key-rotation preflight — NOT RUN
