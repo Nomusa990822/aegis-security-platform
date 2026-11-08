@@ -81,6 +81,8 @@ def test_key_usage_inventory_tracks_old_checkpoint_and_pending_intent(
     assert report["missing_key_ids"] == []
     assert report["invalid_or_unverifiable_documents"] == []
     assert report["retirement_assessment"] == "review_required"
+    assert OLD_SECRET not in json.dumps(report)
+    assert NEW_SECRET not in json.dumps(report)
     assert "key-v1" not in report[
         "configured_non_active_keys_without_references"
     ]
