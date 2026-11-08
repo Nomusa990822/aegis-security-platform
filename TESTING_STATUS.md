@@ -178,3 +178,42 @@ Run this module separately during the deferred verification session:
 
 - `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_retains_quarantined_intent_key_reference`
 - `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_accounts_for_legacy_checkpoint_signing_key`
+
+
+## Checkpoint key-rotation preflight — NOT RUN
+
+New module: `backend/app/response/checkpoint_key_rotation.py`.
+
+This read-only preflight validates a proposed signing-key configuration against every recognized local checkpoint, pending intent, and quarantined intent evidence file. It verifies each document with the proposed keyring and proposed legacy key. It does not modify the active environment, rotate keys, rewrite checkpoints, or delete evidence.
+
+The proposed configuration is supplied through temporary environment variables (never commit these values):
+
+- `AEGIS_AUDIT_CHECKPOINT_NEXT_KEY`
+- `AEGIS_AUDIT_CHECKPOINT_NEXT_KEY_ID`
+- `AEGIS_AUDIT_CHECKPOINT_NEXT_PREVIOUS_KEYS` (JSON object)
+- `AEGIS_AUDIT_CHECKPOINT_NEXT_LEGACY_KEY`
+
+When Codespaces is ready, first configure the proposed values in the local shell or ignored local `.env` file. Retain every old key needed by the inventory. Then run:
+
+```bash
+cd /workspaces/aegis-security-platform/backend
+set -a
+source .env
+set +a
+./.venv/bin/python -m app.response.checkpoint_key_rotation
+```
+
+A successful local preflight means all inspected local signed evidence verifies under the proposed configuration. It does not prove that backups, exported evidence, or external archives are covered. Do not activate the new configuration if the preflight fails.
+
+New regression test file — all authored but NOT RUN:
+
+- `tests/test_checkpoint_key_rotation.py::test_preflight_accepts_rotation_that_retains_all_required_keys`
+- `tests/test_checkpoint_key_rotation.py::test_preflight_rejects_rotation_that_drops_a_required_previous_key`
+- `tests/test_checkpoint_key_rotation.py::test_preflight_rejects_wrong_legacy_key`
+- `tests/test_checkpoint_key_rotation.py::test_preflight_rejects_tampered_checkpoint_signature`
+
+Run this module separately during deferred verification:
+
+```bash
+./.venv/bin/python -m pytest tests/test_checkpoint_key_rotation.py -v
+```
