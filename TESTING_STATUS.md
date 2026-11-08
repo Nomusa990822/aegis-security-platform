@@ -175,3 +175,6 @@ Run this module separately during the deferred verification session:
 ```bash
 ./.venv/bin/python -m pytest tests/test_checkpoint_key_usage.py -v
 ```
+
+- `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_retains_quarantined_intent_key_reference`
+- `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_accounts_for_legacy_checkpoint_signing_key`
