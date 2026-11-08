@@ -379,6 +379,9 @@ def inventory_audit_checkpoints(
     quarantine_evidence_files = []
 
     for path in discovered_files:
+        if path.name == "quarantine" and path.is_symlink():
+            unrecognized_files.append(path.name)
+            continue
         if path.is_dir() and path.name == "quarantine":
             quarantine_evidence_files.extend(
                 sorted(
