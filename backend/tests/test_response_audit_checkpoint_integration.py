@@ -962,3 +962,91 @@ def test_recovery_refuses_tampered_checkpoint_intent(
     assert integrity.status_code == 200
     assert integrity.json()["valid"] is False
     assert integrity.json()["checkpoint_valid"] is False
+
+
+
+def test_recovery_refuses_database_rewrite_after_intent_was_signed(
+    client,
+    monkeypatch,
+):
+    from app.response import repository
+    from app.response.checkpoint_recovery import recover_checkpoint_intents
+
+    def fail_checkpoint_publication(**kwargs):
+        raise OSError("Simulated publication interruption.")
+
+    monkeypatch.setattr(
+        repository,
+        "publish_checkpoint_intent",
+        fail_checkpoint_publication,
+    )
+
+    response_id = create_pending_response(
+        client,
+        expected_status=202,
+    )
+
+    # Rewrite the database event and chain head after the intent was signed.
+    with database.get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT *
+            FROM response_audit_log
+            WHERE response_id = ?
+            ORDER BY id ASC
+            LIMIT 1
+            """,
+            (response_id,),
+        ).fetchone()
+
+        event = dict(row)
+        details = json.loads(event["details"])
+        details["tamper_after_intent"] = True
+        event["details"] = details
+
+        rewritten_hash = calculate_event_hash(
+            event,
+            event["previous_hash"],
+        )
+
+        connection.execute(
+            """
+            UPDATE response_audit_log
+            SET details = ?, event_hash = ?
+            WHERE id = ?
+            """,
+            (
+                json.dumps(
+                    details,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+                rewritten_hash,
+                event["id"],
+            ),
+        )
+        connection.execute(
+            """
+            UPDATE response_audit_chain_heads
+            SET final_hash = ?
+            WHERE response_id = ?
+            """,
+            (rewritten_hash, response_id),
+        )
+        connection.commit()
+
+    with database.get_connection() as connection:
+        report = recover_checkpoint_intents(
+            connection,
+            Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"]),
+            apply=True,
+        )
+
+    assert report["recovered_response_ids"] == []
+    assert any(
+        "does not match the signed intent" in reason.lower()
+        for item in report["skipped"]
+        for reason in item["reasons"]
+    )
+    assert get_checkpoint_intent_path(response_id).exists()
+    assert not get_checkpoint_path(response_id).exists()
