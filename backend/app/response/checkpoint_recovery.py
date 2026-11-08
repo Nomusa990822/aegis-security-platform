@@ -35,14 +35,29 @@ def _validate_recovery_candidate(
         }
 
     intent = intent_result["intent"]
-    record = get_response_record(connection, response_id)
+
+    try:
+        record = get_response_record(connection, response_id)
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return {
+            "eligible": False,
+            "errors": [f"Response record could not be reconstructed: {exc}"],
+        }
+
     if record is None:
         return {
             "eligible": False,
             "errors": ["Response record is missing."],
         }
 
-    lifecycle = validate_response_audit(record)
+    try:
+        lifecycle = validate_response_audit(record)
+    except (KeyError, TypeError, ValueError) as exc:
+        return {
+            "eligible": False,
+            "errors": [f"Response lifecycle validation failed: {exc}"],
+        }
+
     if not lifecycle["valid"]:
         return {
             "eligible": False,
@@ -51,7 +66,14 @@ def _validate_recovery_candidate(
             ],
         }
 
-    chain = verify_hash_chain(record["audit_log"])
+    try:
+        chain = verify_hash_chain(record["audit_log"])
+    except (KeyError, TypeError, ValueError) as exc:
+        return {
+            "eligible": False,
+            "errors": [f"Audit hash-chain verification failed: {exc}"],
+        }
+
     if not chain["valid"]:
         return {
             "eligible": False,
