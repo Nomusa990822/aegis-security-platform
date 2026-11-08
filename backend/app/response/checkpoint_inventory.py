@@ -35,6 +35,10 @@ PENDING_INTENT_FILENAME_PATTERN = re.compile(
     r"^response_([1-9][0-9]*)\.pending\.json$"
 )
 
+INTENT_TEMPORARY_FILENAME_PATTERN = re.compile(
+    r"^response_([1-9][0-9]*)\.pending_.*\.tmp$"
+)
+
 
 def _read_checkpoint_metadata(path: Path) -> dict[str, Any]:
     """Read checkpoint metadata without treating it as verified evidence."""
@@ -394,7 +398,10 @@ def inventory_audit_checkpoints(
             pending_intent_files.append(path.name)
             continue
 
-        if TEMPORARY_FILENAME_PATTERN.fullmatch(path.name):
+        if (
+            TEMPORARY_FILENAME_PATTERN.fullmatch(path.name)
+            or INTENT_TEMPORARY_FILENAME_PATTERN.fullmatch(path.name)
+        ):
             temporary_files.append(path.name)
             continue
 
