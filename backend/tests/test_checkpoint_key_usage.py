@@ -1,7 +1,10 @@
 import json
+import os
 from pathlib import Path
 
 from app.response.audit_checkpoint import (
+    LEGACY_CHECKPOINT_SCHEMA_VERSION,
+    sign_checkpoint,
     verify_audit_checkpoint,
     write_audit_checkpoint,
 )
@@ -158,3 +161,65 @@ def test_key_usage_inventory_blocks_retirement_when_old_key_is_missing(
     assert report["invalid_or_unverifiable_documents"][0]["key_id"] == "key-v1"
     assert report["invalid_or_unverifiable_documents"][0]["key_available"] is False
     assert report["invalid_or_unverifiable_documents"][0]["signature_valid"] is False
+
+
+def test_key_usage_inventory_retains_quarantined_intent_key_reference(
+    tmp_path,
+    monkeypatch,
+):
+    directory = tmp_path / "checkpoints"
+    configure_old_key(monkeypatch, directory)
+    response_id = 74
+
+    write_checkpoint_intent(
+        response_id=response_id,
+        event_count=1,
+        final_hash="f" * 64,
+        previous_event_count=0,
+        previous_final_hash="0" * 64,
+    )
+
+    quarantine_directory = directory / "quarantine"
+    quarantine_directory.mkdir(mode=0o700)
+    original_path = checkpoint_intent_path(directory, response_id)
+    quarantined_path = quarantine_directory / original_path.name
+    os.replace(original_path, quarantined_path)
+
+    rotate_to_new_key(monkeypatch, retain_old=False)
+    report = inspect_checkpoint_key_usage(directory)
+
+    assert report["referenced_key_ids"] == ["key-v1"]
+    assert report["missing_key_ids"] == ["key-v1"]
+    assert report["key_usage"]["key-v1"][0]["document_type"] == "quarantined_intent"
+    assert report["retirement_assessment"] == "blocked"
+
+
+def test_key_usage_inventory_accounts_for_legacy_checkpoint_signing_key(
+    tmp_path,
+    monkeypatch,
+):
+    directory = tmp_path / "checkpoints"
+    configure_old_key(monkeypatch, directory)
+    response_id = 75
+    payload = {
+        "schema_version": LEGACY_CHECKPOINT_SCHEMA_VERSION,
+        "response_id": response_id,
+        "event_count": 1,
+        "final_hash": "1" * 64,
+    }
+    document = {
+        "payload": payload,
+        "signature": sign_checkpoint(payload, OLD_SECRET.encode("utf-8")),
+    }
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / f"response_{response_id}.json").write_text(
+        json.dumps(document),
+        encoding="utf-8",
+    )
+
+    report = inspect_checkpoint_key_usage(directory)
+
+    assert report["legacy_key_references"] == 1
+    assert report["referenced_key_ids"] == ["__legacy__"]
+    assert report["invalid_or_unverifiable_documents"] == []
+    assert report["retirement_assessment"] == "review_required"
