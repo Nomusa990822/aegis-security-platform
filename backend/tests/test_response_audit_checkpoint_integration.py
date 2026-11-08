@@ -23,7 +23,7 @@ def approver_headers():
     }
 
 
-def create_pending_response(client):
+def create_pending_response(client, expected_status=201):
     with database.get_connection() as connection:
         cursor = connection.execute(
             """
@@ -62,7 +62,7 @@ def create_pending_response(client):
         headers=analyst_headers(),
     )
 
-    assert response.status_code == 201
+    assert response.status_code == expected_status
 
     return response.json()["response_id"]
 
@@ -317,20 +317,10 @@ def test_checkpoint_write_failure_does_not_undo_committed_response(
         fail_checkpoint_write,
     )
 
-    response = client.post(
-        "/api/v1/response/preview",
-        json={
-            "alert_id": 1,
-            "action": "block_ip",
-            "target": "8.8.8.8",
-        },
-        headers=analyst_headers(),
+    response_id = create_pending_response(
+        client,
+        expected_status=202,
     )
-
-    assert response.status_code == 202
-    assert response.json()["committed"] is True
-    assert response.json()["checkpoint_status"] == "pending"
-    response_id = response.json()["response_id"]
 
     # The database operation must remain committed.
     history = client.get(
