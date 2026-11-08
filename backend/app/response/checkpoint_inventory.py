@@ -31,6 +31,10 @@ LOCK_FILENAME_PATTERN = re.compile(
     r"^response_([1-9][0-9]*)\.lock$"
 )
 
+PENDING_INTENT_FILENAME_PATTERN = re.compile(
+    r"^response_([1-9][0-9]*)\.pending\.json$"
+)
+
 
 def _read_checkpoint_metadata(path: Path) -> dict[str, Any]:
     """Read checkpoint metadata without treating it as verified evidence."""
@@ -363,6 +367,8 @@ def inventory_audit_checkpoints(
     database_ids = record_ids | head_ids
 
     checkpoint_ids = set()
+    pending_intent_ids = set()
+    pending_intent_files = []
     temporary_files = []
     lock_files = []
     unrecognized_files = []
@@ -380,6 +386,14 @@ def inventory_audit_checkpoints(
             checkpoint_ids.add(int(checkpoint_match.group(1)))
             continue
 
+        intent_match = PENDING_INTENT_FILENAME_PATTERN.fullmatch(
+            path.name
+        )
+        if intent_match:
+            pending_intent_ids.add(int(intent_match.group(1)))
+            pending_intent_files.append(path.name)
+            continue
+
         if TEMPORARY_FILENAME_PATTERN.fullmatch(path.name):
             temporary_files.append(path.name)
             continue
@@ -390,7 +404,9 @@ def inventory_audit_checkpoints(
 
         unrecognized_files.append(path.name)
 
-    response_ids = sorted(database_ids | checkpoint_ids)
+    response_ids = sorted(
+        database_ids | checkpoint_ids | pending_intent_ids
+    )
 
     response_results = [
         _inspect_response(
@@ -405,7 +421,15 @@ def inventory_audit_checkpoints(
 
     for item in response_results:
         if item["response_id"] not in database_ids:
-            item["classification"].append("orphan_checkpoint")
+            if item["response_id"] in checkpoint_ids:
+                item["classification"].append("orphan_checkpoint")
+            if item["response_id"] in pending_intent_ids:
+                item["classification"].append("orphan_checkpoint_intent")
+        if item["response_id"] in pending_intent_ids:
+            item["pending_checkpoint_intent"] = True
+            item["classification"].append("pending_checkpoint_intent")
+        else:
+            item["pending_checkpoint_intent"] = False
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -416,6 +440,7 @@ def inventory_audit_checkpoints(
             "database_response_records": len(record_ids),
             "database_chain_heads": len(head_ids),
             "checkpoint_files": len(checkpoint_ids),
+            "pending_checkpoint_intents": len(pending_intent_ids),
             "temporary_files": len(temporary_files),
             "lock_files": len(lock_files),
             "unrecognized_files": len(unrecognized_files),
@@ -424,6 +449,7 @@ def inventory_audit_checkpoints(
             ),
             "responses_inspected": len(response_results),
         },
+        "pending_checkpoint_intent_files": pending_intent_files,
         "temporary_files": temporary_files,
         "lock_files": lock_files,
         "unrecognized_files": unrecognized_files,
