@@ -103,6 +103,7 @@ Safety conditions for quarantine:
 
 - The intent signature must validate with an available retained signing key.
 - No response record, chain-head row, or audit event may exist for that response ID.
+- The intent must describe the initial event only (predecessor count zero and genesis hash); a continuation intent is preserved for investigation even if its predecessor checkpoint is missing.
 - No checkpoint file may exist for that response ID.
 - The operator must explicitly pass `--apply` and a non-empty `--reason`.
 - The original signed intent is moved unchanged into `audit_checkpoints/quarantine/`; a separate manifest records its SHA-256, timestamp, reason, signed payload, and database checks.
@@ -133,5 +134,6 @@ New regression tests — all authored but NOT RUN:
 - `tests/test_checkpoint_bootstrap.py::test_stale_orphan_intent_is_dry_run_then_quarantined_with_evidence`
 - `tests/test_checkpoint_bootstrap.py::test_quarantine_refuses_intent_when_database_response_exists`
 - `tests/test_checkpoint_bootstrap.py::test_quarantine_refuses_invalid_signed_intent`
+- `tests/test_checkpoint_bootstrap.py::test_quarantine_refuses_intent_with_missing_predecessor_checkpoint`
 
 The checkpoint inventory now recognizes the `quarantine/` evidence directory and reports its evidence-file count instead of flagging that directory as unrecognized.
