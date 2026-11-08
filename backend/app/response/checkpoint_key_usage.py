@@ -17,6 +17,9 @@ from app.response.audit_checkpoint import (
 
 CHECKPOINT_PATTERN = re.compile(r"^response_([1-9][0-9]*)\.json$")
 INTENT_PATTERN = re.compile(r"^response_([1-9][0-9]*)\.pending\.json$")
+QUARANTINED_INTENT_PATTERN = re.compile(
+    r"^response_([1-9][0-9]*)_[0-9a-f]{64}\.pending\.json$"
+)
 
 
 def _inspect_signed_document(
@@ -39,11 +42,12 @@ def _inspect_signed_document(
         if not isinstance(payload, dict) or not isinstance(signature, str):
             raise ValueError("Signed document payload or signature is invalid.")
 
-        filename_match = (
-            CHECKPOINT_PATTERN.fullmatch(path.name)
-            if document_type == "checkpoint"
-            else INTENT_PATTERN.fullmatch(path.name)
-        )
+        if document_type == "checkpoint":
+            filename_match = CHECKPOINT_PATTERN.fullmatch(path.name)
+        elif document_type == "quarantined_intent":
+            filename_match = QUARANTINED_INTENT_PATTERN.fullmatch(path.name)
+        else:
+            filename_match = INTENT_PATTERN.fullmatch(path.name)
         if filename_match is None:
             raise ValueError("Signed document filename is invalid.")
         expected_response_id = int(filename_match.group(1))
@@ -134,7 +138,7 @@ def inspect_checkpoint_key_usage(
                     continue
                 candidates = sorted(path.iterdir())
                 for candidate in candidates:
-                    if INTENT_PATTERN.fullmatch(candidate.name):
+                    if QUARANTINED_INTENT_PATTERN.fullmatch(candidate.name):
                         if candidate.is_symlink() or not candidate.is_file():
                             errors.append({
                                 "file": str(candidate),
