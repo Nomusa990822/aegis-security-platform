@@ -22,6 +22,14 @@ INTENT_FILENAME_PATTERN = re.compile(
     r"^response_([1-9][0-9]*)\.pending\.json$"
 )
 
+CHECKPOINT_TEMPORARY_PATTERN = re.compile(
+    r"^response_([1-9][0-9]*)_.*\.tmp$"
+)
+
+INTENT_TEMPORARY_PATTERN = re.compile(
+    r"^response_([1-9][0-9]*)\.pending_.*\.tmp$"
+)
+
 
 def _validate_recovery_candidate(
     connection: sqlite3.Connection,
@@ -176,13 +184,36 @@ def recover_checkpoint_intents(
             raise ValueError("Response IDs must be positive integers.")
 
     intent_ids = set()
+    temporary_artifacts = []
+    if checkpoint_directory.is_symlink():
+        raise ValueError("Checkpoint directory must not be a symlink.")
     if checkpoint_directory.exists():
         if not checkpoint_directory.is_dir():
             raise ValueError("Checkpoint path is not a directory.")
         for path in checkpoint_directory.iterdir():
+            if path.is_symlink():
+                checkpoint_temp = CHECKPOINT_TEMPORARY_PATTERN.fullmatch(path.name)
+                intent_temp = INTENT_TEMPORARY_PATTERN.fullmatch(path.name)
+                if checkpoint_temp or intent_temp:
+                    temporary_artifacts.append({
+                        "filename": path.name,
+                        "response_id": int((checkpoint_temp or intent_temp).group(1)),
+                        "classification": "symlink_preserved_for_manual_inspection",
+                    })
+                continue
             match = INTENT_FILENAME_PATTERN.fullmatch(path.name)
             if match and path.is_file():
                 intent_ids.add(int(match.group(1)))
+                continue
+            checkpoint_temp = CHECKPOINT_TEMPORARY_PATTERN.fullmatch(path.name)
+            intent_temp = INTENT_TEMPORARY_PATTERN.fullmatch(path.name)
+            if (checkpoint_temp or intent_temp) and path.is_file():
+                match = checkpoint_temp or intent_temp
+                temporary_artifacts.append({
+                    "filename": path.name,
+                    "response_id": int(match.group(1)),
+                    "classification": "unverified_temporary_file_preserved",
+                })
 
     selected_ids = (
         sorted(intent_ids)
@@ -195,6 +226,12 @@ def recover_checkpoint_intents(
         "database": "read_only_connection",
         "checkpoint_directory": str(checkpoint_directory),
         "discovered_intent_ids": sorted(intent_ids),
+        "temporary_artifacts": temporary_artifacts,
+        "temporary_artifact_count": len(temporary_artifacts),
+        "temporary_artifact_policy": (
+            "Temporary files are inventoried only. Their contents are not trusted, "
+            "published, deleted, or quarantined by this recovery command."
+        ),
         "selected_response_ids": selected_ids,
         "eligible_response_ids": [],
         "recovered_response_ids": [],
