@@ -49,6 +49,7 @@ In `tests/test_response_audit_checkpoint_integration.py`:
 - `test_simulation_reports_committed_checkpoint_failure` — verifies simulation is committed and reported as checkpoint-pending when publication fails.
 - `test_signed_checkpoint_intent_supports_safe_recovery` — verifies dry-run recovery, explicit publication, intent removal, and final integrity.
 - `test_recovery_refuses_tampered_checkpoint_intent` — verifies a modified intent signature cannot be used to publish a checkpoint.
+- `test_recovery_refuses_database_rewrite_after_intent_was_signed` — verifies a rewritten database chain cannot be checkpointed using an earlier signed intent.
 
 All are authored but unverified.
 
