@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -182,7 +183,10 @@ def test_key_usage_inventory_retains_quarantined_intent_key_reference(
     quarantine_directory = directory / "quarantine"
     quarantine_directory.mkdir(mode=0o700)
     original_path = checkpoint_intent_path(directory, response_id)
-    quarantined_path = quarantine_directory / original_path.name
+    intent_hash = hashlib.sha256(original_path.read_bytes()).hexdigest()
+    quarantined_path = quarantine_directory / (
+        f"response_{response_id}_{intent_hash}.pending.json"
+    )
     os.replace(original_path, quarantined_path)
 
     rotate_to_new_key(monkeypatch, retain_old=False)
