@@ -317,7 +317,20 @@ def test_checkpoint_write_failure_does_not_undo_committed_response(
         fail_checkpoint_write,
     )
 
-    response_id = create_pending_response(client)
+    response = client.post(
+        "/api/v1/response/preview",
+        json={
+            "alert_id": 1,
+            "action": "block_ip",
+            "target": "8.8.8.8",
+        },
+        headers=analyst_headers(),
+    )
+
+    assert response.status_code == 202
+    assert response.json()["committed"] is True
+    assert response.json()["checkpoint_status"] == "pending"
+    response_id = response.json()["response_id"]
 
     # The database operation must remain committed.
     history = client.get(
@@ -764,3 +777,87 @@ def test_hash_chain_tampering_blocks_approval_without_mutation(
     assert history.json()["decided_by"] is None
     assert len(history.json()["audit_log"]) == 1
 
+
+
+
+def test_approval_reports_committed_checkpoint_failure(
+    client,
+    monkeypatch,
+):
+    from app.response import repository
+
+    response_id = create_pending_response(client)
+
+    def fail_checkpoint_write(**kwargs):
+        raise OSError("Simulated approval checkpoint storage failure.")
+
+    monkeypatch.setattr(
+        repository,
+        "write_audit_checkpoint",
+        fail_checkpoint_write,
+    )
+
+    approval = client.post(
+        f"/api/v1/response/{response_id}/approve",
+        json={"reason": "Checkpoint failure reporting test."},
+        headers=approver_headers(),
+    )
+
+    assert approval.status_code == 202
+    assert approval.json()["committed"] is True
+    assert approval.json()["checkpoint_status"] == "pending"
+
+    history = client.get(
+        f"/api/v1/response/history/{response_id}",
+        headers=analyst_headers(),
+    )
+    assert history.status_code == 200
+    assert history.json()["status"] == "approved"
+    assert len(history.json()["audit_log"]) == 2
+
+    integrity = inspect_integrity(client, response_id)
+    assert integrity.status_code == 200
+    assert integrity.json()["valid"] is False
+    assert integrity.json()["checkpoint_valid"] is False
+
+
+def test_simulation_reports_committed_checkpoint_failure(
+    client,
+    monkeypatch,
+):
+    from app.response import repository
+
+    response_id = create_pending_response(client)
+    approve_response(client, response_id)
+
+    def fail_checkpoint_write(**kwargs):
+        raise OSError("Simulated simulation checkpoint storage failure.")
+
+    monkeypatch.setattr(
+        repository,
+        "write_audit_checkpoint",
+        fail_checkpoint_write,
+    )
+
+    simulation = client.post(
+        f"/api/v1/response/{response_id}/simulate",
+        headers=analyst_headers(),
+    )
+
+    assert simulation.status_code == 202
+    assert simulation.json()["committed"] is True
+    assert simulation.json()["checkpoint_status"] == "pending"
+
+    history = client.get(
+        f"/api/v1/response/history/{response_id}",
+        headers=analyst_headers(),
+    )
+    assert history.status_code == 200
+    assert history.json()["status"] == "simulated"
+    assert history.json()["simulated"] is True
+    assert len(history.json()["audit_log"]) == 3
+
+    integrity = inspect_integrity(client, response_id)
+    assert integrity.status_code == 200
+    assert integrity.json()["valid"] is False
+    assert integrity.json()["checkpoint_valid"] is False
