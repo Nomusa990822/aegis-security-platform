@@ -220,6 +220,8 @@ def quarantine_stale_checkpoint_intents(
             with checkpoint_lock(checkpoint_directory, response_id):
                 # Recheck the evidence under the same per-response lock used by
                 # intent creation and checkpoint publication.
+                if intent_path.is_symlink() or not intent_path.is_file():
+                    raise RuntimeError("Pending intent path changed or is not a regular file.")
                 current_bytes = intent_path.read_bytes()
                 current_hash = hashlib.sha256(current_bytes).hexdigest()
                 current_verification = verify_checkpoint_intent(response_id)
@@ -231,6 +233,14 @@ def quarantine_stale_checkpoint_intents(
                     raise RuntimeError(
                         "Intent became invalid during quarantine: "
                         + "; ".join(current_verification["errors"])
+                    )
+                current_payload = current_verification["intent"]
+                if (
+                    current_payload["previous_event_count"] != 0
+                    or current_payload["previous_final_hash"] != "0" * 64
+                ):
+                    raise RuntimeError(
+                        "Intent now references predecessor audit history."
                     )
                 if any(current_references.values()):
                     raise RuntimeError(
