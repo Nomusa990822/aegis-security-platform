@@ -376,8 +376,18 @@ def inventory_audit_checkpoints(
     temporary_files = []
     lock_files = []
     unrecognized_files = []
+    quarantine_evidence_files = []
 
     for path in discovered_files:
+        if path.is_dir() and path.name == "quarantine":
+            quarantine_evidence_files.extend(
+                sorted(
+                    item.name
+                    for item in path.iterdir()
+                    if item.is_file()
+                )
+            )
+            continue
         if not path.is_file():
             unrecognized_files.append(path.name)
             continue
@@ -448,6 +458,7 @@ def inventory_audit_checkpoints(
             "database_chain_heads": len(head_ids),
             "checkpoint_files": len(checkpoint_ids),
             "pending_checkpoint_intents": len(pending_intent_ids),
+            "quarantined_intent_evidence_files": len(quarantine_evidence_files),
             "temporary_files": len(temporary_files),
             "lock_files": len(lock_files),
             "unrecognized_files": len(unrecognized_files),
@@ -457,6 +468,7 @@ def inventory_audit_checkpoints(
             "responses_inspected": len(response_results),
         },
         "pending_checkpoint_intent_files": pending_intent_files,
+        "quarantine_evidence_files": quarantine_evidence_files,
         "temporary_files": temporary_files,
         "lock_files": lock_files,
         "unrecognized_files": unrecognized_files,
