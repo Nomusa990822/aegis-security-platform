@@ -40,15 +40,38 @@ Status: **NOT RUN — waiting for Codespace readiness.**
 - `tests/test_response_audit_integrity.py` — entire module.
 - Complete backend test suite — all tests collected by `pytest -q`.
 
-## Newly added or changed checkpoint-failure tests — NOT RUN
+## Newly added or changed checkpoint-failure and recovery tests — NOT RUN
 
 In `tests/test_response_audit_checkpoint_integration.py`:
 
-- `test_checkpoint_write_failure_does_not_undo_committed_response` — updated to expect HTTP 202 and verify that request creation remains committed while checkpoint status is pending.
+- `test_checkpoint_write_failure_does_not_undo_committed_response` — verifies request creation remains committed, reports HTTP 202, and retains its signed intent when checkpoint publication fails.
 - `test_approval_reports_committed_checkpoint_failure` — verifies approval is committed and reported as checkpoint-pending when publication fails.
 - `test_simulation_reports_committed_checkpoint_failure` — verifies simulation is committed and reported as checkpoint-pending when publication fails.
+- `test_signed_checkpoint_intent_supports_safe_recovery` — verifies dry-run recovery, explicit publication, intent removal, and final integrity.
+- `test_recovery_refuses_tampered_checkpoint_intent` — verifies a modified intent signature cannot be used to publish a checkpoint.
 
-These tests are authored but unverified.
+All are authored but unverified.
+
+## New manual recovery procedure — NOT RUN
+
+Only use this when inventory identifies a pending intent and the database and intent need to be reconciled. Stop the API server first.
+
+Dry run:
+
+```bash
+cd /workspaces/aegis-security-platform/backend
+./.venv/bin/python -m app.response.checkpoint_recovery
+```
+
+Review the eligible response IDs and the report carefully. Apply only after confirming the selected intent corresponds to the expected committed response:
+
+```bash
+./.venv/bin/python -m app.response.checkpoint_recovery --apply --response-id RESPONSE_ID
+```
+
+Replace `RESPONSE_ID` with the actual numeric ID. The recovery command uses a read-only SQLite connection and changes checkpoint files only. Invalid signatures, mismatched database heads, invalid lifecycle histories, and predecessor-checkpoint mismatches must be refused.
+
+Do not run `--apply` on an orphan or invalid intent. Stale intents from transactions that never committed require separate investigation; they are not automatically discarded.
 
 ## Other checks to record when the Codespace is ready
 
