@@ -50,6 +50,7 @@ In `tests/test_response_audit_checkpoint_integration.py`:
 - `test_signed_checkpoint_intent_supports_safe_recovery` — verifies dry-run recovery, explicit publication, intent removal, and final integrity.
 - `test_recovery_refuses_tampered_checkpoint_intent` — verifies a modified intent signature cannot be used to publish a checkpoint.
 - `test_recovery_refuses_database_rewrite_after_intent_was_signed` — verifies a rewritten database chain cannot be checkpointed using an earlier signed intent.
+- `tests/test_checkpoint_bootstrap.py::test_bootstrap_does_not_bypass_a_pending_signed_intent` — verifies the legacy bootstrap path refuses to sign a response that has a pending signed intent.
 
 All are authored but unverified.
 
@@ -57,10 +58,18 @@ All are authored but unverified.
 
 Only use this when inventory identifies a pending intent and the database and intent need to be reconciled. Stop the API server first.
 
-Dry run:
+Load the local environment first (do not print or share the secret values):
 
 ```bash
 cd /workspaces/aegis-security-platform/backend
+set -a
+source .env
+set +a
+```
+
+Dry run:
+
+```bash
 ./.venv/bin/python -m app.response.checkpoint_recovery
 ```
 
