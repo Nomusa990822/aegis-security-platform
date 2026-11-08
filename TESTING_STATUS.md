@@ -93,3 +93,45 @@ Do not run `--apply` on an orphan or invalid intent. Stale intents from transact
 ## Historical note
 
 Earlier checkpoint inventory/bootstrap tests passed before the latest fail-closed and checkpoint-failure-reporting changes. Those earlier results do not verify the current commits, and the full backend suite remains deferred.
+
+
+## Stale checkpoint-intent quarantine — NOT RUN
+
+New module: `backend/app/response/checkpoint_intent_quarantine.py`.
+
+Safety conditions for quarantine:
+
+- The intent signature must validate with an available retained signing key.
+- No response record, chain-head row, or audit event may exist for that response ID.
+- No checkpoint file may exist for that response ID.
+- The operator must explicitly pass `--apply` and a non-empty `--reason`.
+- The original signed intent is moved unchanged into `audit_checkpoints/quarantine/`; a separate manifest records its SHA-256, timestamp, reason, signed payload, and database checks.
+- The database connection is read-only. Stop the API server before any apply operation.
+- Corrupt, unverifiable, database-referenced, or checkpoint-associated intents are preserved in place for investigation. This is not a repair or deletion operation.
+
+When Codespaces is ready, inspect first:
+
+```bash
+cd /workspaces/aegis-security-platform/backend
+set -a
+source .env
+set +a
+./.venv/bin/python -m app.response.checkpoint_intent_quarantine
+```
+
+Only after reviewing the dry-run report and confirming the API server is stopped, quarantine one explicitly selected orphan:
+
+```bash
+./.venv/bin/python -m app.response.checkpoint_intent_quarantine \
+    --apply \
+    --response-id RESPONSE_ID \
+    --reason "Confirmed abandoned pre-commit intent; no matching database artifacts."
+```
+
+New regression tests — all authored but NOT RUN:
+
+- `tests/test_checkpoint_bootstrap.py::test_stale_orphan_intent_is_dry_run_then_quarantined_with_evidence`
+- `tests/test_checkpoint_bootstrap.py::test_quarantine_refuses_intent_when_database_response_exists`
+- `tests/test_checkpoint_bootstrap.py::test_quarantine_refuses_invalid_signed_intent`
+
+The checkpoint inventory now recognizes the `quarantine/` evidence directory and reports its evidence-file count instead of flagging that directory as unrecognized.
