@@ -314,6 +314,16 @@ def test_stale_orphan_intent_is_dry_run_then_quarantined_with_evidence():
     assert manifest["reason"].startswith("Verified orphan")
     assert manifest["sha256"] == evidence["sha256"]
 
+    from app.response.checkpoint_inventory import inventory_audit_checkpoints
+
+    with _read_only_connection() as connection:
+        inventory = inventory_audit_checkpoints(connection, directory)
+
+    assert evidence_path.name in inventory["quarantine_evidence_files"]
+    assert manifest_path.name in inventory["quarantine_evidence_files"]
+    assert inventory["summary"]["quarantined_intent_evidence_files"] >= 2
+    assert "quarantine" not in inventory["unrecognized_files"]
+
 
 def test_quarantine_refuses_intent_when_database_response_exists(
     client,
