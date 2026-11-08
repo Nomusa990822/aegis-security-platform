@@ -117,6 +117,8 @@ def quarantine_stale_checkpoint_intents(
         raise ValueError("A non-empty --reason is required when applying quarantine.")
 
     quarantine_directory = checkpoint_directory / "quarantine"
+    if quarantine_directory.is_symlink():
+        raise ValueError("Quarantine directory must not be a symbolic link.")
     discovered: set[int] = set()
     if checkpoint_directory.exists():
         if not checkpoint_directory.is_dir():
@@ -143,6 +145,13 @@ def quarantine_stale_checkpoint_intents(
     for response_id in selected:
         intent_path = checkpoint_intent_path(checkpoint_directory, response_id)
         checkpoint_file = checkpoint_path(checkpoint_directory, response_id)
+        if intent_path.is_symlink():
+            report["skipped"].append({
+                "response_id": response_id,
+                "classification": "intent_is_symlink",
+                "reasons": ["Symbolic-link intents are not eligible for quarantine."],
+            })
+            continue
         if not intent_path.is_file():
             report["skipped"].append({
                 "response_id": response_id,
@@ -173,7 +182,7 @@ def quarantine_stale_checkpoint_intents(
             })
             continue
 
-        if checkpoint_file.exists():
+        if os.path.lexists(checkpoint_file):
             report["skipped"].append({
                 "response_id": response_id,
                 "classification": "checkpoint_exists",
@@ -190,6 +199,8 @@ def quarantine_stale_checkpoint_intents(
 
         try:
             quarantine_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+            if quarantine_directory.is_symlink() or not quarantine_directory.is_dir():
+                raise RuntimeError("Quarantine destination is not a regular directory.")
             os.chmod(quarantine_directory, 0o700)
             with checkpoint_lock(checkpoint_directory, response_id):
                 # Recheck the evidence under the same per-response lock used by
@@ -210,7 +221,7 @@ def quarantine_stale_checkpoint_intents(
                     raise RuntimeError(
                         "Database references appeared during quarantine."
                     )
-                if checkpoint_file.exists():
+                if os.path.lexists(checkpoint_file):
                     raise RuntimeError(
                         "A checkpoint appeared during quarantine."
                     )
@@ -222,7 +233,7 @@ def quarantine_stale_checkpoint_intents(
                 manifest_path = quarantine_directory / (
                     f"response_{response_id}_{current_hash}.manifest.json"
                 )
-                if evidence_path.exists() or manifest_path.exists():
+                if os.path.lexists(evidence_path) or os.path.lexists(manifest_path):
                     raise RuntimeError(
                         "Quarantine evidence destination already exists; "
                         "refusing to overwrite evidence."
