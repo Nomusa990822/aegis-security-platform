@@ -249,3 +249,146 @@ def test_bootstrap_does_not_bypass_a_pending_signed_intent(
         for reason in skipped["reasons"]
     )
     assert intent.exists()
+
+
+def test_stale_orphan_intent_is_dry_run_then_quarantined_with_evidence():
+    import hashlib
+
+    from app.response.checkpoint_intent import (
+        checkpoint_intent_path,
+        write_checkpoint_intent,
+    )
+    from app.response.checkpoint_intent_quarantine import (
+        quarantine_stale_checkpoint_intents,
+    )
+
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    with _read_only_connection() as connection:
+        maximum = connection.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM response_records"
+        ).fetchone()[0]
+    response_id = maximum + 10000
+
+    write_checkpoint_intent(
+        response_id=response_id,
+        event_count=1,
+        final_hash="a" * 64,
+        previous_event_count=0,
+        previous_final_hash="0" * 64,
+    )
+    intent_path = checkpoint_intent_path(directory, response_id)
+    original_bytes = intent_path.read_bytes()
+
+    with _read_only_connection() as connection:
+        dry_run = quarantine_stale_checkpoint_intents(
+            connection,
+            directory,
+        )
+
+    assert dry_run["eligible_response_ids"] == [response_id]
+    assert dry_run["quarantined_response_ids"] == []
+    assert intent_path.read_bytes() == original_bytes
+    assert not (directory / "quarantine").exists()
+
+    with _read_only_connection() as connection:
+        applied = quarantine_stale_checkpoint_intents(
+            connection,
+            directory,
+            apply=True,
+            response_ids={response_id},
+            reason="Verified orphan from an interrupted pre-commit transaction.",
+        )
+
+    assert applied["quarantined_response_ids"] == [response_id]
+    assert not intent_path.exists()
+    evidence = applied["evidence"][0]
+    evidence_path = Path(evidence["intent_file"])
+    manifest_path = Path(evidence["manifest_file"])
+    assert evidence_path.read_bytes() == original_bytes
+    assert evidence["sha256"] == hashlib.sha256(original_bytes).hexdigest()
+    assert evidence_path.stat().st_mode & 0o777 == 0o600
+    assert manifest_path.stat().st_mode & 0o777 == 0o600
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["response_id"] == response_id
+    assert manifest["reason"].startswith("Verified orphan")
+    assert manifest["sha256"] == evidence["sha256"]
+
+
+def test_quarantine_refuses_intent_when_database_response_exists(
+    client,
+    monkeypatch,
+):
+    from app.response import repository
+    from app.response.checkpoint_intent_quarantine import (
+        quarantine_stale_checkpoint_intents,
+    )
+
+    def fail_publication(**kwargs):
+        raise OSError("Simulated publication interruption.")
+
+    monkeypatch.setattr(
+        repository,
+        "publish_checkpoint_intent",
+        fail_publication,
+    )
+    response_id = _create_response(client, expected_status=202)
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    intent_path = directory / f"response_{response_id}.pending.json"
+    original_bytes = intent_path.read_bytes()
+
+    with _read_only_connection() as connection:
+        report = quarantine_stale_checkpoint_intents(
+            connection,
+            directory,
+            apply=True,
+            response_ids={response_id},
+            reason="This must be refused because the database has a response.",
+        )
+
+    assert report["quarantined_response_ids"] == []
+    assert report["skipped"][0]["classification"] == "database_reference_exists"
+    assert intent_path.read_bytes() == original_bytes
+
+
+def test_quarantine_refuses_invalid_signed_intent():
+    from app.response.checkpoint_intent import (
+        checkpoint_intent_path,
+        write_checkpoint_intent,
+    )
+    from app.response.checkpoint_intent_quarantine import (
+        quarantine_stale_checkpoint_intents,
+    )
+
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    with _read_only_connection() as connection:
+        maximum = connection.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM response_records"
+        ).fetchone()[0]
+    response_id = maximum + 20000
+
+    write_checkpoint_intent(
+        response_id=response_id,
+        event_count=1,
+        final_hash="b" * 64,
+        previous_event_count=0,
+        previous_final_hash="0" * 64,
+    )
+    intent_path = checkpoint_intent_path(directory, response_id)
+    document = json.loads(intent_path.read_text(encoding="utf-8"))
+    document["signature"] = "0" * 64
+    intent_path.write_text(json.dumps(document), encoding="utf-8")
+    original_bytes = intent_path.read_bytes()
+
+    with _read_only_connection() as connection:
+        report = quarantine_stale_checkpoint_intents(
+            connection,
+            directory,
+            apply=True,
+            response_ids={response_id},
+            reason="Invalid signatures must never be quarantined automatically.",
+        )
+
+    assert report["quarantined_response_ids"] == []
+    assert report["skipped"][0]["classification"] == "intent_corrupt_or_unverifiable"
+    assert intent_path.read_bytes() == original_bytes
