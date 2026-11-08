@@ -137,3 +137,41 @@ New regression tests — all authored but NOT RUN:
 - `tests/test_checkpoint_bootstrap.py::test_quarantine_refuses_intent_with_missing_predecessor_checkpoint`
 
 The checkpoint inventory now recognizes the `quarantine/` evidence directory and reports its evidence-file count instead of flagging that directory as unrecognized.
+
+
+## Checkpoint signing-key rotation inventory — NOT RUN
+
+New module: `backend/app/response/checkpoint_key_usage.py`.
+
+The read-only inventory:
+
+- Lists configured key IDs and signing-key IDs referenced by active checkpoints, pending intents, and quarantined intent evidence.
+- Verifies signatures where the required key is available.
+- Reports missing key IDs and invalid/unverifiable signed documents.
+- Identifies configured non-active keys with no references in the inspected checkpoint directory.
+- Never prints key material and never edits environment variables or checkpoint files.
+- Treats retirement as review-required even when a key has no local references, because backups and external copies may still depend on it. Any malformed or unverifiable document blocks a clean retirement assessment.
+
+When Codespaces is ready, load the environment and inspect:
+
+```bash
+cd /workspaces/aegis-security-platform/backend
+set -a
+source .env
+set +a
+./.venv/bin/python -m app.response.checkpoint_key_usage
+```
+
+Rotation rule: add the old key ID and secret to `AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS` when switching the active key. Keep the old key until the inventory shows no references in checkpoints, pending intents, or quarantined evidence, and backup/retention copies have also been checked. A pending intent signed by an old key must remain verifiable so recovery can publish the resulting checkpoint under the new active key.
+
+New regression test file — all authored but NOT RUN:
+
+- `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_tracks_old_checkpoint_and_pending_intent`
+- `tests/test_checkpoint_key_usage.py::test_pending_intent_survives_rotation_and_publishes_with_new_key`
+- `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_blocks_retirement_when_old_key_is_missing`
+
+Run this module separately during the deferred verification session:
+
+```bash
+./.venv/bin/python -m pytest tests/test_checkpoint_key_usage.py -v
+```
