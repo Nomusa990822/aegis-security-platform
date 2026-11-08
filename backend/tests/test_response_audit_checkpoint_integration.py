@@ -1050,3 +1050,35 @@ def test_recovery_refuses_database_rewrite_after_intent_was_signed(
     )
     assert get_checkpoint_intent_path(response_id).exists()
     assert not get_checkpoint_path(response_id).exists()
+
+def test_recovery_inventories_and_preserves_interrupted_temporary_files(client):
+    from app.response.checkpoint_recovery import recover_checkpoint_intents
+
+    response_id = create_pending_response(client)
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    checkpoint_temp = directory / f"response_{response_id}_interrupted.tmp"
+    intent_temp = directory / f"response_{response_id}.pending_interrupted.tmp"
+    checkpoint_temp.write_text('{"partial":', encoding="utf-8")
+    intent_temp.write_text('{"partial":', encoding="utf-8")
+    checkpoint_temp_bytes = checkpoint_temp.read_bytes()
+    intent_temp_bytes = intent_temp.read_bytes()
+
+    with database.get_connection() as connection:
+        report = recover_checkpoint_intents(
+            connection,
+            directory,
+            apply=True,
+        )
+
+    assert response_id not in report["recovered_response_ids"]
+    assert report["temporary_artifact_count"] == 2
+    assert {
+        item["filename"] for item in report["temporary_artifacts"]
+    } == {checkpoint_temp.name, intent_temp.name}
+    assert all(
+        item["classification"] == "unverified_temporary_file_preserved"
+        for item in report["temporary_artifacts"]
+    )
+    assert checkpoint_temp.read_bytes() == checkpoint_temp_bytes
+    assert intent_temp.read_bytes() == intent_temp_bytes
+
