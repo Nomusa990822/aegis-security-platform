@@ -46,27 +46,27 @@ def _database_references_response(
 
 def _write_manifest(path: Path, manifest: dict[str, Any]) -> None:
     temporary_path = None
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        dir=path.parent,
-        prefix=f"{path.stem}_",
-        suffix=".tmp",
-        delete=False,
-    ) as temporary_file:
-        temporary_path = Path(temporary_file.name)
-        json.dump(
-            manifest,
-            temporary_file,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-        )
-        temporary_file.write("\n")
-        temporary_file.flush()
-        os.fsync(temporary_file.fileno())
-
     try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f"{path.stem}_",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary_file:
+            temporary_path = Path(temporary_file.name)
+            json.dump(
+                manifest,
+                temporary_file,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
+            temporary_file.write("\n")
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+
         os.chmod(temporary_path, 0o600)
         os.replace(temporary_path, path)
         os.chmod(path, 0o600)
