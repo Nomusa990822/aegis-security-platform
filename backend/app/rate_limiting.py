@@ -124,7 +124,7 @@ class APIRateLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        response_headers = {}
+        rate_headers = {}
         blocked_category = None
         retry_after = 0
 
@@ -135,7 +135,7 @@ class APIRateLimitMiddleware:
                     limit,
                     self.clock(),
                 )
-                response_headers = {
+                rate_headers = {
                     "RateLimit-Limit": str(limit),
                     "RateLimit-Remaining": str(remaining),
                     "RateLimit-Reset": str(reset_after),
@@ -151,25 +151,25 @@ class APIRateLimitMiddleware:
                     break
 
         if blocked_category is not None:
-            response_headers["Retry-After"] = str(retry_after)
+            rate_headers["Retry-After"] = str(retry_after)
             await JSONResponse(
                 status_code=429,
                 content={
                     "detail": "API rate limit exceeded",
                     "category": blocked_category,
                 },
-                headers=response_headers,
+                headers=rate_headers,
             )(scope, receive, send)
             return
 
         async def send_with_rate_headers(message):
             if message["type"] == "http.response.start":
-                response_headers = list(message.get("headers", []))
-                response_headers.extend(
+                outgoing_headers = list(message.get("headers", []))
+                outgoing_headers.extend(
                     (name.lower().encode("ascii"), value.encode("ascii"))
-                    for name, value in headers.items()
+                    for name, value in rate_headers.items()
                 )
-                message = {**message, "headers": response_headers}
+                message = {**message, "headers": outgoing_headers}
             await send(message)
 
         await self.app(scope, receive, send_with_rate_headers)
