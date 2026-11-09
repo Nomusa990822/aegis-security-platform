@@ -130,16 +130,17 @@ def test_events_outside_received_time_window_are_excluded():
     assert evaluate(events) is None
 
 
-def test_incomplete_or_wrong_event_is_ignored():
-    events = [
-        network_event(destination_ip=None),
+def test_missing_destination_ip_is_ignored():
+    assert evaluate([network_event(destination_ip=None)]) is None
+
+
+def test_non_network_event_is_ignored():
+    assert evaluate([
         network_event(
             destination_ip="198.51.100.2",
             event_type="authentication",
-        ),
-    ]
-
-    assert evaluate(events) is None
+        )
+    ]) is None
 
 
 def test_existing_active_alert_is_reused():
