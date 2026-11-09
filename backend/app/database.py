@@ -1,14 +1,36 @@
 import sqlite3
 from pathlib import Path
+
 from app.response.repository import initialize_response_tables
 
+
 DATABASE_PATH = Path(__file__).resolve().parent.parent / "aegis.db"
+SQLITE_BUSY_TIMEOUT_MS = 30_000
+
+
+class _ClosingSQLiteConnection(sqlite3.Connection):
+    """Commit or roll back on context exit, then always release the handle."""
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            return super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
 
 
 def get_connection():
-    connection = sqlite3.connect(DATABASE_PATH)
+    # SQLite permits multiple readers but only one active writer. Give
+    # transient write-lock contention a bounded window to clear.
+    connection = sqlite3.connect(
+        DATABASE_PATH,
+        timeout=SQLITE_BUSY_TIMEOUT_MS / 1000,
+        factory=_ClosingSQLiteConnection,
+    )
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON;")
+    connection.execute(
+        f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS};"
+    )
     return connection
 
 
