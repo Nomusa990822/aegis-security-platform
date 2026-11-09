@@ -578,6 +578,7 @@ def test_simulation_rolls_back_when_database_state_update_fails(
     assert head["event_count"] == 2
     assert head["final_hash"] == before["audit_log"][-1]["event_hash"]
 
+
 @pytest.mark.parametrize(
     "stored_reasons",
     [
