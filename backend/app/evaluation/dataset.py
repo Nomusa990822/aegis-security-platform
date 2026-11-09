@@ -214,6 +214,65 @@ def build_scenarios(
     )
 
     # ---------------------------------------------------------
+    # MALICIOUS SCENARIO 7: DISTRIBUTED PASSWORD GUESSING
+    # ---------------------------------------------------------
+
+    events = [
+        create_event(
+            event_type="authentication",
+            occurred_at=base_time - timedelta(seconds=10 * i),
+            source_ip=f"192.0.2.{80 + i}",
+            username="finance-admin",
+            outcome="failure",
+        )
+        for i in range(5)
+    ]
+
+    scenarios.append(
+        Scenario(
+            scenario_id="MAL-007",
+            name="One account targeted by failures from multiple source IPs",
+            category="malicious",
+            expected_rule_id="AEGIS-AUTH-003",
+            events=events,
+        )
+    )
+
+    # ---------------------------------------------------------
+    # MALICIOUS SCENARIO 8: SUCCESS AFTER REPEATED FAILURES
+    # ---------------------------------------------------------
+
+    events = [
+        create_event(
+            event_type="authentication",
+            occurred_at=base_time - timedelta(seconds=60 - (10 * i)),
+            source_ip="192.0.2.88",
+            username="payroll-admin",
+            outcome="failure",
+        )
+        for i in range(5)
+    ]
+    events.append(
+        create_event(
+            event_type="authentication",
+            occurred_at=base_time,
+            source_ip="192.0.2.88",
+            username="payroll-admin",
+            outcome="success",
+        )
+    )
+
+    scenarios.append(
+        Scenario(
+            scenario_id="MAL-008",
+            name="Successful authentication after repeated failures",
+            category="malicious",
+            expected_rule_id="AEGIS-AUTH-004",
+            events=events,
+        )
+    )
+
+    # ---------------------------------------------------------
     # BENIGN SCENARIO 1: SUCCESSFUL AUTHENTICATION
     # ---------------------------------------------------------
 
