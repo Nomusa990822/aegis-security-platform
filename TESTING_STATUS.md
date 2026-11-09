@@ -471,3 +471,29 @@ Then run the complete backend suite:
 
 Implementation commit: `796ef5f`.
 
+
+## Response transaction rollback on database state-update failure — NOT RUN
+
+Two SQLite-trigger failure-injection tests verify that a database-level rejection of the response state update leaves no partial lifecycle change:
+
+- `test_decision_rolls_back_when_database_state_update_fails` — a rejected approval update must leave the response pending, preserve the audit events, and retain the original chain head.
+- `test_simulation_rolls_back_when_database_state_update_fails` — a rejected simulation update must leave the response approved and un-simulated, preserve the audit events, and retain the original chain head.
+
+The tests use temporary SQLite triggers in the isolated test database. They do not alter the user's working database or execute real response actions.
+
+Run the focused integrity tests:
+
+```bash
+./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -v
+```
+
+Then run the complete backend suite:
+
+```bash
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Wait for confirmation that both commands pass before marking this task complete.
+
+Implementation commit: `6335db2`.
+
