@@ -23,9 +23,10 @@ class APIRateLimitMiddleware:
         default_limit=300,
         auth_limit=20,
         ingestion_limit=120,
+        ingestion_ip_limit=240,
         clock=time.monotonic,
     ):
-        values = (window_seconds, default_limit, auth_limit, ingestion_limit)
+        values = (window_seconds, default_limit, auth_limit, ingestion_limit, ingestion_ip_limit)
         if any(isinstance(value, bool) or not isinstance(value, int) for value in values):
             raise TypeError("Rate-limit settings must be integers")
         if window_seconds <= 0 or any(value <= 0 for value in values[1:]):
@@ -36,6 +37,7 @@ class APIRateLimitMiddleware:
         self.default_limit = default_limit
         self.auth_limit = auth_limit
         self.ingestion_limit = ingestion_limit
+        self.ingestion_ip_limit = ingestion_ip_limit
         self.clock = clock
         self._hits = defaultdict(deque)
         self._lock = threading.Lock()
@@ -58,22 +60,30 @@ class APIRateLimitMiddleware:
                     return hashlib.sha256(token.encode("utf-8")).hexdigest()
         return None
 
-    def _policy(self, scope):
+    def _policies(self, scope):
         path = scope.get("path", "")
         method = scope.get("method", "GET").upper()
+        client_ip = self._client_ip(scope)
 
         if not path.startswith("/api/v1/") or path == "/api/v1/health":
-            return None
+            return []
 
         if path == "/api/v1/auth/me":
-            return "auth", self.auth_limit, self._client_ip(scope)
+            return [("auth", self.auth_limit, client_ip)]
 
         if path == "/api/v1/events" and method == "POST":
             fingerprint = self._bearer_fingerprint(scope)
-            identity = f"token:{fingerprint}" if fingerprint else f"ip:{self._client_ip(scope)}"
-            return "event-ingestion", self.ingestion_limit, identity
+            token_identity = (
+                f"token:{fingerprint}" if fingerprint else f"ip:{client_ip}"
+            )
+            # Enforce both a per-token ceiling and a per-IP ceiling. The IP
+            # bucket prevents token rotation from bypassing ingestion limits.
+            return [
+                ("event-ingestion-ip", self.ingestion_ip_limit, client_ip),
+                ("event-ingestion", self.ingestion_limit, token_identity),
+            ]
 
-        return "api", self.default_limit, self._client_ip(scope)
+        return [("api", self.default_limit, client_ip)]
 
     def _consume(self, bucket, limit, now):
         cutoff = now - self.window_seconds
@@ -109,33 +119,46 @@ class APIRateLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        policy = self._policy(scope)
-        if policy is None:
+        policies = self._policies(scope)
+        if not policies:
             await self.app(scope, receive, send)
             return
 
-        category, limit, identity = policy
-        bucket = (category, identity)
+        response_headers = {}
+        blocked_category = None
+        retry_after = 0
+
         with self._lock:
-            allowed, remaining, reset_after, retry_after = self._consume(
-                bucket,
-                limit,
-                self.clock(),
-            )
+            for category, limit, identity in policies:
+                allowed, remaining, reset_after, retry = self._consume(
+                    (category, identity),
+                    limit,
+                    self.clock(),
+                )
+                response_headers = {
+                    "RateLimit-Limit": str(limit),
+                    "RateLimit-Remaining": str(remaining),
+                    "RateLimit-Reset": str(reset_after),
+                    "RateLimit-Policy": f"{limit};w={self.window_seconds}",
+                }
+                if not allowed:
+                    blocked_category = (
+                        "event-ingestion"
+                        if category == "event-ingestion-ip"
+                        else category
+                    )
+                    retry_after = retry
+                    break
 
-        headers = {
-            "RateLimit-Limit": str(limit),
-            "RateLimit-Remaining": str(remaining),
-            "RateLimit-Reset": str(reset_after),
-            "RateLimit-Policy": f"{limit};w={self.window_seconds}",
-        }
-
-        if not allowed:
-            headers["Retry-After"] = str(retry_after)
+        if blocked_category is not None:
+            response_headers["Retry-After"] = str(retry_after)
             await JSONResponse(
                 status_code=429,
-                content={"detail": "API rate limit exceeded", "category": category},
-                headers=headers,
+                content={
+                    "detail": "API rate limit exceeded",
+                    "category": blocked_category,
+                },
+                headers=response_headers,
             )(scope, receive, send)
             return
 
