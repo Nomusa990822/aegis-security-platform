@@ -14,6 +14,7 @@ def limited_client():
         default_limit=3,
         auth_limit=2,
         ingestion_limit=2,
+        ingestion_ip_limit=5,
     )
 
     @application.get("/api/v1/auth/me")
@@ -106,3 +107,15 @@ def test_rate_limit_configuration_rejects_invalid_values():
 
     with pytest.raises(TypeError):
         APIRateLimitMiddleware(application, auth_limit=True)
+
+def test_event_ingestion_ip_limit_cannot_be_bypassed_by_rotating_tokens(limited_client):
+    for index in range(5):
+        token = {"Authorization": "Bearer " + str(index).zfill(48)}
+        response = limited_client.post("/api/v1/events", headers=token)
+        assert response.status_code == 200
+
+    rotated_token = {"Authorization": "Bearer " + ("z" * 48)}
+    blocked = limited_client.post("/api/v1/events", headers=rotated_token)
+
+    assert blocked.status_code == 429
+    assert blocked.json()["category"] == "event-ingestion"
