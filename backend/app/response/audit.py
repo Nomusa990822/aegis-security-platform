@@ -65,6 +65,13 @@ def validate_response_audit(
             "errors": ["Response record must be an object."],
         }
 
+    reasons = record.get("reasons")
+    if not isinstance(reasons, list) or any(
+        not isinstance(reason, str)
+        for reason in reasons
+    ):
+        err("Response reasons must be a list of strings.")
+
     audit_log = record.get("audit_log")
 
     if not isinstance(audit_log, list):
