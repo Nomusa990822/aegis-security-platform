@@ -1,3 +1,33 @@
+## Linux SSH and Nginx telemetry adapter — NOT RUN
+
+Adds a dependency-free parser and command-line importer for two representative log formats. The adapter converts supported OpenSSH authentication lines and Nginx combined access-log lines into the existing AEGIS event schema, then submits them through the authenticated `POST /api/v1/events` endpoint. It does not bypass normal validation, persistence, deduplication, detection, or enrichment.
+
+Coverage includes successful and failed SSH authentication, IPv4/IPv6 source addresses, Nginx HTTP status mapping, malformed/unsupported line rejection, deterministic per-file-line event identities, API compatibility, and duplicate replay.
+
+Operational boundaries:
+- This is a file importer, not a live tailing daemon or endpoint agent.
+- SSH syslog timestamps omit year/timezone; the parser assumes UTC and the current year unless `--year` is provided.
+- Nginx status codes below 400 map to success; 400 and above map to failure as a coarse event outcome, not proof of malicious activity.
+- Source IPs in forwarded/proxy traffic may identify the proxy unless the log format is explicitly configured to preserve a trusted client address.
+- Importing the same file path and line positions is idempotent; rotated or copied files with different paths have different identities.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+cd /workspaces/aegis-security-platform/backend
+
+printf '\\n========== TELEMETRY ADAPTER REGRESSIONS ==========\\n'
+./.venv/bin/python -m pytest tests/test_telemetry_adapter.py -v
+
+printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Awaiting owner execution of the focused adapter module and complete backend suite.
+
+---
+
 ## End-to-end API workflows and concurrent operations — PASSED (owner-confirmed 2026-11-09)
 
 This is the consolidated Phase 9 integration/concurrency verification batch. It exercises existing workflows and does not add new runtime features:
