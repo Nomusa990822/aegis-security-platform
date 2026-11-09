@@ -382,3 +382,37 @@ Implementation commit trail:
 - `b22d969` — register the final interruption test.
 
 
+
+
+## Threat-intelligence provider timeout isolation — NOT RUN
+
+The enrichment service now enforces a finite, positive per-provider timeout (default: 12 seconds) using `asyncio.wait_for`.
+
+Expected behaviour:
+- A provider that exceeds its deadline is recorded as `UNAVAILABLE`, not as a successful or malicious result.
+- The timeout is isolated to that provider; subsequent providers are still queried.
+- If every provider times out or fails, the assessment remains failed/unknown with no threat-score inflation from the timeout.
+- If another provider succeeds, the overall assessment is partial and retains only the successful provider's categories and scoring contribution.
+- Invalid timeout configuration (zero, negative, non-finite values, or booleans) is rejected at service construction.
+- Cancellation of the overall enrichment task is not swallowed by the provider exception handler.
+
+Default timeout is a service-level ceiling. The AbuseIPDB HTTP client retains its own lower-level network timeout as an additional bound.
+
+New tests — authored but **NOT RUN**:
+- `test_provider_timeout_becomes_unavailable_without_crashing_enrichment`
+- `test_timed_out_provider_does_not_discard_successful_provider_result`
+- `test_provider_timeout_configuration_must_be_finite_and_positive` (parameterized)
+
+Run the focused intelligence tests:
+
+```bash
+./.venv/bin/python -m pytest tests/test_intelligence.py -v
+```
+
+Then run the complete backend suite:
+
+```bash
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** No live AbuseIPDB requests are needed; the new timeout tests use local asynchronous test providers.
