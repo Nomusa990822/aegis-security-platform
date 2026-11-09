@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app import database
 from app.main import app
+from app.rate_limiting import APIRateLimitMiddleware
 
 
 ANALYST_TEST_TOKEN = "a" * 48
@@ -63,6 +64,18 @@ def client(isolated_database):
             "Authorization": f"Bearer {ANALYST_TEST_TOKEN}",
         },
     ) as test_client:
+        # The FastAPI app is a module-level singleton, so its middleware
+        # instance survives between TestClient instances. Each test already
+        # receives an isolated database; reset rate-limit state as well.
+        middleware = app.middleware_stack
+        while middleware is not None:
+            if isinstance(middleware, APIRateLimitMiddleware):
+                middleware.reset()
+                break
+            middleware = getattr(middleware, "app", None)
+        else:
+            raise RuntimeError("API rate-limit middleware was not installed")
+
         yield test_client
 
 
