@@ -14,6 +14,7 @@ from app.response.audit_chain import verify_hash_chain
 from app.response.audit_checkpoint import (
     checkpoint_path,
     load_checkpoint_configuration,
+    reject_duplicate_json_keys,
     verify_audit_checkpoint,
 )
 from app.response.repository import get_response_record
@@ -44,7 +45,10 @@ def _read_checkpoint_metadata(path: Path) -> dict[str, Any]:
     """Read checkpoint metadata without treating it as verified evidence."""
     try:
         with path.open("r", encoding="utf-8") as checkpoint_file:
-            document = json.load(checkpoint_file)
+            document = json.load(
+                checkpoint_file,
+                object_pairs_hook=reject_duplicate_json_keys,
+            )
 
         if not isinstance(document, dict):
             return {
@@ -71,7 +75,12 @@ def _read_checkpoint_metadata(path: Path) -> dict[str, Any]:
             "error": None,
         }
 
-    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except (
+        OSError,
+        ValueError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+    ) as exc:
         return {
             "readable": False,
             "schema_version": None,
