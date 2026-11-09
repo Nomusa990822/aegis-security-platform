@@ -1077,3 +1077,62 @@ tbody tr:hover { background: #172235; }
     color: var(--muted, #9ca3af);
     font-size: 0.75rem;
 }
+
+
+/* MITRE rule coverage and mapping context */
+.mitre-rule-description {
+    display: block;
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.55;
+    max-width: 460px;
+}
+.mitre-coverage-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 9px;
+    font-weight: 750;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+}
+.mitre-coverage-status.mapped {
+    color: #78d8b1;
+    background: #1e4036;
+}
+.mitre-coverage-status.unmapped {
+    color: #f0bd79;
+    background: #49351f;
+}
+.mitre-rationale,
+.mitre-evidence-note {
+    display: block;
+    min-width: 220px;
+    max-width: 430px;
+    color: #b9c6d8;
+    font-size: 10px;
+    line-height: 1.6;
+    white-space: normal;
+}
+.mitre-evidence-note {
+    margin-top: 7px;
+    color: var(--muted);
+}
+.mitre-evidence-note strong {
+    color: #dce6f5;
+}
+#mitre-mappings-table td:last-child {
+    min-width: 240px;
+}
+@media (max-width: 1050px) {
+    .mitre-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+@media (max-width: 700px) {
+    .mitre-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
