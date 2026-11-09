@@ -1,0 +1,23 @@
+FROM python:3.14-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN groupadd --system aegis \
+    && useradd --system --gid aegis --home-dir /app aegis \
+    && mkdir -p /app/backend /data/audit_checkpoints \
+    && chown -R aegis:aegis /app /data
+
+WORKDIR /app/backend
+
+COPY --chown=aegis:aegis backend/requirements.txt ./requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade pip \
+    && python -m pip install --no-cache-dir -r requirements.txt
+
+COPY --chown=aegis:aegis backend/ ./
+
+USER aegis
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
