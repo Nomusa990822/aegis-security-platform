@@ -370,6 +370,64 @@ The local SQLite database is created under `backend/aegis.db`.
 
 ---
 
+## Docker Compose Demo Deployment
+
+The repository includes a single-container Docker Compose deployment for a reproducible local demonstration. It persists the SQLite database and signed response-audit checkpoints in a named Docker volume.
+
+### Requirements
+
+- Docker Engine
+- Docker Compose v2
+
+### 1. Create local credentials
+
+From the repository root, generate a private environment file once:
+
+```bash
+cat > .env <<EOF
+AEGIS_ANALYST_TOKEN=$(openssl rand -hex 32)
+AEGIS_APPROVER_TOKEN=$(openssl rand -hex 32)
+AEGIS_ANALYST_ID=analyst-local
+AEGIS_APPROVER_ID=approver-local
+AEGIS_AUDIT_CHECKPOINT_KEY=$(openssl rand -hex 32)
+AEGIS_AUDIT_CHECKPOINT_KEY_ID=local-v1
+AEGIS_AUDIT_CHECKPOINT_DIR=/data/audit_checkpoints
+AEGIS_DATABASE_PATH=/data/aegis.db
+EOF
+```
+
+Keep `.env` private. Preserve it between restarts: changing the checkpoint signing key can prevent verification of checkpoints signed with the previous key. Do not commit the file or paste its contents into issue trackers.
+
+### 2. Build and start AEGIS
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+### 3. Open the services
+
+| Service | URL |
+|---|---|
+| Analyst Dashboard | http://localhost:8000/dashboard |
+| API Health | http://localhost:8000/api/v1/health |
+| Interactive API Docs | http://localhost:8000/docs |
+
+Use the analyst token from your local `.env` file when the dashboard requests authentication. Keep the approver token separate for approval-only operations.
+
+### 4. Stop and restart
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+The named `aegis-data` volume survives `docker compose down`. **Do not use `docker compose down -v`** unless you intentionally want to delete the persisted database and audit checkpoints. Back up the volume and retain the matching signing credentials.
+
+This Compose configuration is for a local, single-container demonstration. It does not make SQLite or the process-local rate limiter suitable for multi-worker or public production deployment. Do not expose the service directly to the public internet.
+
+---
+
 ## Security Scope & Current Limitations
 
 AEGIS focuses on a defined set of security operations workflows. It does not attempt to claim complete enterprise security coverage.
