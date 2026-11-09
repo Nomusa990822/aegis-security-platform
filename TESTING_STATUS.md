@@ -1126,3 +1126,12 @@ cd /workspaces/aegis-security-platform/backend
 The synthetic evaluation dataset now contains ten malicious and seven benign scenarios across ten registered rules. These controlled scenarios are regression fixtures, not evidence of real-world detection effectiveness.
 
 **Verification state: NOT RUN.** Awaiting owner execution of the focused modules and complete backend suite.
+
+
+### Unrelated response-concurrency regression discovered during verification — NOT RUN
+
+The owner-run full suite reported 685 passed and one failure in `test_concurrent_approval_and_simulation_preserve_valid_lifecycle`. The approval and simulation operations could capture their audit timestamps before acquiring SQLite's `BEGIN IMMEDIATE` writer lock. If an operation waited for the competing writer, its timestamp could therefore precede the event committed immediately before it, violating chronological audit validation.
+
+Updated `decide_response` and `simulate_response` to capture their timestamps only after acquiring the write transaction. This preserves strict lifecycle validation while making timestamp order follow the serialized mutation order.
+
+**Verification state: NOT RUN.** The response-concurrency regression, remote-service detection batch, and complete backend suite must be rerun.
