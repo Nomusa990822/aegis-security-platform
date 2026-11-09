@@ -72,13 +72,16 @@ AEGIS is designed as a hands-on cybersecurity engineering project: the emphasis 
 
 ### 1. Security Telemetry Ingestion
 
-A structured API entry point for security events.
+A structured API entry point for security events, with a lightweight log adapter.
 
 - Authenticated event submission
 - Strict request validation and normalisation
 - External event identity and duplicate handling
-- Request-body size enforcement
-- Transaction-safe persistence
+- Linux OpenSSH authentication-log parsing
+- Nginx combined access-log parsing
+- Deterministic per-file-line event identities for safe replay
+- Dry-run parsing before submission
+- Request-body size enforcement and transaction-safe persistence
 
 ### 2. Detection Engineering
 
@@ -271,6 +274,7 @@ A passing test suite demonstrates the tested behaviours; it is not a substitute 
 | `README.md` | Project overview, setup, capabilities, and limitations |
 | `TESTING_STATUS.md` | Regression test batches and verification status |
 | `docs/security/AUDIT_CHECKPOINT_KEY_ROTATION.md` | Audit checkpoint signing-key rotation guidance |
+| `backend/app/telemetry/cli.py` | Linux SSH and Nginx log import command |
 
 ---
 
@@ -333,6 +337,26 @@ From the `backend/` directory:
 ```bash
 uvicorn app.main:app --reload
 ```
+
+### 5. Import representative security logs
+
+From the `backend/` directory, configure an analyst token and preview a log before ingestion:
+
+```bash
+export AEGIS_ANALYST_TOKEN="$AEGIS_ANALYST_TOKEN"
+
+python -m app.telemetry.cli /path/to/auth.log --format sshd --dry-run
+python -m app.telemetry.cli /var/log/nginx/access.log --format nginx --dry-run
+```
+
+Submit parsed events through the existing authenticated API:
+
+```bash
+python -m app.telemetry.cli /path/to/auth.log --format sshd --year 2026
+python -m app.telemetry.cli /var/log/nginx/access.log --format nginx
+```
+
+The importer uses the existing API URL by default (`http://127.0.0.1:8000/api/v1/events`). Override it with `AEGIS_API_URL` or `--api-url`. Supply `AEGIS_ANALYST_TOKEN` in the environment; never place tokens in command-line arguments or source control. The importer reports unsupported lines as ignored. SSH syslog timestamps have no year or timezone, so the adapter assumes UTC and the current year unless `--year` is supplied.
 
 | Service | Local URL |
 |---|---|
