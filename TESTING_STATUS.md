@@ -1097,7 +1097,7 @@ cd /workspaces/aegis-security-platform/backend
 The first owner-run verification of this batch reported 81 focused tests passed and 2 failed; the full suite reported 674 passed and 2 failed. Both failures were stale assertions in `tests/test_detection_regression.py` that still expected eight registered rules and an API count of eight. The new detector, its focused tests, MITRE mapping, and synthetic evaluation passed. Updated the registry and API expectations to nine, including `AEGIS-AUTH-005`. **Verification follow-up: PASSED (owner-confirmed 2026-11-09).** The corrected focused batch and complete backend suite both passed.
 
 
-## Remote-service connection fan-out detection — NOT RUN
+## Remote-service connection fan-out detection — PASSED (owner-confirmed 2026-11-09)
 
 New rule: `AEGIS-NET-005`.
 
@@ -1125,7 +1125,7 @@ cd /workspaces/aegis-security-platform/backend
 
 The synthetic evaluation dataset now contains ten malicious and seven benign scenarios across ten registered rules. These controlled scenarios are regression fixtures, not evidence of real-world detection effectiveness.
 
-**Verification state: NOT RUN.** Awaiting owner execution of the focused modules and complete backend suite.
+**Verification state: PASSED (owner-confirmed 2026-11-09).** The owner confirmed the focused remote-service detector, registry, MITRE, evaluation, and adversarial modules passed, as did the complete backend suite.
 
 
 ### Unrelated response-concurrency regression discovered during verification — NOT RUN
@@ -1134,4 +1134,4 @@ The owner-run full suite reported 685 passed and one failure in `test_concurrent
 
 Updated `decide_response` and `simulate_response` to capture their timestamps only after acquiring the write transaction. This preserves strict lifecycle validation while making timestamp order follow the serialized mutation order.
 
-**Verification state: NOT RUN.** The response-concurrency regression, remote-service detection batch, and complete backend suite must be rerun.
+**Verification state: PASSED (owner-confirmed 2026-11-09).** The response-concurrency regression, remote-service detection batch, and complete backend suite all passed after moving lifecycle timestamps inside the acquired write transaction.
