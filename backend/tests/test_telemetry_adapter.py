@@ -2,6 +2,8 @@ from datetime import datetime
 
 import pytest
 
+from app.telemetry.cli import main as telemetry_cli_main
+
 from app.telemetry.adapter import (
     parse_nginx_access_line,
     parse_sshd_line,
@@ -101,3 +103,34 @@ def test_parsed_nginx_event_is_accepted_by_existing_ingestion_api(client):
 
     assert response.status_code == 201
     assert response.json()["detection_count"] == 0
+
+
+
+def test_cli_dry_run_parses_file_without_api_credentials(tmp_path, monkeypatch, capsys):
+    log_file = tmp_path / "auth.log"
+    log_file.write_text(
+        "Nov  9 10:00:00 host sshd[123]: Failed password for admin from 203.0.113.5 port 54321 ssh2\\n"
+        "Nov  9 10:00:01 host sshd[123]: Connection closed by authenticating user admin 203.0.113.5 port 22 [preauth]\\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("AEGIS_ANALYST_TOKEN", raising=False)
+
+    result = telemetry_cli_main([
+        str(log_file), "--format", "sshd", "--year", "2026", "--dry-run"
+    ])
+
+    output = capsys.readouterr().out
+    assert result == 0
+    assert '"event_type": "authentication"' in output
+    assert "Parsed: 1; submitted: 0; duplicates: 0; ignored: 1; dry_run: true" in output
+
+
+def test_cli_requires_analyst_token_for_submission(tmp_path, monkeypatch, capsys):
+    log_file = tmp_path / "auth.log"
+    log_file.write_text("", encoding="utf-8")
+    monkeypatch.delenv("AEGIS_ANALYST_TOKEN", raising=False)
+
+    result = telemetry_cli_main([str(log_file), "--format", "sshd"])
+
+    assert result == 2
+    assert "AEGIS_ANALYST_TOKEN is required" in capsys.readouterr().err
