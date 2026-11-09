@@ -1,4 +1,4 @@
-## HTTP request-body size limit — RETEST REQUIRED
+## HTTP request-body size limit — PASSED (owner-confirmed 2026-11-09)
 
 The API now applies a global 1 MiB request-body ceiling before route handlers run. The middleware rejects an oversized declared Content-Length without reading the body, and also enforces the same limit while buffering requests without a declared length (including chunked uploads). Invalid or conflicting Content-Length values receive HTTP 400. Requests at or below the limit continue through normal routing and validation.
 
@@ -16,7 +16,7 @@ printf '\n========== COMPLETE BACKEND REGRESSION SUITE ==========\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Mark passed only after the focused request/input-hardening modules and complete backend suite pass.
+**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that the focused request-body/input-hardening regression modules and the complete backend test suite all passed.
 
 ---
 
