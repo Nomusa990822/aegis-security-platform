@@ -24,7 +24,9 @@ printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Run the focused tests and complete backend suite, then report the result so this section can be marked PASSED.
+**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that the dedicated rate-limiting and authorization tests, all previously affected ingestion/input regression modules, and the complete backend test suite passed. A shared-application test-fixture issue was corrected by adding an explicit limiter reset and clearing counters between isolated tests; production rate limits were not reduced. Exact pass counts were not provided and are not inferred.
+
+Implementation commits: `d30905b` (add explicit limiter reset) and `1eb08f3` (reset limiter state between isolated tests).
 
 ---
 
