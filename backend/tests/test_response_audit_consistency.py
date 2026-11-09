@@ -39,6 +39,9 @@ def make_record(status="pending_approval"):
         "decided_by": None,
         "decision_at": None,
         "decision_reason": None,
+        "reasons": [
+            "Response request recorded for lifecycle validation.",
+        ],
     }
 
     creation = {
