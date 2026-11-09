@@ -1082,3 +1082,46 @@ def test_recovery_inventories_and_preserves_interrupted_temporary_files(client):
     assert checkpoint_temp.read_bytes() == checkpoint_temp_bytes
     assert intent_temp.read_bytes() == intent_temp_bytes
 
+def test_tampered_checkpoint_blocks_simulation_without_mutation(
+    client,
+):
+    response_id = create_pending_response(client)
+    approve_response(client, response_id)
+
+    checkpoint_path = get_checkpoint_path(response_id)
+    original_document = json.loads(checkpoint_path.read_text())
+    tampered_document = json.loads(json.dumps(original_document))
+    tampered_document["signature"] = "0" * 64
+    checkpoint_path.write_text(json.dumps(tampered_document))
+
+    simulation = client.post(
+        f"/api/v1/response/{response_id}/simulate",
+        headers=analyst_headers(),
+    )
+
+    assert simulation.status_code == 409
+    assert "audit evidence failed integrity verification" in (
+        simulation.json()["detail"].lower()
+    )
+    assert json.loads(checkpoint_path.read_text()) == tampered_document
+
+    history = client.get(
+        f"/api/v1/response/history/{response_id}",
+        headers=analyst_headers(),
+    )
+    assert history.status_code == 200
+    assert history.json()["status"] == "approved"
+    assert history.json()["simulated"] is False
+    assert history.json()["executed"] is False
+    assert len(history.json()["audit_log"]) == 2
+
+    integrity = inspect_integrity(client, response_id)
+    assert integrity.status_code == 200
+    assert integrity.json()["valid"] is False
+    assert integrity.json()["chain_valid"] is True
+    assert integrity.json()["checkpoint_valid"] is False
+    assert any(
+        "signature is invalid" in error.lower()
+        for error in integrity.json()["errors"]
+    )
+
