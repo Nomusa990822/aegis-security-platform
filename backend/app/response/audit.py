@@ -203,6 +203,13 @@ def validate_response_audit(
                     f"Creation event {field} does not match the response record."
                 )
 
+        # New creation events bind the original policy reasons into the
+        # signed audit chain. Missing reasons remain accepted for historical
+        # events created before this field was added to the event schema.
+        if "reasons" in creation_details:
+            if creation_details.get("reasons") != record.get("reasons"):
+                err("Creation event reasons do not match the response record.")
+
         # The creation event records the original request state.
         # Simulation happens later and must not alter this event.
         if creation_details.get("simulated") is not False:
