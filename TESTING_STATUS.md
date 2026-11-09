@@ -1,4 +1,28 @@
-## API rate limiting — IMPLEMENTED; VERIFICATION NOT RUN
+## Threat-intelligence enrichment authorization boundary — IMPLEMENTED; VERIFICATION NOT RUN
+
+The API-wide authentication dependency remains in place for the threat-intelligence router. The resource-intensive `POST /api/v1/intelligence/ip` operation now additionally requires the analyst role, preventing an approver-only account from initiating provider lookups and persistence.
+
+New regression: `tests/test_api_authorization.py::test_approver_cannot_trigger_threat_intelligence_enrichment`.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+printf '\\n========== API AUTHORIZATION REGRESSIONS ==========\\n'
+./.venv/bin/python -m pytest tests/test_api_authorization.py tests/test_intelligence.py -v
+
+printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Do not mark this boundary passed until the focused authorization/intelligence tests and complete backend suite pass.
+
+Implementation commits: `9c4e87b` (require analyst role) and `55bcc98` (add approver-denial regression).
+
+---
+
+## API rate limiting — PASSED (owner-confirmed 2026-11-09)
 
 The API now uses a process-local sliding-window limiter with these defaults:
 
