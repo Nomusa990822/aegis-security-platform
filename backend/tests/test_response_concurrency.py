@@ -3,6 +3,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from app import database
+from app.response import repository
 from app.response.engine import ResponseEngine
 from app.response.models import (
     ExecutionMode,
@@ -226,6 +227,63 @@ def test_concurrent_simulation_runs_only_once(
     assert details["operating_system_command_executed"] is False
     assert details["executed"] is False
     assert details["simulated"] is True
+
+
+def test_simulation_retry_accepts_valid_pending_checkpoint_intent(
+    isolated_database,
+    monkeypatch,
+):
+    response_id = create_pending_response()
+
+    with database.get_connection() as connection:
+        approval = decide_response(
+            connection=connection,
+            response_id=response_id,
+            actor_id="approver-beta",
+            decision="approved",
+            reason="Authorised for pending-checkpoint retry test.",
+        )
+
+    assert approval == "updated"
+
+    original_publisher = repository._write_committed_audit_checkpoint
+    monkeypatch.setattr(
+        repository,
+        "_write_committed_audit_checkpoint",
+        lambda connection, response_id: False,
+    )
+
+    with database.get_connection() as connection:
+        first_outcome = simulate_response(
+            connection=connection,
+            response_id=response_id,
+            actor_id="analyst-one",
+        )
+
+    assert first_outcome == "checkpoint_pending"
+
+    monkeypatch.setattr(
+        repository,
+        "_write_committed_audit_checkpoint",
+        original_publisher,
+    )
+
+    with database.get_connection() as connection:
+        retry_outcome = simulate_response(
+            connection=connection,
+            response_id=response_id,
+            actor_id="analyst-two",
+        )
+
+    assert retry_outcome == "already_simulated"
+
+    with database.get_connection() as connection:
+        record = get_response_record(connection, response_id)
+
+    assert record["status"] == "simulated"
+    assert record["simulated"] is True
+    assert record["executed"] is False
+    assert len(record["audit_log"]) == 3
 
 
 def test_concurrent_operations_preserve_audit_consistency(
