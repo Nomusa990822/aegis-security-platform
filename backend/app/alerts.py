@@ -3,7 +3,9 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.auth import AuthenticatedActor, get_analyst_actor, get_current_actor
 from pydantic import BaseModel, Field
 
 from app.database import get_connection
@@ -12,7 +14,8 @@ from app.intelligence.mitre import MITREAttackMapper
 
 router = APIRouter(
     prefix="/api/v1/alerts",
-    tags=["Alert Management"]
+    tags=["Alert Management"],
+    dependencies=[Depends(get_current_actor)],
 )
 
 
@@ -194,7 +197,8 @@ def get_investigation(alert_id: int):
 @router.post("/{alert_id}/notes", status_code=201)
 def add_investigation_note(
     alert_id: int,
-    note: InvestigationNote
+    note: InvestigationNote,
+    actor: AuthenticatedActor = Depends(get_analyst_actor),
 ):
 
     content = note.content.strip()
@@ -223,7 +227,7 @@ def add_investigation_note(
             """,
             (
                 alert_id,
-                "analyst",
+                actor.actor_id,
                 content,
                 timestamp
             )
@@ -236,14 +240,16 @@ def add_investigation_note(
             alert_id,
             "note_added",
             "Investigation note added",
-            content
+            content,
+            actor=actor.actor_id,
         )
 
         record_audit(
             connection,
             alert_id,
             "note_added",
-            details=f"Investigation note ID: {note_id}"
+            details=f"Investigation note ID: {note_id}",
+            actor=actor.actor_id,
         )
 
         connection.commit()
@@ -266,7 +272,8 @@ def add_investigation_note(
 @router.post("/{alert_id}/evidence", status_code=201)
 def link_evidence(
     alert_id: int,
-    evidence: EvidenceLink
+    evidence: EvidenceLink,
+    actor: AuthenticatedActor = Depends(get_analyst_actor),
 ):
 
     with get_connection() as connection:
@@ -320,7 +327,7 @@ def link_evidence(
                 alert_id,
                 evidence.event_id,
                 evidence.analyst_note,
-                "analyst",
+                actor.actor_id,
                 timestamp
             )
         )
@@ -332,7 +339,8 @@ def link_evidence(
             alert_id,
             "evidence_linked",
             f"Security event #{evidence.event_id} linked as evidence",
-            evidence.analyst_note
+            evidence.analyst_note,
+            actor=actor.actor_id,
         )
 
         record_audit(
@@ -342,7 +350,8 @@ def link_evidence(
             details=(
                 f"Evidence ID: {evidence_id}; "
                 f"Security event ID: {evidence.event_id}"
-            )
+            ),
+            actor=actor.actor_id,
         )
 
         connection.commit()
@@ -365,7 +374,8 @@ def link_evidence(
 @router.patch("/{alert_id}/status")
 def update_alert_status(
     alert_id: int,
-    update: AlertStatusUpdate
+    update: AlertStatusUpdate,
+    actor: AuthenticatedActor = Depends(get_analyst_actor),
 ):
 
     with get_connection() as connection:
@@ -415,7 +425,8 @@ def update_alert_status(
                 alert_id,
                 "status_changed",
                 f"Alert status changed from {previous_status} to {update.status}",
-                f"{previous_status} -> {update.status}"
+                f"{previous_status} -> {update.status}",
+                actor=actor.actor_id,
             )
 
             record_audit(
@@ -423,7 +434,8 @@ def update_alert_status(
                 alert_id,
                 "status_changed",
                 previous_value=previous_status,
-                new_value=update.status
+                new_value=update.status,
+                actor=actor.actor_id,
             )
 
         connection.commit()
