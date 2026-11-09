@@ -312,6 +312,8 @@ def test_stale_orphan_intent_is_dry_run_then_quarantined_with_evidence(
     assert manifest_path.stat().st_mode & 0o777 == 0o600
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["manifest_schema_version"] == 2
+    assert manifest["status"] == "completed"
     assert manifest["response_id"] == response_id
     assert manifest["reason"].startswith("Verified orphan")
     assert manifest["sha256"] == evidence["sha256"]
@@ -450,3 +452,191 @@ def test_quarantine_refuses_intent_with_missing_predecessor_checkpoint(
     assert report["quarantined_response_ids"] == []
     assert report["skipped"][0]["classification"] == "intent_has_predecessor"
     assert (directory / f"response_{response_id}.pending.json").exists()
+
+
+
+def _create_prepared_quarantine_case(directory, response_id):
+    import hashlib
+
+    from app.response.checkpoint_intent import (
+        checkpoint_intent_path,
+        write_checkpoint_intent,
+    )
+
+    write_checkpoint_intent(
+        response_id=response_id,
+        event_count=1,
+        final_hash="e" * 64,
+        previous_event_count=0,
+        previous_final_hash="0" * 64,
+    )
+    source_path = checkpoint_intent_path(directory, response_id)
+    raw = source_path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    quarantine_directory = directory / "quarantine"
+    quarantine_directory.mkdir(mode=0o700, exist_ok=True)
+    evidence_name = f"response_{response_id}_{digest}.pending.json"
+    manifest_path = quarantine_directory / (
+        f"response_{response_id}_{digest}.manifest.json"
+    )
+    document = json.loads(raw.decode("utf-8"))
+    manifest = {
+        "manifest_schema_version": 2,
+        "status": "prepared",
+        "response_id": response_id,
+        "original_filename": source_path.name,
+        "quarantined_filename": evidence_name,
+        "sha256": digest,
+        "prepared_at": "2026-11-09T10:00:00+00:00",
+        "quarantined_at": None,
+        "reason": "Test interrupted quarantine operation.",
+        "intent_payload": document["payload"],
+        "database_references_at_quarantine": {
+            "record": False,
+            "chain_head": False,
+            "audit_events": False,
+        },
+        "checkpoint_present_at_quarantine": False,
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    os.chmod(manifest_path, 0o600)
+    return source_path, quarantine_directory, evidence_name, manifest_path, digest
+
+
+def test_quarantine_recovery_finishes_prepared_manifest_before_move(isolated_database):
+    from app.response.checkpoint_quarantine_recovery import recover_quarantine_manifests
+
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    with _read_only_connection() as connection:
+        maximum = connection.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM response_records"
+        ).fetchone()[0]
+    response_id = maximum + 40000
+    source, quarantine, evidence_name, manifest_path, digest = (
+        _create_prepared_quarantine_case(directory, response_id)
+    )
+    evidence = quarantine / evidence_name
+
+    with _read_only_connection() as connection:
+        dry_run = recover_quarantine_manifests(connection, directory)
+
+    result = next(item for item in dry_run["manifest_results"] if item["response_id"] == response_id)
+    assert result["classification"] == "prepared_manifest_move_pending"
+    assert result["recovery_eligible"] is True
+    assert source.is_file()
+    assert not evidence.exists()
+    assert json.loads(manifest_path.read_text())["status"] == "prepared"
+
+    with _read_only_connection() as connection:
+        applied = recover_quarantine_manifests(
+            connection, directory, apply=True, response_ids={response_id}
+        )
+
+    result = next(item for item in applied["manifest_results"] if item["response_id"] == response_id)
+    assert result["recovered"] is True
+    assert result["classification"] == "recovered_completed"
+    assert not source.exists()
+    assert evidence.read_bytes() == (quarantine / evidence_name).read_bytes()
+    completed = json.loads(manifest_path.read_text())
+    assert completed["status"] == "completed"
+    assert completed["sha256"] == digest
+    assert completed["quarantined_at"] is not None
+
+
+def test_quarantine_recovery_completes_manifest_after_atomic_move(isolated_database):
+    from app.response.checkpoint_quarantine_recovery import recover_quarantine_manifests
+
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    with _read_only_connection() as connection:
+        maximum = connection.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM response_records"
+        ).fetchone()[0]
+    response_id = maximum + 50000
+    source, quarantine, evidence_name, manifest_path, _digest = (
+        _create_prepared_quarantine_case(directory, response_id)
+    )
+    evidence = quarantine / evidence_name
+    os.replace(source, evidence)
+    os.chmod(evidence, 0o600)
+
+    with _read_only_connection() as connection:
+        report = recover_quarantine_manifests(
+            connection, directory, apply=True, response_ids={response_id}
+        )
+
+    result = next(item for item in report["manifest_results"] if item["response_id"] == response_id)
+    assert result["recovered"] is True
+    assert evidence.is_file()
+    assert not source.exists()
+    assert json.loads(manifest_path.read_text())["status"] == "completed"
+
+
+def test_quarantine_recovery_refuses_modified_evidence(isolated_database):
+    from app.response.checkpoint_quarantine_recovery import recover_quarantine_manifests
+
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    with _read_only_connection() as connection:
+        maximum = connection.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM response_records"
+        ).fetchone()[0]
+    response_id = maximum + 60000
+    source, quarantine, evidence_name, manifest_path, _digest = (
+        _create_prepared_quarantine_case(directory, response_id)
+    )
+    evidence = quarantine / evidence_name
+    os.replace(source, evidence)
+    evidence.write_bytes(evidence.read_bytes() + b"tampered")
+
+    with _read_only_connection() as connection:
+        report = recover_quarantine_manifests(
+            connection, directory, apply=True, response_ids={response_id}
+        )
+
+    result = next(item for item in report["manifest_results"] if item["response_id"] == response_id)
+    assert result["recovered"] is False
+    assert result["classification"] == "recovery_error_preserved"
+    assert "SHA-256" in result["errors"][0]
+    assert evidence.exists()
+    assert manifest_path.exists()
+    assert json.loads(manifest_path.read_text())["status"] == "prepared"
+
+
+def test_quarantine_recovery_inventories_orphan_evidence_and_manifest_temps(isolated_database):
+    import hashlib
+
+    from app.response.checkpoint_intent import (
+        checkpoint_intent_path,
+        write_checkpoint_intent,
+    )
+    from app.response.checkpoint_quarantine_recovery import recover_quarantine_manifests
+
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    with _read_only_connection() as connection:
+        maximum = connection.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM response_records"
+        ).fetchone()[0]
+    response_id = maximum + 70000
+    write_checkpoint_intent(
+        response_id=response_id,
+        event_count=1,
+        final_hash="f" * 64,
+        previous_event_count=0,
+        previous_final_hash="0" * 64,
+    )
+    source = checkpoint_intent_path(directory, response_id)
+    raw = source.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    quarantine = directory / "quarantine"
+    quarantine.mkdir(mode=0o700, exist_ok=True)
+    evidence = quarantine / f"response_{response_id}_{digest}.pending.json"
+    os.replace(source, evidence)
+    temp = quarantine / f"response_{response_id}_{digest}.manifest_interrupted.tmp"
+    temp.write_text("partial", encoding="utf-8")
+
+    with _read_only_connection() as connection:
+        report = recover_quarantine_manifests(connection, directory)
+
+    assert any(item["response_id"] == response_id for item in report["orphan_evidence"])
+    assert any(item["response_id"] == response_id for item in report["temporary_artifacts"])
+    assert evidence.exists()
+    assert temp.read_text(encoding="utf-8") == "partial"
