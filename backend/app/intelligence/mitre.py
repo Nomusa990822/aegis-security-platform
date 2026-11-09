@@ -89,6 +89,18 @@ class MITREAttackMapper:
             ),
             url="https://attack.mitre.org/techniques/T1078/",
         ),
+        "T1021": MITRETechnique(
+            technique_id="T1021",
+            name="Remote Services",
+            tactic="Lateral Movement",
+            tactic_id="TA0008",
+            description=(
+                "Adversaries may use valid accounts to log into remote "
+                "services, including remote desktop, file sharing, and "
+                "remote management services, to move laterally."
+            ),
+            url="https://attack.mitre.org/techniques/T1021/",
+        ),
         "T1046": MITRETechnique(
             technique_id="T1046",
             name="Network Service Discovery",
@@ -244,6 +256,28 @@ class MITREAttackMapper:
                     "Verify the account owner and expected source networks.",
                     "Review available device, session, MFA, and geolocation context.",
                     "Correlate with other authentication and endpoint evidence.",
+                ),
+            ),
+        ],
+        "AEGIS-NET-005": [
+            MITRERuleMapping(
+                rule_id="AEGIS-NET-005",
+                technique_id="T1021",
+                confidence="low",
+                mapping_type="contextual_candidate",
+                rationale=(
+                    "Rapid connections to multiple hosts on common remote-"
+                    "administration ports may be consistent with remote-service "
+                    "use during lateral movement. Port numbers alone do not "
+                    "confirm the service, successful access, or malicious intent; "
+                    "authorised administration and scanning can produce similar "
+                    "patterns."
+                ),
+                evidence_requirements=(
+                    "Verify the actual application service and connection outcome.",
+                    "Confirm destination assets are internal and identify their owners.",
+                    "Check whether the source is an authorised administration host.",
+                    "Correlate with authentication, endpoint, and session evidence.",
                 ),
             ),
         ],
