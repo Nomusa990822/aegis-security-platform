@@ -6,7 +6,7 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth import AuthenticatedActor, get_analyst_actor, get_current_actor
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.database import get_connection
 from app.intelligence.mitre import MITREAttackMapper
@@ -108,14 +108,20 @@ def record_audit(
 
 
 class AlertStatusUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     status: Literal["open", "investigating", "resolved"]
 
 
 class InvestigationNote(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     content: str = Field(min_length=1, max_length=5000)
 
 
 class EvidenceLink(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     event_id: int = Field(gt=0)
     analyst_note: str | None = Field(default=None, max_length=1000)
 
