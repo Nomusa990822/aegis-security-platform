@@ -740,3 +740,81 @@ def test_quarantine_writer_interruption_after_move_is_recoverable(
     assert result["recovered"] is True
     assert json.loads(manifest_path.read_text())["status"] == "completed"
     assert evidence.read_bytes() == original
+
+def test_concurrent_checkpoint_recovery_publishes_only_one_checkpoint(
+    client,
+    monkeypatch,
+):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    from app.response import repository
+    from app.response.audit_checkpoint import verify_audit_checkpoint
+    from app.response.checkpoint_intent import checkpoint_intent_path
+    from app.response.checkpoint_recovery import recover_checkpoint_intents
+
+    def interrupt_publication(**kwargs):
+        raise OSError("Simulated interruption before checkpoint publication.")
+
+    monkeypatch.setattr(
+        repository,
+        "publish_checkpoint_intent",
+        interrupt_publication,
+    )
+    response_id = _create_response(client, expected_status=202)
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    intent_path = checkpoint_intent_path(directory, response_id)
+
+    assert intent_path.is_file()
+    assert not _checkpoint_path(response_id).exists()
+
+    monkeypatch.undo()
+
+    barrier = threading.Barrier(2)
+
+    def recover_once():
+        with _read_only_connection() as connection:
+            barrier.wait(timeout=10)
+            return recover_checkpoint_intents(
+                connection,
+                directory,
+                apply=True,
+                response_ids={response_id},
+            )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(recover_once),
+            executor.submit(recover_once),
+        ]
+        reports = [future.result(timeout=20) for future in futures]
+
+    recovered = [
+        response_id
+        for report in reports
+        for response_id in report["recovered_response_ids"]
+    ]
+    assert recovered == [response_id]
+
+    checkpoint = verify_audit_checkpoint(
+        response_id=response_id,
+        event_count=1,
+        final_hash=reports[0]["eligible_response_ids"][0] and
+            __import__("app.response.checkpoint_intent", fromlist=["verify_checkpoint_intent"])
+            .verify_checkpoint_intent(response_id)["intent"]["final_hash"],
+    )
+    assert checkpoint["valid"] is True
+    assert not intent_path.exists()
+
+    with _read_only_connection() as connection:
+        from app.response.repository import verify_response_audit_before_mutation
+
+        connection.execute("BEGIN")
+        integrity = verify_response_audit_before_mutation(
+            connection,
+            response_id,
+        )
+        connection.rollback()
+
+    assert integrity["valid"] is True
+
