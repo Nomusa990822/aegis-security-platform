@@ -262,3 +262,102 @@ def test_validator_rejects_missing_audit_log():
 
     assert result["valid"] is False
     assert result["errors"]
+
+
+def test_decision_rolls_back_when_audit_event_append_fails(
+    isolated_database,
+    monkeypatch,
+):
+    from app.response import repository
+
+    response_id = create_response()
+    before = get_record(response_id)
+
+    def fail_audit_append(**kwargs):
+        raise OSError("Simulated audit-event storage failure.")
+
+    monkeypatch.setattr(
+        repository,
+        "append_audit_event",
+        fail_audit_append,
+    )
+
+    with pytest.raises(OSError, match="Simulated audit-event storage failure"):
+        with database.get_connection() as connection:
+            decide_response(
+                connection=connection,
+                response_id=response_id,
+                actor_id="approver-beta",
+                decision="approved",
+                reason="Must roll back if audit append fails.",
+            )
+
+    after = get_record(response_id)
+
+    assert after["status"] == "pending_approval"
+    assert after["decided_by"] is None
+    assert after["decision_at"] is None
+    assert after["decision_reason"] is None
+    assert after["audit_log"] == before["audit_log"]
+
+    with database.get_connection() as connection:
+        head = connection.execute(
+            """
+            SELECT event_count, final_hash
+            FROM response_audit_chain_heads
+            WHERE response_id = ?
+            """,
+            (response_id,),
+        ).fetchone()
+
+    assert head["event_count"] == 1
+    assert head["final_hash"] == before["audit_log"][-1]["event_hash"]
+
+
+def test_simulation_rolls_back_when_audit_event_append_fails(
+    isolated_database,
+    monkeypatch,
+):
+    from app.response import repository
+
+    response_id = create_response()
+    assert approve_response(response_id) == "updated"
+    before = get_record(response_id)
+
+    def fail_audit_append(**kwargs):
+        raise OSError("Simulated audit-event storage failure.")
+
+    monkeypatch.setattr(
+        repository,
+        "append_audit_event",
+        fail_audit_append,
+    )
+
+    with pytest.raises(OSError, match="Simulated audit-event storage failure"):
+        with database.get_connection() as connection:
+            simulate_response(
+                connection=connection,
+                response_id=response_id,
+                actor_id="analyst-alpha",
+            )
+
+    after = get_record(response_id)
+
+    assert after["status"] == "approved"
+    assert after["simulated"] is False
+    assert after["executed"] is False
+    assert after["audit_log"] == before["audit_log"]
+
+    with database.get_connection() as connection:
+        head = connection.execute(
+            """
+            SELECT event_count, final_hash
+            FROM response_audit_chain_heads
+            WHERE response_id = ?
+            """,
+            (response_id,),
+        ).fetchone()
+
+    assert head["event_count"] == 2
+    assert head["final_hash"] == before["audit_log"][-1]["event_hash"]
+
