@@ -4,7 +4,7 @@ Last updated: 2026-11-09
 
 ## Current rule
 
-The Codespace test run on 2026-11-09 established the first verification baseline. The full suite is **not yet green**. See the exact results and corrective commits in the "First Codespace verification run" section below. Do not treat the initial run as a passing full-suite result.
+The initial Codespace run exposed four failures. Those defects were corrected, and the project owner subsequently confirmed that the targeted tests and complete backend suite all passed. See the final verification section below. The original failure results are retained as historical records.
 
 ## Deferred test batch supplied by the project owner
 
@@ -29,8 +29,25 @@ printf '\n========== COMPLETE BACKEND TEST SUITE ==========\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-Status: **RUN on 2026-11-09 — 36 passed, 1 failed in the targeted batch; see below.**
+Status: **PASSED on 2026-11-09 after corrective commits; see final verification below.**
 
+
+## Final Codespace verification — 2026-11-09
+
+<badge>Owner-confirmed passing</badge>
+
+The project owner confirmed that all tests passed after pulling the simulator-identity correction commits.
+
+Confirmed:
+- Targeted audit, concurrency, and integrity batch: **37 passed**.
+- Checkpoint bootstrap/quarantine batch: **10 passed**.
+- Complete backend test suite: **all tests passed**.
+- The earlier failure `test_wrong_simulation_actor_is_detected` was resolved by recording `simulated_by` in signed audit-event details and validating it against the event actor.
+- The new alternate-simulator regression test passed as part of the successful complete suite.
+
+The exact final `pytest -q` pass count was not included in the owner's message; do not infer or fabricate it.
+
+**Status: FULL BACKEND TEST SUITE PASSED.** The automated test verification milestone is complete. The manual read-only operational inspections and any optional key-rotation preflight remain separate operational checks; they are not implied by the pytest result.
 
 ## First Codespace verification run — 2026-11-09
 
@@ -58,7 +75,7 @@ Corrective commits:
 - Audit lifecycle correction: see the commit immediately preceding the test-fixture correction on `main`.
 - Quarantine test isolation correction: see the latest test-fixture commit on `main`.
 
-**Verification state after these commits: NOT YET RERUN.** The fixes are committed but are not considered verified until the affected tests and complete suite are rerun. Keep the full backend suite marked pending until then.
+Historical status: this was subsequently rerun after the corrective commits and passed; see final verification below.
 
 ## Second Codespace verification run — 2026-11-09
 
@@ -81,16 +98,24 @@ Corrective commits on `main`:
 - `c062c10` — record simulator identity in signed audit details.
 - `6e29c19` — add/update simulator identity regression tests.
 
-**Verification state: NOT YET RERUN.** Pull these commits, run the targeted audit consistency and concurrency tests, then run the complete backend suite. Keep the full suite marked pending until all pass.
+Historical status: the project owner subsequently confirmed that the targeted tests and complete backend suite passed after these commits; see final verification below.
 
-## Deferred test modules
+## Test module execution status
 
-- `tests/test_response_audit_checkpoint_integration.py` — entire module, including existing checkpoint creation, advancement, tampering, key rotation, integrity-gate, and checkpoint-failure scenarios.
-- `tests/test_response_concurrency.py` — entire module.
-- `tests/test_response_audit_integrity.py` — entire module.
-- Complete backend test suite — all tests collected by `pytest -q`.
+The project owner confirmed the following tests were run and passed after the corrective commits:
 
-## Newly added or changed checkpoint-failure and recovery tests — NOT RUN
+- `tests/test_response_audit_checkpoint_integration.py`
+- `tests/test_response_concurrency.py`
+- `tests/test_response_audit_integrity.py`
+- `tests/test_checkpoint_bootstrap.py`
+- `tests/test_checkpoint_key_usage.py`
+- `tests/test_checkpoint_key_rotation.py`
+- `tests/test_response_audit_consistency.py`
+- Complete backend test suite (`pytest -q`).
+
+The individual test counts from the final full-suite run were not included in the confirmation, so this register does not invent a final total.
+
+## Newly added or changed checkpoint-failure and recovery tests — PASSED in targeted/full-suite verification
 
 In `tests/test_response_audit_checkpoint_integration.py`:
 
@@ -102,9 +127,9 @@ In `tests/test_response_audit_checkpoint_integration.py`:
 - `test_recovery_refuses_database_rewrite_after_intent_was_signed` — verifies a rewritten database chain cannot be checkpointed using an earlier signed intent.
 - `tests/test_checkpoint_bootstrap.py::test_bootstrap_does_not_bypass_a_pending_signed_intent` — verifies the legacy bootstrap path refuses to sign a response that has a pending signed intent.
 
-All are authored but unverified.
+These tests were included in the successful targeted audit batch and subsequent successful full-suite run.
 
-## Interrupted checkpoint-publication artifacts — NOT RUN
+## Interrupted checkpoint-publication artifacts — PASSED in targeted/full-suite verification
 
 `checkpoint_recovery.py` now inventories checkpoint and pending-intent temporary files, including symlinked temporary artifacts, but deliberately does not parse, publish, delete, or quarantine them. A final checkpoint is written through a temporary file followed by an atomic replace; a leftover temporary file is therefore an interrupted staging artifact, not authoritative evidence. Preserve it for manual forensic review. A corrupt final checkpoint is also preserved: recovery only publishes through a valid signed intent and refuses when the existing checkpoint is not the expected target or verified predecessor.
 
@@ -112,7 +137,7 @@ New regression test — authored but NOT RUN:
 
 - `tests/test_response_audit_checkpoint_integration.py::test_recovery_inventories_and_preserves_interrupted_temporary_files`
 
-The existing targeted audit test batch includes this module. No tests have been executed against these changes.
+The existing targeted audit test batch included this test, and the project owner confirmed that batch passed.
 
 ## New manual recovery procedure — NOT RUN
 
@@ -155,7 +180,7 @@ Do not run `--apply` on an orphan or invalid intent. Stale intents from transact
 Earlier checkpoint inventory/bootstrap tests passed before the latest fail-closed and checkpoint-failure-reporting changes. Those earlier results do not verify the current commits, and the full backend suite remains deferred.
 
 
-## Stale checkpoint-intent quarantine — NOT RUN
+## Stale checkpoint-intent quarantine — PASSED in targeted/full-suite verification
 
 New module: `backend/app/response/checkpoint_intent_quarantine.py`.
 
@@ -189,7 +214,7 @@ Only after reviewing the dry-run report and confirming the API server is stopped
     --reason "Confirmed abandoned pre-commit intent; no matching database artifacts."
 ```
 
-New regression tests — all authored but NOT RUN:
+Regression tests — included in the successful checkpoint bootstrap/quarantine run:
 
 - `tests/test_checkpoint_bootstrap.py::test_stale_orphan_intent_is_dry_run_then_quarantined_with_evidence`
 - `tests/test_checkpoint_bootstrap.py::test_quarantine_refuses_intent_when_database_response_exists`
@@ -199,7 +224,7 @@ New regression tests — all authored but NOT RUN:
 The checkpoint inventory now recognizes the `quarantine/` evidence directory and reports its evidence-file count instead of flagging that directory as unrecognized.
 
 
-## Checkpoint signing-key rotation inventory — NOT RUN
+## Checkpoint signing-key rotation inventory — PASSED in targeted/full-suite verification
 
 New module: `backend/app/response/checkpoint_key_usage.py`.
 
@@ -224,7 +249,7 @@ set +a
 
 Rotation rule: add the old key ID and secret to `AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS` when switching the active key. Keep the old key until the inventory shows no references in checkpoints, pending intents, or quarantined evidence, and backup/retention copies have also been checked. A pending intent signed by an old key must remain verifiable so recovery can publish the resulting checkpoint under the new active key.
 
-New regression test file — all authored but NOT RUN:
+Regression tests — included in the successful key-usage test run:
 
 - `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_tracks_old_checkpoint_and_pending_intent`
 - `tests/test_checkpoint_key_usage.py::test_pending_intent_survives_rotation_and_publishes_with_new_key`
@@ -232,7 +257,7 @@ New regression test file — all authored but NOT RUN:
 - `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_retains_quarantined_intent_key_reference`
 - `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_accounts_for_legacy_checkpoint_signing_key`
 
-Run this module separately during the deferred verification session:
+Standalone command for future regression checks:
 
 ```bash
 ./.venv/bin/python -m pytest tests/test_checkpoint_key_usage.py -v
@@ -240,7 +265,7 @@ Run this module separately during the deferred verification session:
 
 
 
-## Checkpoint key-rotation preflight — NOT RUN
+## Checkpoint key-rotation preflight — PASSED in targeted/full-suite verification
 
 New module: `backend/app/response/checkpoint_key_rotation.py`.
 
@@ -265,7 +290,7 @@ set +a
 
 A successful local preflight means all inspected local signed evidence verifies under the proposed configuration. It does not prove that backups, exported evidence, or external archives are covered. Do not activate the new configuration if the preflight fails.
 
-New regression test file — all authored but NOT RUN:
+Regression tests — included in the successful key-rotation test run:
 
 - `tests/test_checkpoint_key_rotation.py::test_preflight_accepts_rotation_that_retains_all_required_keys`
 - `tests/test_checkpoint_key_rotation.py::test_preflight_rejects_rotation_that_drops_a_required_previous_key`
@@ -273,7 +298,7 @@ New regression test file — all authored but NOT RUN:
 - `tests/test_checkpoint_key_rotation.py::test_preflight_rejects_tampered_checkpoint_signature`
 - `tests/test_checkpoint_key_rotation.py::test_preflight_checks_quarantined_intent_evidence`
 
-Run this module separately during deferred verification:
+Standalone command for future regression checks:
 
 ```bash
 ./.venv/bin/python -m pytest tests/test_checkpoint_key_rotation.py -v
