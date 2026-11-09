@@ -264,28 +264,36 @@ def quarantine_stale_checkpoint_intents(
                         "refusing to overwrite evidence."
                     )
 
-                # Ensure the bytes being moved are exactly the signed document
-                # that was verified above.
+                # Persist a prepared manifest first. If the process stops
+                # before or after the atomic move, recovery can reconcile the
+                # source/evidence pair without inventing provenance.
                 if hashlib.sha256(intent_path.read_bytes()).hexdigest() != current_hash:
                     raise RuntimeError("Intent changed while quarantine was prepared.")
+
+                prepared_at = datetime.now(timezone.utc).isoformat()
+                manifest = {
+                    "manifest_schema_version": 2,
+                    "status": "prepared",
+                    "response_id": response_id,
+                    "original_filename": intent_path.name,
+                    "quarantined_filename": evidence_name,
+                    "sha256": current_hash,
+                    "prepared_at": prepared_at,
+                    "quarantined_at": None,
+                    "reason": reason.strip(),
+                    "intent_payload": current_verification["intent"],
+                    "database_references_at_quarantine": current_references,
+                    "checkpoint_present_at_quarantine": False,
+                }
+                _write_manifest(manifest_path, manifest)
 
                 os.replace(intent_path, evidence_path)
                 os.chmod(evidence_path, 0o600)
                 _fsync_directory(checkpoint_directory)
                 _fsync_directory(quarantine_directory)
 
-                manifest = {
-                    "manifest_schema_version": 1,
-                    "response_id": response_id,
-                    "original_filename": intent_path.name,
-                    "quarantined_filename": evidence_name,
-                    "sha256": current_hash,
-                    "quarantined_at": datetime.now(timezone.utc).isoformat(),
-                    "reason": reason.strip(),
-                    "intent_payload": current_verification["intent"],
-                    "database_references_at_quarantine": current_references,
-                    "checkpoint_present_at_quarantine": False,
-                }
+                manifest["status"] = "completed"
+                manifest["quarantined_at"] = datetime.now(timezone.utc).isoformat()
                 _write_manifest(manifest_path, manifest)
                 report["quarantined_response_ids"].append(response_id)
                 report.setdefault("evidence", []).append({
