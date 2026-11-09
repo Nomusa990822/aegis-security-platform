@@ -6,10 +6,10 @@ from app.evaluation.runner import (
 )
 
 
-def test_dataset_contains_eight_malicious_and_six_benign_scenarios():
+def test_dataset_contains_nine_malicious_and_six_benign_scenarios():
     scenarios = build_scenarios()
 
-    assert len(scenarios) == 14
+    assert len(scenarios) == 15
 
     malicious = [
         scenario
@@ -23,7 +23,7 @@ def test_dataset_contains_eight_malicious_and_six_benign_scenarios():
         if scenario.category == "benign"
     ]
 
-    assert len(malicious) == 8
+    assert len(malicious) == 9
     assert len(benign) == 6
 
 
@@ -45,6 +45,7 @@ def test_each_malicious_scenario_has_one_expected_rule():
         "AEGIS-NET-004",
         "AEGIS-AUTH-003",
         "AEGIS-AUTH-004",
+        "AEGIS-AUTH-005",
     }
 
     actual_rules = {
@@ -113,20 +114,20 @@ def test_metric_calculation_handles_zero_division():
 def test_full_detection_evaluation():
     report = evaluate_dataset()
 
-    assert report["evaluation"]["scenario_count"] == 14
-    assert report["evaluation"]["malicious_scenarios"] == 8
+    assert report["evaluation"]["scenario_count"] == 15
+    assert report["evaluation"]["malicious_scenarios"] == 9
     assert report["evaluation"]["benign_scenarios"] == 6
-    assert report["evaluation"]["detection_rules_evaluated"] == 8
+    assert report["evaluation"]["detection_rules_evaluated"] == 9
 
-    assert len(report["scenario_results"]) == 14
-    assert len(report["rule_metrics"]) == 8
+    assert len(report["scenario_results"]) == 15
+    assert len(report["rule_metrics"]) == 9
 
     for rule_id, result in report["rule_metrics"].items():
         metrics = result["metrics"]
 
         assert metrics["true_positives"] == 1, rule_id
         assert metrics["false_positives"] == 0, rule_id
-        assert metrics["true_negatives"] == 13, rule_id
+        assert metrics["true_negatives"] == 14, rule_id
         assert metrics["false_negatives"] == 0, rule_id
 
         assert metrics["precision"] == 1.0, rule_id
@@ -147,7 +148,7 @@ def test_all_malicious_scenarios_trigger_their_expected_rule():
         if result["category"] == "malicious"
     ]
 
-    assert len(malicious_results) == 8
+    assert len(malicious_results) == 9
 
     for result in malicious_results:
         assert (
