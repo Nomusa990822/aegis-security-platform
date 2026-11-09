@@ -101,6 +101,7 @@ def make_record(status="pending_approval"):
             "created_at": SIMULATED,
             "details": {
                 "simulation_mode": "dry_run",
+                "simulated_by": "analyst alpha",
                 "action": "block_ip",
                 "target": "8.8.8.8",
                 "outcome": "would_block",
@@ -263,6 +264,17 @@ def test_wrong_simulation_actor_is_detected():
     result = validate_response_audit(record)
 
     assert result["valid"] is False
+
+
+def test_different_authorised_simulator_is_valid_when_identity_matches():
+    record = make_record("simulated")
+    record["audit_log"][2]["actor"] = "different-analyst"
+    record["audit_log"][2]["details"]["simulated_by"] = "different-analyst"
+
+    result = validate_response_audit(record)
+
+    assert result["valid"] is True
+    assert result["errors"] == []
 
 
 def test_approver_rejection_must_follow_pending_request():
