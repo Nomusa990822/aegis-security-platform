@@ -555,6 +555,24 @@ def simulate_response(
             connection.rollback()
             return "not_found"
 
+        # Verify the persisted response identity and audit evidence before
+        # making decisions based on mutable response-record fields. Otherwise,
+        # tampering with action/status flags could select an early return and
+        # bypass the integrity-failure outcome.
+        integrity = verify_response_audit_before_mutation(
+            connection,
+            response_id,
+        )
+        if not integrity["valid"]:
+            logging.error(
+                "Blocked response simulation for %s because audit "
+                "integrity verification failed: %s",
+                response_id,
+                integrity["errors"],
+            )
+            connection.rollback()
+            return "audit_integrity_failure"
+
         if record["simulated"]:
             connection.rollback()
             return "already_simulated"
@@ -573,20 +591,6 @@ def simulate_response(
         ):
             connection.rollback()
             return "unsupported_action"
-
-        integrity = verify_response_audit_before_mutation(
-            connection,
-            response_id,
-        )
-        if not integrity["valid"]:
-            logging.error(
-                "Blocked response simulation for %s because audit "
-                "integrity verification failed: %s",
-                response_id,
-                integrity["errors"],
-            )
-            connection.rollback()
-            return "audit_integrity_failure"
 
         cursor = connection.execute(
             """
