@@ -277,7 +277,7 @@ def test_nonexistent_response_cannot_be_rejected(client):
     assert response.status_code == 404
 
 
-def test_approval_identity_cannot_be_spoofed(client):
+def test_approval_rejects_client_supplied_decision_identity(client):
     response_id = create_pending_response(client)
 
     response = client.post(
@@ -289,8 +289,17 @@ def test_approval_identity_cannot_be_spoofed(client):
         headers=approver_headers(),
     )
 
-    assert response.status_code == 200
-    assert response.json()["response"]["decided_by"] == "approver-beta"
+    assert response.status_code == 422
+
+    detail = client.get(
+        f"/api/v1/response/history/{response_id}",
+        headers=approver_headers(),
+    )
+
+    assert detail.status_code == 200
+    assert detail.json()["status"] == "pending_approval"
+    assert detail.json()["decided_by"] is None
+    assert len(detail.json()["audit_log"]) == 1
 
 
 def test_approval_does_not_execute_or_simulate_response(client):
