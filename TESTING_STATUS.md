@@ -29,7 +29,7 @@ printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Mark passed only after the targeted database/concurrency tests and complete backend suite succeed.
+**Verification state: RETEST REQUIRED.** On 2026-11-09, the six requested focused modules collected 9 tests and all 9 passed. The complete suite reported 646 passed and one failure in `test_concurrent_simulation_runs_only_once`. The failure exposed a filesystem observation race: verification could read the previous signed checkpoint, then observe the pending intent after a concurrent publisher had removed it. Commit `2c9d3e4` now serializes checkpoint/intent verification under the same per-response filesystem lock used by publication. Retest the focused concurrency and database modules and the complete suite before marking this batch passed.
 
 ---
 
