@@ -10,7 +10,10 @@ from app.response.audit_chain_storage import (
     append_audit_event,
     initialize_audit_chain_storage,
 )
-from app.response.audit_checkpoint import verify_audit_checkpoint
+from app.response.audit_checkpoint import (
+    reject_duplicate_json_keys,
+    verify_audit_checkpoint,
+)
 from app.response.checkpoint_intent import (
     publish_checkpoint_intent,
     verify_checkpoint_intent,
@@ -676,12 +679,24 @@ def get_response_record(connection, response_id: int):
         (response_id,),
     ).fetchall()
 
-    record["audit_log"] = [
-        {
-            **dict(audit),
-            "details": json.loads(audit["details"]),
-        }
-        for audit in audit_rows
-    ]
+    audit_log = []
+
+    for audit in audit_rows:
+        event = dict(audit)
+        raw_details = event["details"]
+
+        try:
+            event["details"] = json.loads(
+                raw_details,
+                object_pairs_hook=reject_duplicate_json_keys,
+            )
+        except (TypeError, ValueError, json.JSONDecodeError):
+            # Preserve the exact stored text for inspection. Lifecycle and
+            # hash-chain validation will reject non-object/ambiguous details.
+            event["details"] = raw_details
+
+        audit_log.append(event)
+
+    record["audit_log"] = audit_log
 
     return record
