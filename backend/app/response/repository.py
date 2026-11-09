@@ -378,6 +378,7 @@ def save_response(
                 "status": result.status.value,
                 "action": request.action.value,
                 "target": request.target,
+                "mode": request.mode.value,
                 "policy_allowed": result.policy_allowed,
                 "approval_required": result.approval_required,
                 "executed": result.executed,
