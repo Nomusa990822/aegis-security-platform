@@ -17,6 +17,9 @@ from app.detection.detectors.distributed_password_guessing import (
 from app.detection.detectors.auth_success_after_failures import (
     detect as detect_auth_success_after_failures
 )
+from app.detection.detectors.multi_source_successful_auth import (
+    detect as detect_multi_source_successful_auth
+)
 
 DETECTOR_REGISTRY = {
     "AEGIS-AUTH-001": detect_brute_force,
@@ -26,7 +29,8 @@ DETECTOR_REGISTRY = {
     "AEGIS-NET-004": detect_beaconing,
     "AEGIS-AUTH-002": detect_password_spraying,
     "AEGIS-AUTH-003": detect_distributed_password_guessing,
-    "AEGIS-AUTH-004": detect_auth_success_after_failures
+    "AEGIS-AUTH-004": detect_auth_success_after_failures,
+    "AEGIS-AUTH-005": detect_multi_source_successful_auth
 }
 
 
