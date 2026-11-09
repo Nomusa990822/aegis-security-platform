@@ -1178,3 +1178,31 @@ def test_tampered_checkpoint_blocks_simulation_without_mutation(
         for error in integrity.json()["errors"]
     )
 
+
+
+def test_signed_checkpoint_rejects_duplicate_json_keys(client):
+    response_id = create_pending_response(client)
+    checkpoint_path = get_checkpoint_path(response_id)
+    original = checkpoint_path.read_text(encoding="utf-8")
+    duplicate_key = f'"response_id":{response_id}'
+    assert original.count(duplicate_key) == 1
+
+    checkpoint_path.write_text(
+        original.replace(
+            duplicate_key,
+            f'"response_id":{response_id},"response_id":{response_id}',
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    integrity = inspect_integrity(client, response_id)
+
+    assert integrity.status_code == 200
+    result = integrity.json()
+    assert result["valid"] is False
+    assert result["checkpoint_valid"] is False
+    assert any(
+        "duplicate json key" in error.lower()
+        for error in result["errors"]
+    )
