@@ -112,6 +112,42 @@ PASSWORD_SPRAYING_RULE = {
 }
 
 
+DISTRIBUTED_PASSWORD_GUESSING_RULE = {
+    "rule_id": "AEGIS-AUTH-003",
+    "name": "Distributed Password Guessing Detection",
+    "description": (
+        "Multiple distinct source IP addresses generate failed "
+        "authentication attempts against the same account."
+    ),
+    "event_type": "authentication",
+    "threshold": 5,
+    "window_minutes": 10,
+    "severity": "high",
+    "mitre_tactic": "Credential Access",
+    "mitre_technique": "T1110.001",
+    "mitre_name": "Password Guessing",
+    "enabled": True
+}
+
+
+AUTH_SUCCESS_AFTER_FAILURES_RULE = {
+    "rule_id": "AEGIS-AUTH-004",
+    "name": "Successful Authentication After Repeated Failures",
+    "description": (
+        "A successful authentication follows repeated failed attempts "
+        "from the same source IP against the same account."
+    ),
+    "event_type": "authentication",
+    "threshold": 5,
+    "window_minutes": 10,
+    "severity": "medium",
+    "mitre_tactic": "Initial Access",
+    "mitre_technique": "T1078",
+    "mitre_name": "Valid Accounts",
+    "enabled": True
+}
+
+
 DETECTION_RULES = [
     BRUTE_FORCE_RULE,
     PASSWORD_SPRAYING_RULE,
