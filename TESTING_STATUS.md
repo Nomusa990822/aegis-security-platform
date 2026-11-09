@@ -4,6 +4,26 @@ Last updated: 2026-11-09
 
 ## Current rule
 
+## Concurrent approval and simulation lifecycle integrity — NOT RUN
+
+A new race-condition regression starts approval and dry-run simulation against the same pending response at the same time. It verifies that SQLite transaction serialization produces only a valid lifecycle: either approval wins before simulation (simulation is refused), simulation encounters the brief checkpoint-publication gap and fails closed, or approval and checkpoint publication complete before simulation (simulation succeeds). In every case, the final audit chain and signed checkpoint must verify, and no real execution may occur.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+cd /workspaces/aegis-security-platform/backend
+
+./.venv/bin/python -m pytest tests/test_response_concurrency.py -k concurrent_approval_and_simulation_preserve_valid_lifecycle -v
+
+./.venv/bin/python -m pytest tests/test_response_concurrency.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Mark passed only after the focused test, complete concurrency module, and full backend suite pass.
+
 ## Database audit-event tampering blocks simulation — PASSED
 
 - The focused regression test passed.
