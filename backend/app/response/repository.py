@@ -21,6 +21,25 @@ from app.response.checkpoint_intent import (
 )
 
 
+def _decode_response_reasons(raw_value):
+    """Decode only the persisted list-of-strings response-reasons format."""
+    try:
+        reasons = json.loads(
+            raw_value,
+            object_pairs_hook=reject_duplicate_json_keys,
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return raw_value
+
+    if not isinstance(reasons, list) or any(
+        not isinstance(reason, str)
+        for reason in reasons
+    ):
+        return raw_value
+
+    return reasons
+
+
 def initialize_response_tables(connection):
     connection.execute("""
         CREATE TABLE IF NOT EXISTS response_records (
@@ -643,7 +662,7 @@ def get_response_history(connection, limit: int = 100):
             "approval_required": bool(row["approval_required"]),
             "executed": bool(row["executed"]),
             "simulated": bool(row["simulated"]),
-            "reasons": json.loads(row["reasons"]),
+            "reasons": _decode_response_reasons(row["reasons"]),
         }
         for row in rows
     ]
@@ -667,7 +686,7 @@ def get_response_record(connection, response_id: int):
     record["approval_required"] = bool(record["approval_required"])
     record["executed"] = bool(record["executed"])
     record["simulated"] = bool(record["simulated"])
-    record["reasons"] = json.loads(record["reasons"])
+    record["reasons"] = _decode_response_reasons(record["reasons"])
 
     audit_rows = connection.execute(
         """
