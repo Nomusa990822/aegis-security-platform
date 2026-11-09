@@ -7,6 +7,8 @@ Coverage includes SSH success/failure parsing, IPv4/IPv6 source addresses, Nginx
 **Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that `tests/test_telemetry_adapter.py` and the complete backend regression suite both passed. Exact test counts were not supplied and are not inferred.
 
 Manual CLI note: the example paths `/path/to/auth.log` and `/var/log/nginx/access.log` were not present in the Codespaces environment, so those invocations correctly returned “Log file does not exist”. This is an environment/input-path issue, not a parser failure. A manual end-to-end import against real host logs remains unverified; the automated parser and API integration tests passed.
+
+A separate synthetic-file dry-run was also completed successfully: two representative SSH records (one failed and one successful authentication) and two Nginx records (HTTP 401 and HTTP 200) were parsed and normalised as expected. Both runs reported `submitted: 0` and `dry_run: true`; this validates the CLI parsing path without claiming ingestion from a live host.
 ---
 
 ## End-to-end API workflows and concurrent operations — PASSED (owner-confirmed 2026-11-09)
