@@ -445,3 +445,29 @@ Then run the complete backend suite:
 
 Implementation commit: `93e6374`.
 
+
+## Response transaction rollback on checkpoint-intent preparation failure — NOT RUN
+
+Two repository-level failure-injection tests now verify that failure while preparing the signed checkpoint intent rolls back the surrounding response lifecycle transaction:
+
+- `test_decision_rolls_back_when_checkpoint_intent_preparation_fails` — a failed intent preparation during approval must leave the response pending, preserve the original audit events, and retain the original chain head.
+- `test_simulation_rolls_back_when_checkpoint_intent_preparation_fails` — a failed intent preparation during simulation must leave the response approved and un-simulated, preserve the original audit events, and retain the original chain head.
+
+These tests inject a local exception before transaction commit. They do not contact external services and do not execute firewall, operating-system, or network actions.
+
+Run the focused integrity tests:
+
+```bash
+./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -v
+```
+
+Then run the complete backend suite:
+
+```bash
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Do not mark this task complete until both the focused module and full backend suite pass.
+
+Implementation commit: `796ef5f`.
+
