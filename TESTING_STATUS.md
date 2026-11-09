@@ -1028,3 +1028,35 @@ Then run the complete backend suite:
 
 Implementation commit: `6335db2`.
 
+
+
+## Authentication detection expansion — NOT RUN
+
+Two additional rules reuse the existing event-ingestion and detection pipeline:
+
+- `AEGIS-AUTH-003` — Distributed password guessing: five distinct source IP addresses targeting the same account with failed authentication events within 10 minutes. Duplicate events from one source do not inflate the distinct-source threshold.
+- `AEGIS-AUTH-004` — Successful authentication after repeated failures: a successful login from the same source IP for the same account after at least five failed attempts within 10 minutes. This is a triage signal, not proof of compromise.
+
+MITRE ATT&CK associations:
+- `AEGIS-AUTH-003` → T1110.001 (Password Guessing), moderate behavioural association.
+- `AEGIS-AUTH-004` → T1078 (Valid Accounts), moderate behavioural association with explicit legitimate-user caveat.
+
+The curated catalogue now contains nine entries. The synthetic evaluation dataset has been expanded to eight malicious and six benign scenarios, with one designated expected rule per malicious scenario. Synthetic results are not evidence of production detection performance.
+
+Run the focused authentication, registry, MITRE, and evaluation regressions:
+
+```bash
+git pull --ff-only origin main
+cd /workspaces/aegis-security-platform/backend
+
+./.venv/bin/python -m pytest \
+    tests/test_authentication_detection_expansion.py \
+    tests/test_detection_regression.py \
+    tests/test_mitre.py \
+    tests/test_detection_evaluation.py \
+    tests/test_adversarial_detection.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Awaiting the project owner's focused and full-suite test results.
