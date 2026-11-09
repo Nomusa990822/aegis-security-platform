@@ -251,7 +251,9 @@ def test_bootstrap_does_not_bypass_a_pending_signed_intent(
     assert intent.exists()
 
 
-def test_stale_orphan_intent_is_dry_run_then_quarantined_with_evidence():
+def test_stale_orphan_intent_is_dry_run_then_quarantined_with_evidence(
+    isolated_database,
+):
     import hashlib
 
     from app.response.checkpoint_intent import (
@@ -361,7 +363,7 @@ def test_quarantine_refuses_intent_when_database_response_exists(
     assert intent_path.read_bytes() == original_bytes
 
 
-def test_quarantine_refuses_invalid_signed_intent():
+def test_quarantine_refuses_invalid_signed_intent(isolated_database):
     from app.response.checkpoint_intent import (
         checkpoint_intent_path,
         write_checkpoint_intent,
@@ -404,7 +406,9 @@ def test_quarantine_refuses_invalid_signed_intent():
     assert intent_path.read_bytes() == original_bytes
 
 
-def test_quarantine_refuses_intent_with_missing_predecessor_checkpoint():
+def test_quarantine_refuses_intent_with_missing_predecessor_checkpoint(
+    isolated_database,
+):
     from app.response.audit_checkpoint import write_audit_checkpoint
     from app.response.checkpoint_intent import write_checkpoint_intent
     from app.response.checkpoint_intent_quarantine import (
