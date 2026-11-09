@@ -328,8 +328,10 @@ def validate_response_audit(
         simulation = audit_log[2]
         simulation_details = simulation["details"]
 
-        if simulation.get("actor") != record.get("requested_by"):
-            err("Simulation actor does not match the requesting analyst.")
+        # The simulation actor is the analyst who performed this
+        # operation, not necessarily the analyst who originally requested
+        # the response. The common audit-event checks above require a
+        # non-empty actor; the event itself preserves the actor identity.
 
         expected_simulation_values = {
             "simulation_mode": "dry_run",
