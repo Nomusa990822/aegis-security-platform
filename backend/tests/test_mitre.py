@@ -128,5 +128,6 @@ def test_success_after_failures_maps_to_valid_accounts_with_caveat():
     result = mapping["mappings"][0]
 
     assert result["technique_id"] == "T1078"
-    assert result["confidence"] == "moderate"
+    assert result["confidence"] == "low"
+    assert result["mapping_type"] == "contextual_candidate"
     assert "not proof of" in result["rationale"]
