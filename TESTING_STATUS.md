@@ -1,3 +1,25 @@
+## Duplicate JSON keys in persisted audit-event details — NOT RUN
+
+Audit-event details stored in SQLite are now parsed with duplicate-key rejection in the repository reader, audit-chain storage initialisation/backfill, and checkpoint inventory. If details contain duplicate JSON keys, the repository preserves the original raw text for inspection rather than silently choosing the last value. Lifecycle and hash-chain validation then fail closed, preventing approval/simulation from trusting ambiguous evidence.
+
+The regression creates and approves a dry-run response, injects a duplicate `action` key into the first audit event while keeping the last value unchanged, and verifies that simulation is refused, the response remains approved and unexecuted, raw evidence remains visible, and integrity inspection reports an invalid chain. This is important because ordinary JSON parsing would otherwise discard the first value and could leave the canonical hash unchanged.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+cd /workspaces/aegis-security-platform/backend
+
+./.venv/bin/python -m pytest tests/test_response_audit_checkpoint_integration.py -k duplicate_json_keys_in_audit_details_block_simulation -v
+
+./.venv/bin/python -m pytest tests/test_response_audit_checkpoint_integration.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Mark passed only after the focused regression, complete checkpoint integration module, and full backend suite pass.
+
 ## Duplicate JSON keys in checkpoint inventory metadata — PASSED (owner-confirmed 2026-11-09)
 
 The read-only checkpoint inventory uses the same duplicate-key-rejecting JSON parser as the signed checkpoint verifier. This prevents ambiguous checkpoint metadata from being treated as readable when the inventory classifies checkpoint schema and signing-key status. The regression injects a duplicate `key_id` into checkpoint metadata and verifies that the inventory marks the document unreadable and does not expose either key ID.
