@@ -4,6 +4,30 @@ Last updated: 2026-11-09
 
 ## Current rule
 
+## Tampered signed checkpoint blocks simulation without mutation — NOT RUN
+
+A focused API regression test corrupts the signed checkpoint signature after a response has been approved, then attempts simulation. It verifies that the API fails closed, the response remains approved, neither simulated nor executed becomes true, the two existing audit events remain unchanged, and the tampered checkpoint is not silently rewritten.
+
+Run from the Codespaces terminal:
+
+```bash
+cd /workspaces/aegis-security-platform
+
+git pull --ff-only origin main
+
+cd backend
+
+./.venv/bin/python -m pytest tests/test_response_audit_checkpoint_integration.py -k tampered_checkpoint_blocks_simulation_without_mutation -v
+
+./.venv/bin/python -m pytest tests/test_response_audit_checkpoint_integration.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Do not mark this task passed until the focused regression test, complete checkpoint integration module, and full backend suite have all passed.
+
+
+
 The initial Codespace run exposed four failures. Those defects were corrected, and the project owner subsequently confirmed that the targeted tests and complete backend suite all passed. See the final verification section below. The original failure results are retained as historical records.
 
 ## Deferred test batch supplied by the project owner
