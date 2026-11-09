@@ -401,7 +401,8 @@ Default timeout is a service-level ceiling. The AbuseIPDB HTTP client retains it
 New tests — authored but **NOT RUN**:
 - `test_provider_timeout_becomes_unavailable_without_crashing_enrichment`
 - `test_timed_out_provider_does_not_discard_successful_provider_result`
-- `test_provider_timeout_configuration_must_be_finite_and_positive` (parameterized)
+- `test_provider_timeout_configuration_must_be_finite_and_positive` (six cases, including an oversized integer)
+- `test_cancelling_enrichment_propagates_cancellation_to_provider`
 
 Run the focused intelligence tests:
 
@@ -416,3 +417,5 @@ Then run the complete backend suite:
 ```
 
 **Verification state: NOT RUN.** No live AbuseIPDB requests are needed; the new timeout tests use local asynchronous test providers.
+
+Implementation commits: `c7fdd04` (provider deadline), `3411ee3` (timeout isolation tests), `bab4122` (timeout validation edge cases), and `52eb4b9` (cancellation and oversized-value tests).
