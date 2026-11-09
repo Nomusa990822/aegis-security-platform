@@ -13,7 +13,7 @@ def test_unknown_technique_returns_none():
     assert MITREAttackMapper.get_technique("T9999") is None
 
 
-def test_all_six_detection_rules_have_mappings():
+def test_all_eight_detection_rules_have_mappings():
     expected_rule_ids = {
         "AEGIS-AUTH-001",
         "AEGIS-AUTH-002",
@@ -21,6 +21,8 @@ def test_all_six_detection_rules_have_mappings():
         "AEGIS-NET-002",
         "AEGIS-NET-003",
         "AEGIS-NET-004",
+        "AEGIS-AUTH-003",
+        "AEGIS-AUTH-004",
     }
 
     mappings = MITREAttackMapper.get_all_rule_mappings()
@@ -109,3 +111,22 @@ def test_technique_search_finds_tactics_and_names():
 
 def test_empty_technique_search_returns_no_results():
     assert MITREAttackMapper.search_techniques("   ") == []
+
+
+
+def test_distributed_password_guessing_maps_to_password_guessing():
+    mapping = MITREAttackMapper.get_rule_mapping("AEGIS-AUTH-003")
+    result = mapping["mappings"][0]
+
+    assert result["technique_id"] == "T1110.001"
+    assert result["confidence"] == "moderate"
+    assert "multiple" in result["rationale"]
+
+
+def test_success_after_failures_maps_to_valid_accounts_with_caveat():
+    mapping = MITREAttackMapper.get_rule_mapping("AEGIS-AUTH-004")
+    result = mapping["mappings"][0]
+
+    assert result["technique_id"] == "T1078"
+    assert result["confidence"] == "moderate"
+    assert "not proof of" in result["rationale"]
