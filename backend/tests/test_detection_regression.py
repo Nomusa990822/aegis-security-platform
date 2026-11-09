@@ -56,7 +56,7 @@ def get_alert_count():
     return row["total"]
 
 
-def test_all_nine_detection_rules_are_registered():
+def test_all_ten_detection_rules_are_registered():
     rules = get_detection_rules()
 
     registered_ids = {
@@ -64,7 +64,7 @@ def test_all_nine_detection_rules_are_registered():
         for rule in rules
     }
 
-    assert len(rules) == 9
+    assert len(rules) == 10
 
     assert registered_ids == {
         "AEGIS-AUTH-001",
@@ -76,6 +76,7 @@ def test_all_nine_detection_rules_are_registered():
         "AEGIS-AUTH-003",
         "AEGIS-AUTH-004",
         "AEGIS-AUTH-005",
+        "AEGIS-NET-005",
     }
 
     assert all(rule["enabled"] for rule in rules)
@@ -274,7 +275,7 @@ def test_detection_rules_endpoint_matches_registry(client):
 
     payload = response.json()
 
-    assert payload["count"] == 9
+    assert payload["count"] == 10
 
     endpoint_rule_ids = {
         rule["rule_id"]
