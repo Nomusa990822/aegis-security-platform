@@ -210,8 +210,8 @@ class MITREAttackMapper:
             MITRERuleMapping(
                 rule_id="AEGIS-AUTH-004",
                 technique_id="T1078",
-                confidence="moderate",
-                mapping_type="probable_behavioural_match",
+                confidence="low",
+                mapping_type="contextual_candidate",
                 rationale=(
                     "A successful authentication after repeated failures "
                     "may indicate that valid credentials were obtained, "
