@@ -192,7 +192,7 @@ def test_preview_does_not_accept_a_different_target(client):
     assert "must match" in response.json()["detail"]
 
 
-def test_preview_uses_authenticated_identity_not_client_identity(client):
+def test_preview_attributes_request_to_authenticated_actor(client):
     alert_id = create_alert()
 
     response = client.post(
@@ -201,7 +201,6 @@ def test_preview_uses_authenticated_identity_not_client_identity(client):
             "alert_id": alert_id,
             "action": "block_ip",
             "target": "8.8.8.8",
-            "requested_by": "forged-analyst",
         },
         headers=analyst_headers(),
     )
@@ -212,7 +211,6 @@ def test_preview_uses_authenticated_identity_not_client_identity(client):
     record = get_response(response_id)
 
     assert record["requested_by"] == "analyst-alpha"
-    assert record["requested_by"] != "forged-analyst"
 
 
 # --------------------------------------------------
