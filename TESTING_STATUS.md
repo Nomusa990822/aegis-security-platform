@@ -1,4 +1,4 @@
-## Response policy-reasons audit binding — NOT RUN
+## Response policy-reasons audit binding — PASSED
 
 New response creation events now include the original policy-reasons list in their signed audit details. Lifecycle validation compares the persisted response reasons with that creation-event copy. Historical creation events that predate this field remain readable and valid.
 
@@ -18,7 +18,7 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Mark passed only after the focused regression, complete response audit-integrity module, and full backend suite pass.
+**Verification state: PASSED (owner-confirmed 2026-11-09).** The focused valid-reasons tampering regression, complete response audit-integrity module, and full backend test suite all passed. Confirmed that replacing the persisted reasons with a different valid list is detected against the signed creation event and blocks simulation without mutating response state or audit history. Historical creation events without a reasons field remain compatible.
 
 ---
 
