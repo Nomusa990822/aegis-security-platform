@@ -226,6 +226,27 @@ class MITREAttackMapper:
                 ),
             ),
         ],
+        "AEGIS-AUTH-005": [
+            MITRERuleMapping(
+                rule_id="AEGIS-AUTH-005",
+                technique_id="T1078",
+                confidence="low",
+                mapping_type="contextual_candidate",
+                rationale=(
+                    "Successful authentication to one account from multiple "
+                    "distinct source IPs may be consistent with use of valid "
+                    "accounts across distributed infrastructure. Shared "
+                    "networks, VPNs, proxies, and legitimate travel can produce "
+                    "the same pattern; source-IP diversity alone is not proof "
+                    "of credential abuse."
+                ),
+                evidence_requirements=(
+                    "Verify the account owner and expected source networks.",
+                    "Review available device, session, MFA, and geolocation context.",
+                    "Correlate with other authentication and endpoint evidence.",
+                ),
+            ),
+        ],
         "AEGIS-NET-001": [
             MITRERuleMapping(
                 rule_id="AEGIS-NET-001",
