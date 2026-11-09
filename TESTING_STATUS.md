@@ -6,6 +6,10 @@ Last updated: 2026-11-09
 
 ## Database audit-event tampering blocks simulation — NOT RUN
 
+The first verification run exposed an incorrect assertion in the test, not a failure of the response protection. The API correctly rejected simulation (HTTP 409), left the response approved and unexecuted, and reported an invalid hash chain. The signed checkpoint itself remained authentic and unchanged, so `checkpoint_valid` correctly remains `true` while `chain_valid` is `false`.
+
+The test expectation has been corrected accordingly. Re-run the focused test, the complete checkpoint integration module, and the full backend suite before marking this task passed.
+
 A focused API regression test approves a dry-run response, modifies an existing database audit event without updating its cryptographic hash, and attempts simulation. It verifies that AEGIS returns HTTP 409, leaves the response approved and unexecuted, preserves both audit events (including the tampered value for forensic visibility), and reports invalid chain/checkpoint integrity.
 
 Run from the Codespaces terminal:
