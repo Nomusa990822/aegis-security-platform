@@ -1,3 +1,30 @@
+## Response identity-field tampering protection — NOT RUN
+
+The response lifecycle validator cross-checks security-critical response-record fields against the original creation event and audit-event references:
+- `action` and `target` are compared with the creation event details.
+- `requested_by` is compared with the creation event actor.
+- `alert_id` is compared with the alert reference in every audit event.
+
+A new database-level regression creates and approves a response, tampers with one persisted response-record field at a time, and attempts simulation. The cases cover a substituted action, target, requester identity, and a different but valid alert foreign key. Simulation must fail closed, leaving the response approved, unexecuted, and its audit log unchanged.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+cd /workspaces/aegis-security-platform/backend
+
+./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -k tampered_response_identity_fields_block_simulation_without_mutation -v
+
+./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Mark passed only after the focused regression, complete response audit-integrity module, and full backend suite pass.
+
+---
+
 ## Persisted response-reasons JSON shape validation — PASSED (owner-confirmed 2026-11-09)
 
 Response records store policy and workflow explanations in a JSON text column. The repository now accepts only a JSON array containing strings. Malformed JSON and valid JSON with an unexpected shape are preserved as their exact raw text for inspection rather than being silently returned as a different data type. Response lifecycle validation rejects records whose reasons field is not a list of strings, so approval/simulation cannot proceed on malformed response metadata.
