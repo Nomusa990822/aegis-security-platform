@@ -1,3 +1,38 @@
+## Detection effectiveness and adversarial regression batch — IMPLEMENTED; VERIFICATION NOT RUN
+
+This verification batch consolidates the existing detection-quality checks without changing detection thresholds or claiming production effectiveness:
+
+- Adversarial detector tests: threshold boundaries, time windows, duplicate patterns, overlapping attack types, incomplete telemetry, and benign/noisy activity.
+- Synthetic evaluation: replay of the labelled malicious and benign scenarios through the production detection engine, with per-rule precision, recall, F1, and confusion-matrix counts.
+- Detection regression and time-boundary tests.
+- Evaluation metric integrity and duplicate-telemetry regressions.
+- Malformed detection timestamp handling.
+
+The current synthetic benchmark contains 12 scenarios (6 malicious and 6 benign) across 6 detection rules. A perfect score on this small synthetic dataset is not evidence of real-world detection performance; the benchmark's stated limitations remain applicable.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+printf '\\n========== DETECTION EFFECTIVENESS AND ADVERSARIAL REGRESSIONS ==========\\n'
+./.venv/bin/python -m pytest \
+    tests/test_adversarial_detection.py \
+    tests/test_detection_evaluation.py \
+    tests/test_detection_regression.py \
+    tests/test_detection_time_boundaries.py \
+    tests/test_evaluation_metrics_integrity.py \
+    tests/test_duplicate_telemetry.py \
+    tests/test_malformed_detection_timestamps.py -v
+
+printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Record as PASSED only after the focused detection/evaluation modules and complete backend suite pass.
+
+---
+
 ## Threat-intelligence enrichment authorization boundary — PASSED (owner-confirmed 2026-11-09)
 
 The API-wide authentication dependency remains in place for the threat-intelligence router. The resource-intensive `POST /api/v1/intelligence/ip` operation now additionally requires the analyst role, preventing an approver-only account from initiating provider lookups and persistence.
