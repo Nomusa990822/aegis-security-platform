@@ -1,0 +1,38 @@
+services:
+  aegis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aegis-security-platform:local
+    container_name: aegis-security-platform
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      AEGIS_DATABASE_PATH: /data/aegis.db
+      AEGIS_AUDIT_CHECKPOINT_DIR: /data/audit_checkpoints
+    ports:
+      - "8000:8000"
+    volumes:
+      - aegis-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  aegis-data:
