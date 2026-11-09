@@ -77,6 +77,18 @@ class MITREAttackMapper:
             url="https://attack.mitre.org/techniques/T1110/003/",
             parent_technique_id="T1110",
         ),
+        "T1078": MITRETechnique(
+            technique_id="T1078",
+            name="Valid Accounts",
+            tactic="Initial Access",
+            tactic_id="TA0001",
+            description=(
+                "Adversaries may obtain and abuse credentials of existing "
+                "accounts to gain initial access, maintain access, or evade "
+                "defences."
+            ),
+            url="https://attack.mitre.org/techniques/T1078/",
+        ),
         "T1046": MITRETechnique(
             technique_id="T1046",
             name="Network Service Discovery",
@@ -170,6 +182,47 @@ class MITREAttackMapper:
                     "Confirm failures target multiple distinct accounts.",
                     "Review authentication telemetry for password reuse "
                     "or a small set of repeated passwords, where available.",
+                ),
+            ),
+        ],
+        "AEGIS-AUTH-003": [
+            MITRERuleMapping(
+                rule_id="AEGIS-AUTH-003",
+                technique_id="T1110.001",
+                confidence="moderate",
+                mapping_type="probable_behavioural_match",
+                rationale=(
+                    "Failed attempts against one account from multiple "
+                    "distinct source IPs are consistent with distributed "
+                    "password guessing. AEGIS does not inspect attempted "
+                    "password values or establish that the sources are "
+                    "under common control."
+                ),
+                evidence_requirements=(
+                    "Confirm failures target the same distinct account.",
+                    "Review the distinct source IPs and event timestamps.",
+                    "Correlate source ownership and authentication context "
+                    "before treating the activity as coordinated.",
+                ),
+            ),
+        ],
+        "AEGIS-AUTH-004": [
+            MITRERuleMapping(
+                rule_id="AEGIS-AUTH-004",
+                technique_id="T1078",
+                confidence="moderate",
+                mapping_type="probable_behavioural_match",
+                rationale=(
+                    "A successful authentication after repeated failures "
+                    "may indicate that valid credentials were obtained, "
+                    "but legitimate user mistakes can produce the same "
+                    "sequence. The alert is a triage signal, not proof of "
+                    "account compromise."
+                ),
+                evidence_requirements=(
+                    "Verify the successful authentication with the account owner.",
+                    "Review available MFA, device, and session context.",
+                    "Check whether the preceding failures were expected.",
                 ),
             ),
         ],
