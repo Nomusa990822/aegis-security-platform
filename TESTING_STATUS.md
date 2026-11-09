@@ -1,6 +1,6 @@
 # AEGIS Test Status Register
 
-## Concurrent checkpoint recovery publication — NOT RUN
+## Concurrent checkpoint recovery publication — PASSED
 
 A new race-condition regression creates a valid committed response with a pending signed checkpoint intent, then starts two independent read-only recovery workers at the same time for that response. It verifies that only one worker reports publication, the pending intent is consumed, the resulting checkpoint signature matches the database audit head, and the response audit integrity remains valid. The losing worker may observe that the intent has already been consumed; it must not overwrite or corrupt the published checkpoint.
 
@@ -18,7 +18,14 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Confirm the focused test, complete checkpoint bootstrap module, and full backend suite before marking passed.
+The project owner confirmed that all three verification runs passed:
+- Focused concurrent checkpoint recovery regression.
+- Complete checkpoint bootstrap test module.
+- Complete backend test suite.
+
+The regression confirms that two independent recovery workers racing over the same valid pending signed intent result in exactly one publication, consume the intent, preserve the signed checkpoint, and leave response audit integrity valid.
+
+**Verification state: OWNER-CONFIRMED PASSED.**
 
 
 Last updated: 2026-11-09
