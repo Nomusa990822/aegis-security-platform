@@ -1,31 +1,15 @@
-## Strict API request contracts — AWAITING FINAL RETEST
+## Strict API request contracts — PASSED (owner-confirmed 2026-11-09)
 
 This batch makes API request models reject unknown JSON properties instead of silently ignoring them. It covers event ingestion, alert mutations, response preview/decision requests, and IP intelligence requests. Correlation request models already enforce this policy. The IP intelligence request also has explicit length boundaries.
 
-Initial verification:
+Verification completed:
 - Focused request-hardening and security-input tests: **42 passed**.
-- Initial full backend suite: **640 passed, 3 failed**. All three failures were legacy response tests that still sent caller-supplied `requested_by` or `decided_by` fields, which the newly strict request models correctly reject with HTTP 422.
+- Updated response identity regression modules: owner-confirmed passed.
+- Complete backend regression suite: owner-confirmed passed after updating the legacy tests to reflect strict request validation.
 
-The affected response tests have now been aligned with the authenticated-identity contract:
-- Request attribution is verified using the authenticated analyst identity without accepting a client-supplied identity field.
-- A client-supplied decision identity is explicitly verified to return HTTP 422 without changing the pending response.
+The updated response tests verify that request attribution comes from the authenticated analyst or approver identity, and that a client-supplied decision identity is rejected with HTTP 422 without changing the pending response.
 
-Run the consolidated final verification from the Codespaces backend directory:
-
-```bash
-git pull --ff-only origin main
-
-printf '\n========== UPDATED RESPONSE IDENTITY REGRESSIONS ==========\n'
-./.venv/bin/python -m pytest \
-    tests/test_response.py \
-    tests/test_response_api_boundaries.py \
-    tests/test_response_approval.py -v
-
-printf '\n========== COMPLETE BACKEND REGRESSION SUITE ==========\n'
-./.venv/bin/python -m pytest -q
-```
-
-**Verification state: AWAITING FINAL RETEST.** The focused 42-test request-hardening run has already passed. Mark this batch passed only after the updated response regressions and complete backend suite succeed.
+**Verification state: PASSED.** Owner-confirmed on 2026-11-09. The final updated-response and full-suite test counts were not provided, so no totals are inferred.
 ---
 
 ## API authentication and authorisation boundary — PASSED (owner-confirmed 2026-11-09)
