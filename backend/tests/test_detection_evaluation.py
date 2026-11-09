@@ -147,7 +147,7 @@ def test_all_malicious_scenarios_trigger_their_expected_rule():
         if result["category"] == "malicious"
     ]
 
-    assert len(malicious_results) == 6
+    assert len(malicious_results) == 8
 
     for result in malicious_results:
         assert (
