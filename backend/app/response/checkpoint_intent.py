@@ -10,6 +10,7 @@ from app.response.audit_checkpoint import (
     checkpoint_lock,
     checkpoint_path,
     load_checkpoint_configuration,
+    reject_duplicate_json_keys,
     sign_checkpoint,
     verify_audit_checkpoint,
 )
@@ -182,7 +183,10 @@ def verify_checkpoint_intent(response_id: int) -> dict[str, Any]:
 
         path = checkpoint_intent_path(directory, response_id)
         with path.open("r", encoding="utf-8") as intent_file:
-            document = json.load(intent_file)
+            document = json.load(
+                intent_file,
+                object_pairs_hook=reject_duplicate_json_keys,
+            )
 
         if not isinstance(document, dict):
             raise ValueError("Checkpoint intent must be a JSON object.")
