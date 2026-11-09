@@ -4,7 +4,14 @@ Last updated: 2026-11-09
 
 ## Current rule
 
-## Concurrent approval and simulation lifecycle integrity — NOT RUN
+## Concurrent approval and simulation lifecycle integrity — PASSED
+
+The project owner confirmed that all three verification runs passed:
+- Focused approval/simulation race-condition regression.
+- Complete response concurrency test module.
+- Complete backend test suite.
+
+The regression confirms that concurrent approval and simulation produce a valid, serialised response lifecycle; invalid intermediate checkpoint states fail closed; the final audit chain and signed checkpoint verify; and no real execution occurs.
 
 A new race-condition regression starts approval and dry-run simulation against the same pending response at the same time. It verifies that SQLite transaction serialization produces only a valid lifecycle: either approval wins before simulation (simulation is refused), simulation encounters the brief checkpoint-publication gap and fails closed, or approval and checkpoint publication complete before simulation (simulation succeeds). In every case, the final audit chain and signed checkpoint must verify, and no real execution may occur.
 
