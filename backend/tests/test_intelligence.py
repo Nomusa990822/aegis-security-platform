@@ -226,7 +226,40 @@ def test_timed_out_provider_does_not_discard_successful_provider_result():
     assert successful_provider.calls == ["8.8.8.8"]
 
 
-@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan"), True])
+@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan"), True, 10**10000])
 def test_provider_timeout_configuration_must_be_finite_and_positive(timeout):
     with pytest.raises(ValueError, match="finite positive"):
         ThreatIntelligenceEnrichmentService(provider_timeout=timeout)
+
+
+
+def test_cancelling_enrichment_propagates_cancellation_to_provider():
+    class WaitingProvider:
+        PROVIDER_NAME = "waiting_provider"
+
+        def __init__(self):
+            self.cancelled = False
+
+        async def check_ip(self, ip_address):
+            try:
+                await asyncio.sleep(10)
+            except asyncio.CancelledError:
+                self.cancelled = True
+                raise
+
+    provider = WaitingProvider()
+    service = ThreatIntelligenceEnrichmentService(
+        providers=[provider],
+        provider_timeout=5,
+    )
+
+    async def cancel_enrichment():
+        task = asyncio.create_task(service.enrich_ip("8.8.8.8"))
+        await asyncio.sleep(0)
+        task.cancel()
+        await task
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(cancel_enrichment())
+
+    assert provider.cancelled is True
