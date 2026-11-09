@@ -1,3 +1,23 @@
+## Duplicate JSON keys in checkpoint inventory metadata — NOT RUN
+
+The read-only checkpoint inventory now uses the same duplicate-key-rejecting JSON parser as the signed checkpoint verifier. This prevents ambiguous checkpoint metadata from being treated as readable when the inventory classifies checkpoint schema and signing-key status. The regression injects a duplicate `key_id` into checkpoint metadata and verifies that the inventory marks the document unreadable and does not expose either key ID.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+cd /workspaces/aegis-security-platform/backend
+
+./.venv/bin/python -m pytest tests/test_response_audit_checkpoint.py -k checkpoint_inventory_rejects_duplicate_metadata_keys -v
+
+./.venv/bin/python -m pytest tests/test_response_audit_checkpoint.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Mark passed only after the focused regression, complete checkpoint test module, and full backend suite pass.
+
 ## Duplicate JSON keys in signed audit checkpoints — PASSED (owner-confirmed 2026-11-09)
 
 The signed checkpoint verifier rejects duplicate JSON object keys using the same strict parser as checkpoint configuration and pending intents. The regression creates a valid response checkpoint, injects a duplicate `response_id` key into the checkpoint document, and verifies that integrity inspection marks the checkpoint invalid with a duplicate-key error.
