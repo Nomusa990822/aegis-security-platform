@@ -1,22 +1,13 @@
-## Duplicate JSON keys in signed audit checkpoints — NOT RUN
+## Duplicate JSON keys in signed audit checkpoints — PASSED (owner-confirmed 2026-11-09)
 
-The signed checkpoint verifier now rejects duplicate JSON object keys using the same strict parser as checkpoint configuration and pending intents. The regression creates a valid response checkpoint, injects a duplicate `response_id` key into the checkpoint document, and verifies that integrity inspection marks the checkpoint invalid with a duplicate-key error.
+The signed checkpoint verifier rejects duplicate JSON object keys using the same strict parser as checkpoint configuration and pending intents. The regression creates a valid response checkpoint, injects a duplicate `response_id` key into the checkpoint document, and verifies that integrity inspection marks the checkpoint invalid with a duplicate-key error.
 
-Run from the Codespaces backend directory:
+The project owner confirmed that all three verification runs passed:
+- Focused duplicate-key checkpoint regression.
+- Complete response audit checkpoint integration module.
+- Complete backend test suite.
 
-```bash
-git pull --ff-only origin main
-
-cd /workspaces/aegis-security-platform/backend
-
-./.venv/bin/python -m pytest tests/test_response_audit_checkpoint_integration.py -k signed_checkpoint_rejects_duplicate_json_keys -v
-
-./.venv/bin/python -m pytest tests/test_response_audit_checkpoint_integration.py -v
-
-./.venv/bin/python -m pytest -q
-```
-
-**Verification state: NOT RUN.** Mark passed only after the focused regression, complete response audit checkpoint integration module, and full backend suite pass.
+**Verification state: OWNER-CONFIRMED PASSED.** The exact final full-suite test count was not provided and is not inferred.
 
 ## Duplicate JSON keys in signed checkpoint intents — PASSED
 
