@@ -66,6 +66,11 @@
                 ...(options.body
                     ? { "Content-Type": "application/json" }
                     : {}),
+                ...(sessionStorage.getItem("aegis_access_token")
+                    ? {
+                        "Authorization": `Bearer ${sessionStorage.getItem("aegis_access_token")}`
+                    }
+                    : {}),
                 ...options.headers
             }
         });
