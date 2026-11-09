@@ -5,6 +5,7 @@ from app.response.audit_chain import (
     GENESIS_HASH,
     calculate_event_hash,
 )
+from app.response.audit_checkpoint import reject_duplicate_json_keys
 
 
 def initialize_audit_chain_storage(connection):
@@ -64,8 +65,11 @@ def initialize_audit_chain_storage(connection):
             event = dict(row)
 
             try:
-                details = json.loads(event["details"])
-            except (TypeError, json.JSONDecodeError) as exc:
+                details = json.loads(
+                    event["details"],
+                    object_pairs_hook=reject_duplicate_json_keys,
+                )
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
                 raise ValueError(
                     f"Cannot backfill audit event {event['id']}: "
                     "details contain invalid JSON."
