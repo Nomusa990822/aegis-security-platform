@@ -594,6 +594,7 @@ def simulate_response(
             actor=actor_id,
             details={
                 "simulation_mode": "dry_run",
+                "simulated_by": actor_id,
                 "action": record["action"],
                 "target": record["target"],
                 "outcome": "would_block",
