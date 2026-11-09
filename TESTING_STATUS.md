@@ -1,4 +1,4 @@
-## Duplicate JSON keys in signed checkpoint intents — NOT RUN
+## Duplicate JSON keys in signed checkpoint intents — PASSED
 
 The pending-intent verifier now rejects duplicate JSON object keys instead of accepting Python's default last-key-wins parsing behaviour. The regression creates a correctly signed intent, inserts a duplicate `response_id` key into its JSON payload, and confirms verification fails closed without returning a trusted intent.
 
@@ -16,7 +16,9 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Mark passed only after the focused regression, complete checkpoint bootstrap module, and full backend suite pass.
+The project owner confirmed that the focused duplicate-key regression, complete checkpoint bootstrap test module, and full backend test suite all passed.
+
+**Verification state: OWNER-CONFIRMED PASSED.**
 
 # AEGIS Test Status Register
 
