@@ -88,6 +88,8 @@ A modular detection engine evaluates incoming telemetry against registered rules
 |---|---|
 | `AEGIS-AUTH-001` | Brute-force authentication |
 | `AEGIS-AUTH-002` | Password spraying |
+| `AEGIS-AUTH-003` | Distributed password guessing across source IPs |
+| `AEGIS-AUTH-004` | Successful authentication after repeated failures |
 | `AEGIS-NET-001` | Network port scanning |
 | `AEGIS-NET-002` | Horizontal network scanning |
 | `AEGIS-NET-003` | Broad network service discovery |
@@ -122,11 +124,12 @@ Provider results depend on external service availability, configuration, and API
 
 Detection rules are associated with a curated MITRE ATT&CK catalogue.
 
-Current catalogue: **8 technique and sub-technique entries**, including:
+Current catalogue: **9 technique and sub-technique entries**, including:
 
 - T1110 — Brute Force
 - T1110.001 — Password Guessing
 - T1110.003 — Password Spraying
+- T1078 — Valid Accounts
 - T1046 — Network Service Discovery
 - T1071 — Application Layer Protocol
 - T1071.001 — Web Protocols
@@ -347,8 +350,8 @@ AEGIS focuses on a defined set of security operations workflows. It does not att
 | Authentication | Static environment-configured analyst and approver tokens |
 | MFA / OTP | Not implemented |
 | SSO / OAuth / OIDC / SAML | Not implemented |
-| Detection | Six registered rules |
-| MITRE ATT&CK | Curated eight-entry subset |
+| Detection | Eight registered rules |
+| MITRE ATT&CK | Curated nine-entry subset |
 | Telemetry collection | API-based event submission; no endpoint agent |
 | Packet inspection | Not implemented |
 | Syslog / Sysmon collectors | Not implemented |
