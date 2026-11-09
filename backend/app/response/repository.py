@@ -11,6 +11,8 @@ from app.response.audit_chain_storage import (
     initialize_audit_chain_storage,
 )
 from app.response.audit_checkpoint import (
+    checkpoint_lock,
+    load_checkpoint_configuration,
     reject_duplicate_json_keys,
     verify_audit_checkpoint,
 )
@@ -311,42 +313,54 @@ def verify_response_audit_before_mutation(
         )
 
     if chain_result["valid"] and not errors:
-        checkpoint = verify_audit_checkpoint(
-            response_id=response_id,
-            event_count=head["event_count"],
-            final_hash=head["final_hash"],
-        )
-        if not checkpoint["valid"]:
-            pending_intent_valid = False
+        try:
+            # Check the checkpoint and its pending intent under the same
+            # filesystem lock used by publication. Without this lock, a
+            # reader can observe the old checkpoint, then observe the intent
+            # after the publisher has removed it, producing a false integrity
+            # failure during a legitimate concurrent simulation retry.
+            checkpoint_directory = load_checkpoint_configuration()[-1]
 
-            if allow_pending_checkpoint_intent:
-                intent_result = verify_checkpoint_intent(response_id)
-                intent = intent_result.get("intent")
+            with checkpoint_lock(checkpoint_directory, response_id):
+                checkpoint = verify_audit_checkpoint(
+                    response_id=response_id,
+                    event_count=head["event_count"],
+                    final_hash=head["final_hash"],
+                )
 
-                if intent_result["valid"] and isinstance(intent, dict):
-                    previous_count = intent.get("previous_event_count")
-                    previous_hash = intent.get("previous_final_hash")
+                pending_intent_valid = False
 
-                    pending_intent_valid = (
-                        intent.get("event_count") == head["event_count"]
-                        and intent.get("final_hash") == head["final_hash"]
-                    )
+                if not checkpoint["valid"] and allow_pending_checkpoint_intent:
+                    intent_result = verify_checkpoint_intent(response_id)
+                    intent = intent_result.get("intent")
 
-                    if pending_intent_valid and previous_count == 0:
-                        pending_intent_valid = previous_hash == GENESIS_HASH
-                    elif pending_intent_valid:
-                        previous_checkpoint = verify_audit_checkpoint(
-                            response_id=response_id,
-                            event_count=previous_count,
-                            final_hash=previous_hash,
+                    if intent_result["valid"] and isinstance(intent, dict):
+                        previous_count = intent.get("previous_event_count")
+                        previous_hash = intent.get("previous_final_hash")
+
+                        pending_intent_valid = (
+                            intent.get("event_count") == head["event_count"]
+                            and intent.get("final_hash") == head["final_hash"]
                         )
-                        pending_intent_valid = previous_checkpoint["valid"]
 
-            if not pending_intent_valid:
+                        if pending_intent_valid and previous_count == 0:
+                            pending_intent_valid = previous_hash == GENESIS_HASH
+                        elif pending_intent_valid:
+                            previous_checkpoint = verify_audit_checkpoint(
+                                response_id=response_id,
+                                event_count=previous_count,
+                                final_hash=previous_hash,
+                            )
+                            pending_intent_valid = previous_checkpoint["valid"]
+
+            if not checkpoint["valid"] and not pending_intent_valid:
                 errors.extend(
                     f"Signed checkpoint validation: {error}"
                     for error in checkpoint["errors"]
                 )
+
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            errors.append(f"Signed checkpoint validation: {exc}")
 
     return {
         "valid": not errors,
