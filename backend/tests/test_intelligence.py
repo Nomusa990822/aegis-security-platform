@@ -155,3 +155,78 @@ def test_provider_exception_does_not_crash_enrichment():
     assert assessment.reputation == "unknown"
     assert len(assessment.provider_results) == 1
     assert assessment.provider_results[0].status == ProviderStatus.ERROR
+
+
+
+def test_provider_timeout_becomes_unavailable_without_crashing_enrichment():
+    class SlowProvider:
+        PROVIDER_NAME = "slow_provider"
+
+        async def check_ip(self, ip_address):
+            await asyncio.sleep(0.05)
+            return ProviderResult(
+                provider=self.PROVIDER_NAME,
+                status=ProviderStatus.SUCCESS,
+                reputation="malicious",
+                confidence=1.0,
+            )
+
+    service = ThreatIntelligenceEnrichmentService(
+        providers=[SlowProvider()],
+        provider_timeout=0.005,
+    )
+
+    assessment = asyncio.run(service.enrich_ip("8.8.8.8"))
+
+    assert assessment.enrichment_status == EnrichmentStatus.FAILED
+    assert assessment.reputation == "unknown"
+    assert assessment.threat_score == 0
+    assert len(assessment.provider_results) == 1
+    assert assessment.provider_results[0].provider == "slow_provider"
+    assert assessment.provider_results[0].status == ProviderStatus.UNAVAILABLE
+    assert "configured 0.005-second timeout" in assessment.provider_results[0].error
+
+
+def test_timed_out_provider_does_not_discard_successful_provider_result():
+    class SlowProvider:
+        PROVIDER_NAME = "slow_provider"
+
+        async def check_ip(self, ip_address):
+            await asyncio.sleep(0.05)
+            return ProviderResult(
+                provider=self.PROVIDER_NAME,
+                status=ProviderStatus.SUCCESS,
+                reputation="malicious",
+                confidence=1.0,
+                categories=["late_result"],
+            )
+
+    successful_provider = MockProvider(
+        ProviderResult(
+            provider="healthy_provider",
+            status=ProviderStatus.SUCCESS,
+            reputation="suspicious",
+            confidence=0.8,
+            categories=["brute_force"],
+        )
+    )
+    service = ThreatIntelligenceEnrichmentService(
+        providers=[SlowProvider(), successful_provider],
+        provider_timeout=0.005,
+    )
+
+    assessment = asyncio.run(service.enrich_ip("8.8.8.8"))
+
+    assert assessment.enrichment_status == EnrichmentStatus.PARTIAL
+    assert assessment.reputation != "unknown"
+    assert len(assessment.provider_results) == 2
+    assert assessment.provider_results[0].status == ProviderStatus.UNAVAILABLE
+    assert assessment.provider_results[1].status == ProviderStatus.SUCCESS
+    assert assessment.categories == ["brute_force"]
+    assert successful_provider.calls == ["8.8.8.8"]
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan"), True])
+def test_provider_timeout_configuration_must_be_finite_and_positive(timeout):
+    with pytest.raises(ValueError, match="finite positive"):
+        ThreatIntelligenceEnrichmentService(provider_timeout=timeout)
