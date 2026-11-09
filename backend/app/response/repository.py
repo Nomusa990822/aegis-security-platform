@@ -382,6 +382,7 @@ def save_response(
                 "approval_required": result.approval_required,
                 "executed": result.executed,
                 "simulated": result.simulated,
+                "reasons": list(result.reasons),
             },
             created_at=created_at,
         )
