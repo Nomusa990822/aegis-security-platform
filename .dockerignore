@@ -1,0 +1,14 @@
+.git
+.github
+.gitignore
+.env
+.env.*
+!.env.example
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/*.py[cod]
+**/aegis.db
+**/audit_checkpoints
+**/.coverage
+**/htmlcov
