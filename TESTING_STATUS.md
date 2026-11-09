@@ -446,7 +446,7 @@ Then run the complete backend suite:
 Implementation commit: `93e6374`.
 
 
-## Response transaction rollback on checkpoint-intent preparation failure — NOT RUN
+## Response transaction rollback on checkpoint-intent preparation failure — PASSED (owner-confirmed 2026-11-09)
 
 Two repository-level failure-injection tests now verify that failure while preparing the signed checkpoint intent rolls back the surrounding response lifecycle transaction:
 
@@ -467,7 +467,7 @@ Then run the complete backend suite:
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Do not mark this task complete until both the focused module and full backend suite pass.
+**Verification state: PASSED.** The project owner confirmed that both the focused response audit-integrity module and the complete backend test suite passed after pulling the implementation. Exact test counts were not provided and are not inferred.
 
 Implementation commit: `796ef5f`.
 
