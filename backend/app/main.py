@@ -1,4 +1,5 @@
 import ipaddress
+import sqlite3
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -169,6 +170,15 @@ def current_session(
 
 @app.get("/api/v1/health")
 def health():
+    try:
+        with get_connection() as connection:
+            connection.execute("SELECT 1").fetchone()
+    except sqlite3.Error as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Database unavailable",
+        ) from error
+
     return {
         "status": "healthy",
         "database": "connected",
