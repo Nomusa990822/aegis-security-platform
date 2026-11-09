@@ -244,7 +244,11 @@ def _write_committed_audit_checkpoint(connection, response_id: int) -> bool:
         return False
 
 
-def verify_response_audit_before_mutation(connection, response_id: int):
+def verify_response_audit_before_mutation(
+    connection,
+    response_id: int,
+    allow_pending_checkpoint_intent: bool = False,
+):
     """
     Verify all existing response evidence before a lifecycle mutation.
 
@@ -313,10 +317,36 @@ def verify_response_audit_before_mutation(connection, response_id: int):
             final_hash=head["final_hash"],
         )
         if not checkpoint["valid"]:
-            errors.extend(
-                f"Signed checkpoint validation: {error}"
-                for error in checkpoint["errors"]
-            )
+            pending_intent_valid = False
+
+            if allow_pending_checkpoint_intent:
+                intent_result = verify_checkpoint_intent(response_id)
+                intent = intent_result.get("intent")
+
+                if intent_result["valid"] and isinstance(intent, dict):
+                    previous_count = intent.get("previous_event_count")
+                    previous_hash = intent.get("previous_final_hash")
+
+                    pending_intent_valid = (
+                        intent.get("event_count") == head["event_count"]
+                        and intent.get("final_hash") == head["final_hash"]
+                    )
+
+                    if pending_intent_valid and previous_count == 0:
+                        pending_intent_valid = previous_hash == GENESIS_HASH
+                    elif pending_intent_valid:
+                        previous_checkpoint = verify_audit_checkpoint(
+                            response_id=response_id,
+                            event_count=previous_count,
+                            final_hash=previous_hash,
+                        )
+                        pending_intent_valid = previous_checkpoint["valid"]
+
+            if not pending_intent_valid:
+                errors.extend(
+                    f"Signed checkpoint validation: {error}"
+                    for error in checkpoint["errors"]
+                )
 
     return {
         "valid": not errors,
@@ -564,6 +594,10 @@ def simulate_response(
         integrity = verify_response_audit_before_mutation(
             connection,
             response_id,
+            allow_pending_checkpoint_intent=(
+                record["status"] == "simulated"
+                and bool(record["simulated"])
+            ),
         )
         if not integrity["valid"]:
             logging.error(
