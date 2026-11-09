@@ -420,7 +420,7 @@ Then run the complete backend suite:
 
 Implementation commits: `c7fdd04` (provider deadline), `3411ee3` (timeout isolation tests), `bab4122` (timeout validation edge cases), `52eb4b9` (cancellation and oversized-value tests), and `8540b98` (explicit pytest parameter IDs for Python 3.14 compatibility).
 
-## Response transaction rollback on audit-event append failure — NOT RUN
+## Response transaction rollback on audit-event append failure — PASSED (owner-confirmed 2026-11-09)
 
 Two repository-level failure-injection tests now verify that an audit append failure inside a response lifecycle transaction does not leave a partial state change:
 
@@ -441,7 +441,7 @@ Then run the complete backend suite:
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Do not mark this task complete until the project owner confirms both the focused module and full backend suite pass.
+**Verification state: PASSED.** The project owner confirmed that the focused integrity module and complete backend test suite passed after pulling the implementation. Exact test counts were not provided and are not inferred.
 
 Implementation commit: `93e6374`.
 
