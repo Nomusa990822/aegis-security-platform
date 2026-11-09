@@ -198,3 +198,20 @@ def test_alert_audit_identity_comes_from_authenticated_actor(
 
     assert timeline["actor"] == "analyst-alpha"
     assert audit["actor"] == "analyst-alpha"
+
+
+
+def test_approver_cannot_trigger_threat_intelligence_enrichment(
+    isolated_database,
+):
+    with TestClient(
+        app,
+        headers={"Authorization": f"Bearer {APPROVER_TOKEN}"},
+    ) as approver_client:
+        response = approver_client.post(
+            "/api/v1/intelligence/ip",
+            json={"ip_address": "8.8.8.8"},
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Analyst permissions are required."
