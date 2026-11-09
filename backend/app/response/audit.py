@@ -210,6 +210,12 @@ def validate_response_audit(
             if creation_details.get("reasons") != record.get("reasons"):
                 err("Creation event reasons do not match the response record.")
 
+        # Bind the execution mode to the original request when present.
+        # Historical creation events without this field remain compatible.
+        if "mode" in creation_details:
+            if creation_details.get("mode") != record.get("mode"):
+                err("Creation event mode does not match the response record.")
+
         # The creation event records the original request state.
         # Simulation happens later and must not alter this event.
         if creation_details.get("simulated") is not False:
