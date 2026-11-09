@@ -12,8 +12,6 @@ const API = {
     mitre: "/api/v1/mitre"
 };
 
-const DEMO_ANALYST = "analyst-01";
-
 const state = {
     alerts: [],
     events: [],
@@ -1676,7 +1674,6 @@ async function submitCaseNote(event) {
             {
                 method: "POST",
                 body: JSON.stringify({
-                    author: DEMO_ANALYST,
                     content
                 })
             }
@@ -1734,7 +1731,6 @@ async function updateCaseStatus() {
                 method: "PATCH",
                 body: JSON.stringify({
                     status,
-                    actor: DEMO_ANALYST,
                     details: "Case status updated through the AEGIS dashboard."
                 })
             }
@@ -1788,7 +1784,6 @@ async function updateCaseAssignment(assignedTo) {
                 method: "PATCH",
                 body: JSON.stringify({
                     assigned_to: assignedTo || null,
-                    actor: DEMO_ANALYST
                 })
             }
         );
