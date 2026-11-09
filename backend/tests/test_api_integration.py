@@ -244,7 +244,6 @@ def test_update_correlation_status(
         f"/api/v1/correlations/{seeded_correlation}/status",
         json={
             "status": "investigating",
-            "actor": "integration-analyst",
             "details": "Integration test status change"
         }
     )
@@ -279,7 +278,6 @@ def test_assign_correlation_case(
         f"/api/v1/correlations/{seeded_correlation}/assignment",
         json={
             "assigned_to": "integration-analyst",
-            "actor": "integration-analyst"
         }
     )
 
@@ -297,7 +295,6 @@ def test_add_correlation_note(
     response = client.post(
         f"/api/v1/correlations/{seeded_correlation}/notes",
         json={
-            "author": "integration-analyst",
             "content": "Integration test correlation note"
         }
     )
@@ -314,7 +311,6 @@ def test_whitespace_only_correlation_note_is_rejected(
     response = client.post(
         f"/api/v1/correlations/{seeded_correlation}/notes",
         json={
-            "author": "integration-analyst",
             "content": "     "
         }
     )
@@ -334,7 +330,6 @@ def test_correlation_activity_is_recorded(
         f"/api/v1/correlations/{seeded_correlation}/status",
         json={
             "status": "investigating",
-            "actor": "integration-analyst"
         }
     )
 
@@ -342,14 +337,12 @@ def test_correlation_activity_is_recorded(
         f"/api/v1/correlations/{seeded_correlation}/assignment",
         json={
             "assigned_to": "integration-analyst",
-            "actor": "integration-analyst"
         }
     )
 
     client.post(
         f"/api/v1/correlations/{seeded_correlation}/notes",
         json={
-            "author": "integration-analyst",
             "content": "Activity verification note"
         }
     )
