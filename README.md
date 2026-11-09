@@ -1,6 +1,12 @@
 <div align="center">
 
-# AEGIS Security Platform
+<p align="center">
+  <img
+    src="docs/assets/aegis-sentinel-glow.svg"
+    alt="AEGIS Security Platform — The Sentinel"
+    width="650"
+  />
+</p>
 
 ### Autonomous Threat Detection • Intelligence • Controlled Response
 
