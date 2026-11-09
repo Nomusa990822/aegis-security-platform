@@ -14,6 +14,7 @@ from app.response.repository import (
     get_response_record,
     save_response,
     simulate_response,
+    verify_response_audit_before_mutation,
 )
 
 
@@ -281,3 +282,82 @@ def test_concurrent_operations_preserve_audit_consistency(
 
     assert record["executed"] is False
     assert record["simulated"] is False
+
+def test_concurrent_approval_and_simulation_preserve_valid_lifecycle(
+    isolated_database,
+):
+    response_id = create_pending_response()
+
+    outcomes = run_concurrently(
+        lambda connection, operation, actor_id: (
+            decide_response(
+                connection=connection,
+                response_id=response_id,
+                actor_id=actor_id,
+                decision="approved",
+                reason="Concurrent approval/simulation test.",
+            )
+            if operation == "approve"
+            else simulate_response(
+                connection=connection,
+                response_id=response_id,
+                actor_id=actor_id,
+            )
+        ),
+        [
+            ("approve", "approver-gamma"),
+            ("simulate", "analyst-gamma"),
+        ],
+    )
+
+    approval_outcome, simulation_outcome = outcomes
+
+    assert approval_outcome == "updated"
+    assert simulation_outcome in {
+        "not_approved",
+        "audit_integrity_failure",
+        "simulated",
+    }
+
+    with database.get_connection() as connection:
+        record = get_response_record(
+            connection,
+            response_id,
+        )
+
+        connection.execute("BEGIN IMMEDIATE")
+        integrity = verify_response_audit_before_mutation(
+            connection,
+            response_id,
+        )
+        connection.rollback()
+
+    assert integrity["valid"] is True
+    assert record["executed"] is False
+
+    event_names = [
+        event["event"]
+        for event in record["audit_log"]
+    ]
+
+    assert event_names[:2] == [
+        "response_request_created",
+        "response_approved",
+    ]
+
+    if simulation_outcome == "simulated":
+        assert record["status"] == "simulated"
+        assert record["simulated"] is True
+        assert event_names == [
+            "response_request_created",
+            "response_approved",
+            "response_simulated",
+        ]
+    else:
+        assert record["status"] == "approved"
+        assert record["simulated"] is False
+        assert event_names == [
+            "response_request_created",
+            "response_approved",
+        ]
+
