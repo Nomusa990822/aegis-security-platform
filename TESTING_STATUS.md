@@ -1,4 +1,4 @@
-## Detection effectiveness and adversarial regression batch — IMPLEMENTED; VERIFICATION NOT RUN
+## Detection effectiveness and adversarial regression batch — PASSED (owner-confirmed 2026-11-09)
 
 This verification batch consolidates the existing detection-quality checks without changing detection thresholds or claiming production effectiveness:
 
@@ -29,7 +29,7 @@ printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Record as PASSED only after the focused detection/evaluation modules and complete backend suite pass.
+**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that all seven focused detection/adversarial/evaluation regression modules and the complete backend test suite passed. Exact pass counts were not supplied and are not inferred.
 
 ---
 
