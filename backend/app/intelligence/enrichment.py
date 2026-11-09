@@ -1,4 +1,6 @@
 
+import asyncio
+import math
 from datetime import datetime, timezone
 from ipaddress import ip_address, ip_network
 
@@ -75,7 +77,17 @@ class ThreatIntelligenceEnrichmentService:
         self,
         providers: list | None = None,
         scoring_engine: ThreatScoringEngine | None = None,
+        provider_timeout: float = 12.0,
     ):
+        if (
+            isinstance(provider_timeout, bool)
+            or not isinstance(provider_timeout, (int, float))
+            or not math.isfinite(provider_timeout)
+            or provider_timeout <= 0
+        ):
+            raise ValueError("provider_timeout must be a finite positive number.")
+
+        self.provider_timeout = float(provider_timeout)
         self.providers = (
             providers
             if providers is not None
@@ -119,7 +131,10 @@ class ThreatIntelligenceEnrichmentService:
             try:
                 # Use the common provider interface implemented by
                 # AbuseIPDBProvider and the test MockProvider.
-                result = await provider.check_ip(normalized_ip)
+                result = await asyncio.wait_for(
+                    provider.check_ip(normalized_ip),
+                    timeout=self.provider_timeout,
+                )
 
                 if not isinstance(result, ProviderResult):
                     raise TypeError(
@@ -127,6 +142,22 @@ class ThreatIntelligenceEnrichmentService:
                     )
 
                 provider_results.append(result)
+
+            except TimeoutError:
+                provider_results.append(
+                    ProviderResult(
+                        provider=getattr(
+                            provider,
+                            "PROVIDER_NAME",
+                            provider.__class__.__name__,
+                        ),
+                        status=ProviderStatus.UNAVAILABLE,
+                        error=(
+                            "Provider exceeded the configured "
+                            f"{self.provider_timeout:g}-second timeout."
+                        ),
+                    )
+                )
 
             except Exception as exc:
                 provider_results.append(
