@@ -756,9 +756,13 @@ def test_hash_chain_tampering_blocks_simulation_without_mutation(
             """
             UPDATE response_audit_log
             SET actor = ?
-            WHERE response_id = ?
-            ORDER BY id ASC
-            LIMIT 1
+            WHERE id = (
+                SELECT id
+                FROM response_audit_log
+                WHERE response_id = ?
+                ORDER BY id ASC
+                LIMIT 1
+            )
             """,
             ("tampered-actor", response_id),
         )
