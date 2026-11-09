@@ -70,6 +70,12 @@ def _verify_signed_intent_bytes(
             raise ValueError("Signed intent response ID does not match manifest.")
         if payload.get("intent_schema_version") != 1:
             raise ValueError("Unsupported signed intent schema version.")
+        if (
+            payload.get("event_count") != 1
+            or payload.get("previous_event_count") != 0
+            or payload.get("previous_final_hash") != "0" * 64
+        ):
+            raise ValueError("Quarantined intent is not an initial orphan intent.")
         key_id = payload.get("key_id")
         if not isinstance(key_id, str) or key_id not in keyring:
             raise ValueError("Signing key is unavailable for quarantined intent.")
@@ -222,6 +228,17 @@ def recover_quarantine_manifests(
             payload = manifest.get("intent_payload")
             if not isinstance(payload, dict):
                 raise ValueError("Manifest signed intent payload is missing.")
+            reason = manifest.get("reason")
+            if not isinstance(reason, str) or not reason.strip():
+                raise ValueError("Manifest operator reason is missing.")
+            database_snapshot = manifest.get("database_references_at_quarantine")
+            if not isinstance(database_snapshot, dict) or any(
+                database_snapshot.get(field) is not False
+                for field in ("record", "chain_head", "audit_events")
+            ):
+                raise ValueError("Manifest does not prove an unreferenced database state.")
+            if manifest.get("checkpoint_present_at_quarantine") is not False:
+                raise ValueError("Manifest does not prove checkpoint absence.")
 
             schema_version = manifest.get("manifest_schema_version")
             state = manifest.get("status")
@@ -230,6 +247,8 @@ def recover_quarantine_manifests(
                 state = "completed"
             elif schema_version != 2 or state not in {"prepared", "completed"}:
                 raise ValueError("Unsupported quarantine manifest schema or status.")
+            elif not isinstance(manifest.get("prepared_at"), str) or not manifest["prepared_at"].strip():
+                raise ValueError("Prepared manifest timestamp is missing.")
 
             evidence_exists = os.path.lexists(evidence_path)
             source_exists = os.path.lexists(source_path)
