@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.auth import get_current_actor
 
 from app.intelligence.mitre import MITREAttackMapper
 
@@ -6,6 +8,7 @@ from app.intelligence.mitre import MITREAttackMapper
 router = APIRouter(
     prefix="/api/v1/mitre",
     tags=["MITRE ATT&CK"],
+    dependencies=[Depends(get_current_actor)],
 )
 
 
