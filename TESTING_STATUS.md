@@ -1,4 +1,4 @@
-## Concurrent simulation checkpoint-publication race — RETEST REQUIRED
+## Concurrent simulation checkpoint-publication race — PASSED
 
 The full backend suite exposed a race in which a second simulation request observed the first request's committed simulated state while its signed checkpoint was still pending publication. The second request incorrectly returned `audit_integrity_failure` instead of the idempotent `already_simulated` result.
 
@@ -21,7 +21,7 @@ git pull --ff-only origin main
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: RETEST REQUIRED.** The prior full-suite run had 615 passed and one failure in `test_concurrent_simulation_runs_only_once`. The decision-field regression and response audit-integrity module both passed.
+**Verification state: PASSED.** Owner-confirmed: the concurrent response test module, response audit-integrity module, and complete backend test suite all passed after the checkpoint-publication race fix.
 
 ---
 
