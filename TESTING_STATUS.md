@@ -4,7 +4,16 @@ Last updated: 2026-11-09
 
 ## Current rule
 
-## Tampered signed checkpoint blocks simulation without mutation — NOT RUN
+## Tampered signed checkpoint blocks simulation without mutation — PASSED
+
+The project owner confirmed that all three verification runs passed:
+- Focused regression test: `test_tampered_checkpoint_blocks_simulation_without_mutation`.
+- Complete `test_response_audit_checkpoint_integration.py` module.
+- Complete backend test suite.
+
+The regression confirms that a tampered checkpoint signature blocks simulation, leaves the response approved and unexecuted, preserves the existing audit events, and does not silently rewrite the tampered checkpoint.
+
+**Status: OWNER-CONFIRMED PASSED.**
 
 A focused API regression test corrupts the signed checkpoint signature after a response has been approved, then attempts simulation. It verifies that the API fails closed, the response remains approved, neither simulated nor executed becomes true, the two existing audit events remain unchanged, and the tampered checkpoint is not silently rewritten.
 
