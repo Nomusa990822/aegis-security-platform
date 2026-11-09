@@ -112,7 +112,7 @@ def _load_audit_events(
 
         try:
             event["details"] = json.loads(event["details"])
-        except (json.JSONDecodeError, TypeError) as exc:
+        except (ValueError, json.JSONDecodeError, TypeError) as exc:
             errors.append(
                 f"Audit event {event.get('id')} has invalid JSON details: {exc}"
             )
