@@ -1,3 +1,25 @@
+## Strict API request contracts — NOT RUN
+
+This batch makes API request models reject unknown JSON properties instead of silently ignoring them. It covers event ingestion, alert mutations, response preview/decision requests, and IP intelligence requests. Correlation request models already enforce this policy. The IP intelligence request also has explicit length boundaries.
+
+Regression tests cover caller-supplied identity fields, unexpected properties, and malformed IP input.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+printf '\n========== STRICT API REQUEST-CONTRACT TESTS ==========\n'
+./.venv/bin/python -m pytest tests/test_api_input_hardening.py tests/test_security_input.py -v
+
+printf '\n========== COMPLETE BACKEND REGRESSION SUITE ==========\n'
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Mark passed only after both commands succeed.
+
+---
+
 ## API authentication and authorisation boundary — PASSED (owner-confirmed 2026-11-09)
 
 This consolidated security batch protects operational API routes, enforces analyst/approver role boundaries, removes caller-controlled actor identities from correlation mutations, attributes alert and correlation audit records to authenticated actors, and adds a dashboard bearer-token sign-in flow.
