@@ -90,6 +90,7 @@ A modular detection engine evaluates incoming telemetry against registered rules
 | `AEGIS-AUTH-002` | Password spraying |
 | `AEGIS-AUTH-003` | Distributed password guessing across source IPs |
 | `AEGIS-AUTH-004` | Successful authentication after repeated failures |
+| `AEGIS-AUTH-005` | Successful authentication to one account from multiple source IPs |
 | `AEGIS-NET-001` | Network port scanning |
 | `AEGIS-NET-002` | Horizontal network scanning |
 | `AEGIS-NET-003` | Broad network service discovery |
@@ -350,7 +351,7 @@ AEGIS focuses on a defined set of security operations workflows. It does not att
 | Authentication | Static environment-configured analyst and approver tokens |
 | MFA / OTP | Not implemented |
 | SSO / OAuth / OIDC / SAML | Not implemented |
-| Detection | Eight registered rules |
+| Detection | Nine registered rules |
 | MITRE ATT&CK | Curated nine-entry subset |
 | Telemetry collection | API-based event submission; no endpoint agent |
 | Packet inspection | Not implemented |
