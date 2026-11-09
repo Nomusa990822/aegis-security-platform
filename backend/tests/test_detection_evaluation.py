@@ -6,10 +6,10 @@ from app.evaluation.runner import (
 )
 
 
-def test_dataset_contains_nine_malicious_and_six_benign_scenarios():
+def test_dataset_contains_ten_malicious_and_seven_benign_scenarios():
     scenarios = build_scenarios()
 
-    assert len(scenarios) == 15
+    assert len(scenarios) == 17
 
     malicious = [
         scenario
@@ -23,8 +23,8 @@ def test_dataset_contains_nine_malicious_and_six_benign_scenarios():
         if scenario.category == "benign"
     ]
 
-    assert len(malicious) == 9
-    assert len(benign) == 6
+    assert len(malicious) == 10
+    assert len(benign) == 7
 
 
 def test_each_malicious_scenario_has_one_expected_rule():
@@ -46,6 +46,7 @@ def test_each_malicious_scenario_has_one_expected_rule():
         "AEGIS-AUTH-003",
         "AEGIS-AUTH-004",
         "AEGIS-AUTH-005",
+        "AEGIS-NET-005",
     }
 
     actual_rules = {
@@ -114,20 +115,20 @@ def test_metric_calculation_handles_zero_division():
 def test_full_detection_evaluation():
     report = evaluate_dataset()
 
-    assert report["evaluation"]["scenario_count"] == 15
-    assert report["evaluation"]["malicious_scenarios"] == 9
-    assert report["evaluation"]["benign_scenarios"] == 6
-    assert report["evaluation"]["detection_rules_evaluated"] == 9
+    assert report["evaluation"]["scenario_count"] == 17
+    assert report["evaluation"]["malicious_scenarios"] == 10
+    assert report["evaluation"]["benign_scenarios"] == 7
+    assert report["evaluation"]["detection_rules_evaluated"] == 10
 
-    assert len(report["scenario_results"]) == 15
-    assert len(report["rule_metrics"]) == 9
+    assert len(report["scenario_results"]) == 17
+    assert len(report["rule_metrics"]) == 10
 
     for rule_id, result in report["rule_metrics"].items():
         metrics = result["metrics"]
 
         assert metrics["true_positives"] == 1, rule_id
         assert metrics["false_positives"] == 0, rule_id
-        assert metrics["true_negatives"] == 14, rule_id
+        assert metrics["true_negatives"] == 16, rule_id
         assert metrics["false_negatives"] == 0, rule_id
 
         assert metrics["precision"] == 1.0, rule_id
@@ -148,7 +149,7 @@ def test_all_malicious_scenarios_trigger_their_expected_rule():
         if result["category"] == "malicious"
     ]
 
-    assert len(malicious_results) == 9
+    assert len(malicious_results) == 10
 
     for result in malicious_results:
         assert (
@@ -166,7 +167,7 @@ def test_benign_scenarios_do_not_trigger_detection_rules():
         if result["category"] == "benign"
     ]
 
-    assert len(benign_results) == 6
+    assert len(benign_results) == 7
 
     for result in benign_results:
         assert result["detected_rule_ids"] == [], (
