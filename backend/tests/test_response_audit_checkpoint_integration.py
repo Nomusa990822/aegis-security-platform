@@ -1206,3 +1206,68 @@ def test_signed_checkpoint_rejects_duplicate_json_keys(client):
         "duplicate json key" in error.lower()
         for error in result["errors"]
     )
+
+def test_duplicate_json_keys_in_audit_details_block_simulation(
+    client,
+):
+    response_id = create_pending_response(client)
+    approve_response(client, response_id)
+
+    with database.get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT id, details
+            FROM response_audit_log
+            WHERE response_id = ?
+            ORDER BY id ASC
+            LIMIT 1
+            """,
+            (response_id,),
+        ).fetchone()
+
+        original_details = row["details"]
+        duplicate_fragment = '"action":"block_ip"'
+        assert original_details.count(duplicate_fragment) == 1
+
+        ambiguous_details = original_details.replace(
+            duplicate_fragment,
+            '"action":"tampered","action":"block_ip"',
+            1,
+        )
+        connection.execute(
+            "UPDATE response_audit_log SET details = ? WHERE id = ?",
+            (ambiguous_details, row["id"]),
+        )
+        connection.commit()
+
+    simulation = client.post(
+        f"/api/v1/response/{response_id}/simulate",
+        headers=analyst_headers(),
+    )
+
+    assert simulation.status_code == 409
+    assert "audit evidence failed integrity verification" in (
+        simulation.json()["detail"].lower()
+    )
+
+    history = client.get(
+        f"/api/v1/response/history/{response_id}",
+        headers=analyst_headers(),
+    )
+    assert history.status_code == 200
+    assert history.json()["status"] == "approved"
+    assert history.json()["simulated"] is False
+    assert history.json()["executed"] is False
+    assert isinstance(history.json()["audit_log"][0]["details"], str)
+    assert "action":" in history.json()["audit_log"][0]["details"]
+
+    integrity = inspect_integrity(client, response_id)
+    assert integrity.status_code == 200
+    assert integrity.json()["valid"] is False
+    assert integrity.json()["chain_valid"] is False
+    assert integrity.json()["checkpoint_valid"] is True
+    assert any(
+        "invalid details" in error.lower()
+        or "hash does not match" in error.lower()
+        for error in integrity.json()["errors"]
+    )
