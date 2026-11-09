@@ -419,3 +419,29 @@ Then run the complete backend suite:
 **Verification state: PASSED.** The project owner confirmed that the focused intelligence tests and complete backend test suite passed after the pytest parameter-ID correction (`8540b98`). The exact pass count was not provided. No live AbuseIPDB requests were needed; the timeout tests use local asynchronous test providers.
 
 Implementation commits: `c7fdd04` (provider deadline), `3411ee3` (timeout isolation tests), `bab4122` (timeout validation edge cases), `52eb4b9` (cancellation and oversized-value tests), and `8540b98` (explicit pytest parameter IDs for Python 3.14 compatibility).
+
+## Response transaction rollback on audit-event append failure — NOT RUN
+
+Two repository-level failure-injection tests now verify that an audit append failure inside a response lifecycle transaction does not leave a partial state change:
+
+- `test_decision_rolls_back_when_audit_event_append_fails` — a failed approval audit append must leave the response pending, preserve the original audit events, and retain the original chain head.
+- `test_simulation_rolls_back_when_audit_event_append_fails` — a failed simulation audit append must leave the response approved and un-simulated, preserve the original audit events, and retain the original chain head.
+
+These tests inject a local exception at the audit append boundary. They do not contact external services and do not execute firewall, operating-system, or network actions.
+
+Run the focused integrity tests:
+
+```bash
+./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -v
+```
+
+Then run the complete backend suite:
+
+```bash
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Do not mark this task complete until the project owner confirms both the focused module and full backend suite pass.
+
+Implementation commit: `93e6374`.
+
