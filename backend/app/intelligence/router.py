@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.auth import get_analyst_actor, get_current_actor
+from app.auth import AuthenticatedActor, get_analyst_actor, get_current_actor
 
 from app.intelligence.enrichment import (
     ThreatIntelligenceEnrichmentService,
@@ -22,7 +22,7 @@ intelligence_repository = IntelligenceRepository()
 @router.post("/ip")
 async def enrich_ip(
     request: IPAddressRequest,
-    actor=Depends(get_analyst_actor),
+    actor: AuthenticatedActor = Depends(get_analyst_actor),
 ):
     """
     Enrich an IPv4 or IPv6 address with threat intelligence.
