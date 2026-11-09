@@ -7,6 +7,7 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Response
 from app.request_limits import RequestBodyLimitMiddleware
+from app.rate_limiting import APIRateLimitMiddleware
 
 from app.auth import AuthenticatedActor, get_analyst_actor, get_current_actor
 from fastapi.staticfiles import StaticFiles
@@ -41,6 +42,7 @@ app = FastAPI(
 )
 
 app.add_middleware(RequestBodyLimitMiddleware)
+app.add_middleware(APIRateLimitMiddleware)
 
 
 app.mount(
