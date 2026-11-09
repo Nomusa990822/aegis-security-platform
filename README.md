@@ -95,6 +95,7 @@ A modular detection engine evaluates incoming telemetry against registered rules
 | `AEGIS-NET-002` | Horizontal network scanning |
 | `AEGIS-NET-003` | Broad network service discovery |
 | `AEGIS-NET-004` | Suspicious network beaconing |
+| `AEGIS-NET-005` | Remote-service connection fan-out across common administration ports |
 
 Detection logic includes threshold and time-window handling, with adversarial and regression tests for boundary conditions, duplicate telemetry, noisy activity, and overlapping patterns.
 
@@ -125,12 +126,13 @@ Provider results depend on external service availability, configuration, and API
 
 Detection rules are associated with a curated MITRE ATT&CK catalogue.
 
-Current catalogue: **9 technique and sub-technique entries**, including:
+Current catalogue: **10 technique and sub-technique entries**, including:
 
 - T1110 — Brute Force
 - T1110.001 — Password Guessing
 - T1110.003 — Password Spraying
 - T1078 — Valid Accounts
+- T1021 — Remote Services
 - T1046 — Network Service Discovery
 - T1071 — Application Layer Protocol
 - T1071.001 — Web Protocols
@@ -351,7 +353,7 @@ AEGIS focuses on a defined set of security operations workflows. It does not att
 | Authentication | Static environment-configured analyst and approver tokens |
 | MFA / OTP | Not implemented |
 | SSO / OAuth / OIDC / SAML | Not implemented |
-| Detection | Nine registered rules |
+| Detection | Ten registered rules |
 | MITRE ATT&CK | Curated nine-entry subset |
 | Telemetry collection | API-based event submission; no endpoint agent |
 | Packet inspection | Not implemented |
