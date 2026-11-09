@@ -109,8 +109,8 @@ def test_parsed_nginx_event_is_accepted_by_existing_ingestion_api(client):
 def test_cli_dry_run_parses_file_without_api_credentials(tmp_path, monkeypatch, capsys):
     log_file = tmp_path / "auth.log"
     log_file.write_text(
-        "Nov  9 10:00:00 host sshd[123]: Failed password for admin from 203.0.113.5 port 54321 ssh2\\n"
-        "Nov  9 10:00:01 host sshd[123]: Connection closed by authenticating user admin 203.0.113.5 port 22 [preauth]\\n",
+        "Nov  9 10:00:00 host sshd[123]: Failed password for admin from 203.0.113.5 port 54321 ssh2\n"
+        "Nov  9 10:00:01 host sshd[123]: Connection closed by authenticating user admin 203.0.113.5 port 22 [preauth]\n",
         encoding="utf-8",
     )
     monkeypatch.delenv("AEGIS_ANALYST_TOKEN", raising=False)
