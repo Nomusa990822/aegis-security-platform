@@ -343,7 +343,9 @@ uvicorn app.main:app --reload
 From the `backend/` directory, configure an analyst token and preview a log before ingestion:
 
 ```bash
-export AEGIS_ANALYST_TOKEN="$AEGIS_ANALYST_TOKEN"
+read -rsp "AEGIS analyst token: " AEGIS_ANALYST_TOKEN
+export AEGIS_ANALYST_TOKEN
+printf '\\n'
 
 python -m app.telemetry.cli /path/to/auth.log --format sshd --dry-run
 python -m app.telemetry.cli /var/log/nginx/access.log --format nginx --dry-run
