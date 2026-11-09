@@ -1,3 +1,33 @@
+## API rate limiting — IMPLEMENTED; VERIFICATION NOT RUN
+
+The API now uses a process-local sliding-window limiter with these defaults:
+
+- General authenticated API traffic: 300 requests per client IP per 60 seconds.
+- `GET /api/v1/auth/me`: 20 requests per client IP per 60 seconds.
+- `POST /api/v1/events`: 120 requests per bearer-token SHA-256 fingerprint per 60 seconds; requests without a bearer token are grouped by client IP.
+- HTTP 429 responses include `Retry-After` and rate-limit headers.
+- The public health endpoint is excluded. Client identity is taken from the ASGI connection address; untrusted `X-Forwarded-For` headers are ignored.
+
+The limiter does not store raw bearer tokens. It is intentionally dependency-free and uses a thread lock for atomic updates within one Python process. It is **not a distributed limiter**: multiple workers or replicas maintain independent counters. A production multi-worker deployment should use a shared store such as Redis or an API gateway, and configure trusted proxies explicitly.
+
+New regression module: `backend/tests/test_api_rate_limiting.py`.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+printf '\\n========== API RATE-LIMITING REGRESSIONS ==========\\n'
+./.venv/bin/python -m pytest tests/test_api_rate_limiting.py tests/test_api_authorization.py -v
+
+printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Run the focused tests and complete backend suite, then report the result so this section can be marked PASSED.
+
+---
+
 ## HTTP request-body size limit — PASSED (owner-confirmed 2026-11-09)
 
 The API now applies a global 1 MiB request-body ceiling before route handlers run. The middleware rejects an oversized declared Content-Length without reading the body, and also enforces the same limit while buffering requests without a declared length (including chunked uploads). Invalid or conflicting Content-Length values receive HTTP 400. Requests at or below the limit continue through normal routing and validation.
