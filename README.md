@@ -400,12 +400,11 @@ Do not expose the development server directly to the public internet.
 
 ## Next Engineering Milestones
 
-The core detection, investigation, threat-intelligence, MITRE-context, and controlled-response workflows are implemented and covered by the current regression suite. Remaining work should focus on making the prototype easier to demonstrate and operate:
+The core detection, investigation, threat-intelligence, MITRE-context, controlled-response, and Linux SSH/Nginx telemetry-adapter workflows are implemented and covered by the current regression suite. Remaining work should focus on making the prototype easier to demonstrate and operate:
 
-1. Add a lightweight telemetry adapter that converts representative Linux or web-server logs into the existing event schema.
-2. Improve the dashboard's visibility into detection evidence, MITRE mappings, and unmapped findings.
-3. Prepare a reproducible demonstration deployment with persistent storage, managed secrets, backups, and explicit single-process constraints.
-4. Evaluate PostgreSQL and shared rate limiting only when moving beyond the local, single-process prototype.
+1. Improve the dashboard's visibility into detection evidence, MITRE mappings, and any unmapped detection rules.
+2. Prepare a reproducible demonstration deployment with persistent storage, managed secrets, backups, and explicit single-process constraints.
+3. Evaluate PostgreSQL and shared rate limiting only when moving beyond the local, single-process prototype.
 
 MFA and stronger identity management remain a separate security milestone. Large endpoint agents, malware sandboxes, full ATT&CK ingestion, unsupported machine-learning claims, and real automated containment remain outside the current low-cost prototype scope.
 
