@@ -1,3 +1,31 @@
+## Response decision-field tampering protection — NOT RUN
+
+The response lifecycle validator already cross-checks approver identity, decision reason, and decision timestamp against the approval/rejection audit event. This batch adds a consolidated database-tampering regression for those three fields and binds the original execution mode to the signed creation event.
+
+The regression covers:
+- `decided_by`: substituted approver identity.
+- `decision_reason`: altered approval rationale.
+- `decision_at`: altered decision timestamp.
+- `mode`: altered execution mode.
+
+Each case creates and approves a response, changes one persisted field, and attempts simulation. Simulation must fail closed; the altered value and original audit history must remain available for investigation, while the response stays approved, un-simulated, and unexecuted. Historical creation events without a mode field remain compatible.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -k tampered_response_decision_fields_block_simulation_without_mutation -v
+
+./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Do not mark this batch passed until all three commands complete successfully.
+
+---
+
 ## Response policy-reasons audit binding — PASSED
 
 New response creation events now include the original policy-reasons list in their signed audit details. Lifecycle validation compares the persisted response reasons with that creation-event copy. Historical creation events that predate this field remain readable and valid.
