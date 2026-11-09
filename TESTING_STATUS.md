@@ -1,12 +1,10 @@
 # AEGIS Test Status Register
 
-Last updated: 2026-11-08
+Last updated: 2026-11-09
 
 ## Current rule
 
-Tests are being prepared while the GitHub Codespace is being configured. **No test listed as deferred below has been run against the current commits.** Do not treat implementation or static review as a passing test result.
-
-When the Codespace is ready, pull `main` and run the command batch below.
+The Codespace test run on 2026-11-09 established the first verification baseline. The full suite is **not yet green**. See the exact results and corrective commits in the "First Codespace verification run" section below. Do not treat the initial run as a passing full-suite result.
 
 ## Deferred test batch supplied by the project owner
 
@@ -31,7 +29,36 @@ printf '\n========== COMPLETE BACKEND TEST SUITE ==========\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-Status: **NOT RUN — waiting for Codespace readiness.**
+Status: **RUN on 2026-11-09 — 36 passed, 1 failed in the targeted batch; see below.**
+
+
+## First Codespace verification run — 2026-11-09
+
+Environment:
+- Python 3.14.2
+- pytest 9.2.0
+- Pulled commit: `36d7c7d` (working tree was clean before pull).
+
+Observed results before corrective commits:
+- `test_response_audit_checkpoint_integration.py`: 22 passed.
+- `test_response_concurrency.py`: 2 passed, 1 failed.
+- `test_response_audit_integrity.py`: 12 passed.
+- Combined targeted audit batch: **36 passed, 1 failed** (37 collected).
+- `test_checkpoint_bootstrap.py`: 7 passed, 3 failed.
+- `test_checkpoint_key_usage.py`: **5 passed**.
+- `test_checkpoint_key_rotation.py`: **5 passed**.
+- Complete backend suite: **570 passed, 4 failed** (574 collected).
+- Warnings: Starlette TestClient/httpx deprecation; one pytest collection warning for helper class `TestProvider`.
+
+Failure analysis:
+1. `test_concurrent_simulation_runs_only_once` exposed an incorrect lifecycle rule: the validator required the simulation actor to equal the original requester. The simulation actor is the analyst who actually performs the operation; the audit event already records that actor and common validation requires it to be non-empty. The validator rule has been corrected in the audit module. This is a behaviour fix, not a test expectation change.
+2. Three quarantine tests accessed `AEGIS_AUDIT_CHECKPOINT_DIR` without requesting the `isolated_database` fixture. That fixture is responsible for setting the temporary database, test signing key, and per-test checkpoint directory. The three tests now request the fixture. This fixes test isolation; it does not require sourcing the user's real `.env`.
+
+Corrective commits:
+- Audit lifecycle correction: see the commit immediately preceding the test-fixture correction on `main`.
+- Quarantine test isolation correction: see the latest test-fixture commit on `main`.
+
+**Verification state after these commits: NOT YET RERUN.** The fixes are committed but are not considered verified until the affected tests and complete suite are rerun. Keep the full backend suite marked pending until then.
 
 ## Deferred test modules
 
