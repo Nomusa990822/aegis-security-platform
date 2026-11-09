@@ -130,6 +130,19 @@ def recover_quarantine_manifests(
     if checkpoint_directory != Path(configured_directory).resolve():
         raise ValueError("Quarantine recovery directory does not match configured directory.")
 
+    if response_ids is not None and (
+        not response_ids
+        or any(
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or value < 1
+            for value in response_ids
+        )
+    ):
+        raise ValueError("Selected response IDs must be positive integers.")
+    if apply and response_ids is None:
+        raise ValueError("Apply requires at least one explicit --response-id.")
+
     quarantine_directory = checkpoint_directory / "quarantine"
     if quarantine_directory.is_symlink():
         raise ValueError("Quarantine directory must not be a symbolic link.")
@@ -177,19 +190,6 @@ def recover_quarantine_manifests(
             })
         else:
             unrecognized.append(path.name)
-
-    if response_ids is not None and (
-        not response_ids
-        or any(
-            not isinstance(value, int)
-            or isinstance(value, bool)
-            or value < 1
-            for value in response_ids
-        )
-    ):
-        raise ValueError("Selected response IDs must be positive integers.")
-    if apply and response_ids is None:
-        raise ValueError("Apply requires at least one explicit --response-id.")
 
     selected = set(response_ids) if response_ids is not None else None
     results: list[dict[str, Any]] = []
@@ -352,6 +352,7 @@ def recover_quarantine_manifests(
                     item["recovered"] = True
         except (OSError, ValueError, TypeError, KeyError, RuntimeError) as exc:
             item["classification"] = "recovery_error_preserved"
+            item["recovery_eligible"] = False
             item["errors"].append(str(exc))
             errors.append({"response_id": response_id, "error": str(exc)})
 
