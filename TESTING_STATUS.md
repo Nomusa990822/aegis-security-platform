@@ -1060,3 +1060,33 @@ cd /workspaces/aegis-security-platform/backend
 ```
 
 **Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that all five focused regression modules and the complete backend test suite passed.
+
+
+## Multi-source successful authentication detection — NOT RUN
+
+New rule: `AEGIS-AUTH-005`.
+
+- Detects successful authentication to the same account from at least three distinct source IP addresses within 10 minutes.
+- Counts distinct source IPs rather than raw event rows.
+- Requires successful authentication events, the same username, valid source IP values, and valid received timestamps.
+- Maps to MITRE ATT&CK T1078 (Valid Accounts) as a low-confidence contextual candidate. Shared networks, VPNs, proxies, and legitimate account use can produce the same pattern; the alert is not proof of credential abuse.
+- Reuses the existing event pipeline, detector registry, alert persistence, and MITRE mapper. No new service or infrastructure.
+
+Focused regressions:
+
+```bash
+git pull --ff-only origin main
+cd /workspaces/aegis-security-platform/backend
+
+./.venv/bin/python -m pytest \
+    tests/test_multi_source_successful_auth.py \
+    tests/test_authentication_detection_expansion.py \
+    tests/test_detection_regression.py \
+    tests/test_mitre.py \
+    tests/test_detection_evaluation.py \
+    tests/test_adversarial_detection.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Awaiting owner execution of the focused modules and complete backend suite. Synthetic evaluation now contains nine malicious and six benign scenarios across nine registered rules; these synthetic results do not establish production detection effectiveness.
