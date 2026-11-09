@@ -580,6 +580,77 @@ def test_simulation_rolls_back_when_database_state_update_fails(
 
 
 @pytest.mark.parametrize(
+    "field,value",
+    [
+        ("action", "delete_file"),
+        ("target", "1.1.1.1"),
+        ("requested_by", "attacker-account"),
+        ("alert_id", None),
+    ],
+)
+def test_tampered_response_identity_fields_block_simulation_without_mutation(
+    isolated_database,
+    field,
+    value,
+):
+    response_id = create_response()
+    assert approve_response(response_id) == "updated"
+    before = get_record(response_id)
+
+    with database.get_connection() as connection:
+        if field == "alert_id":
+            cursor = connection.execute(
+                """
+                INSERT INTO security_alerts (
+                    title,
+                    severity,
+                    description,
+                    source_ip,
+                    detection_rule,
+                    created_at,
+                    status
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "Alternate Audit Integrity Test",
+                    "medium",
+                    "Alternate alert for foreign-key-safe tampering test",
+                    "1.1.1.1",
+                    "AEGIS-AUTH-002",
+                    "2026-11-06T10:05:00+00:00",
+                    "open",
+                ),
+            )
+            value = cursor.lastrowid
+
+        connection.execute(
+            f"UPDATE response_records SET {field} = ? WHERE id = ?",
+            (value, response_id),
+        )
+        connection.commit()
+
+    with database.get_connection() as connection:
+        outcome = simulate_response(
+            connection=connection,
+            response_id=response_id,
+            actor_id="analyst-alpha",
+        )
+
+    assert outcome == "audit_integrity_failure"
+
+    after = get_record(response_id)
+    assert after["status"] == "approved"
+    assert after["simulated"] is False
+    assert after["executed"] is False
+    assert after["audit_log"] == before["audit_log"]
+
+    integrity = validate_response_audit(after)
+    assert integrity["valid"] is False
+    assert integrity["errors"]
+
+
+@pytest.mark.parametrize(
     "stored_reasons",
     [
         '{"unexpected":"object"}',
