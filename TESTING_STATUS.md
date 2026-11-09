@@ -1095,3 +1095,34 @@ cd /workspaces/aegis-security-platform/backend
 ### Regression follow-up — stale detection-rule counts
 
 The first owner-run verification of this batch reported 81 focused tests passed and 2 failed; the full suite reported 674 passed and 2 failed. Both failures were stale assertions in `tests/test_detection_regression.py` that still expected eight registered rules and an API count of eight. The new detector, its focused tests, MITRE mapping, and synthetic evaluation passed. Updated the registry and API expectations to nine, including `AEGIS-AUTH-005`. **Verification follow-up: PASSED (owner-confirmed 2026-11-09).** The corrected focused batch and complete backend suite both passed.
+
+
+## Remote-service connection fan-out detection — NOT RUN
+
+New rule: `AEGIS-NET-005`.
+
+- Detects one source IP contacting at least five distinct destination hosts over configured remote-administration ports (22, 445, 3389, 5985, 5986) within five minutes.
+- Counts distinct destination hosts, so repeated connections to one host do not inflate the threshold.
+- Requires network-connection events with source IP, destination IP, a configured destination port, and a valid received timestamp.
+- Maps to MITRE ATT&CK T1021 (Remote Services) as a low-confidence contextual candidate. Port numbers alone do not confirm the actual service, successful access, or malicious intent. Authorised administration and scanning can produce similar patterns.
+- Reuses the existing ingestion, detector registry, alert persistence, and MITRE mapping pipeline.
+
+Focused regressions:
+
+```bash
+git pull --ff-only origin main
+cd /workspaces/aegis-security-platform/backend
+
+./.venv/bin/python -m pytest \
+    tests/test_remote_service_fanout.py \
+    tests/test_detection_regression.py \
+    tests/test_mitre.py \
+    tests/test_detection_evaluation.py \
+    tests/test_adversarial_detection.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+The synthetic evaluation dataset now contains ten malicious and seven benign scenarios across ten registered rules. These controlled scenarios are regression fixtures, not evidence of real-world detection effectiveness.
+
+**Verification state: NOT RUN.** Awaiting owner execution of the focused modules and complete backend suite.
