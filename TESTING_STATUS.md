@@ -1,4 +1,4 @@
-## Response identity-field tampering protection — RETEST REQUIRED
+## Response identity-field tampering protection — PASSED
 
 The response lifecycle validator cross-checks security-critical response-record fields against the original creation event and audit-event references:
 - `action` and `target` are compared with the creation event details.
@@ -21,7 +21,7 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: RETEST REQUIRED.** The first run exposed an ordering defect: an unsupported tampered action returned `unsupported_action` before audit integrity was checked. The simulation path has now been changed to verify the persisted response and audit evidence before state/action-specific early returns. Rerun all three commands below; mark passed only after all three pass.
+**Verification state: PASSED (owner-confirmed 2026-11-09).** The focused four-case identity-field regression, complete response audit-integrity module, and full backend test suite all passed after the integrity-check ordering fix. Confirmed that tampering with `action`, `target`, `requested_by`, or `alert_id` blocks simulation without changing the approved response or its audit history.
 
 ---
 
