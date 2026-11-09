@@ -4,7 +4,7 @@ The API now uses a process-local sliding-window limiter with these defaults:
 
 - General authenticated API traffic: 300 requests per client IP per 60 seconds.
 - `GET /api/v1/auth/me`: 20 requests per client IP per 60 seconds.
-- `POST /api/v1/events`: 120 requests per bearer-token SHA-256 fingerprint per 60 seconds; requests without a bearer token are grouped by client IP.
+- `POST /api/v1/events`: 120 requests per bearer-token SHA-256 fingerprint and 240 requests per client IP per 60 seconds. The additional IP ceiling prevents rotating tokens from bypassing the ingestion limit; requests without a bearer token are grouped by client IP.
 - HTTP 429 responses include `Retry-After` and rate-limit headers.
 - The public health endpoint is excluded. Client identity is taken from the ASGI connection address; untrusted `X-Forwarded-For` headers are ignored.
 
