@@ -330,6 +330,7 @@ async function loadRules() {
         );
 
         renderRules();
+        renderMitreMetrics();
 
     } catch (error) {
         setHTML(
