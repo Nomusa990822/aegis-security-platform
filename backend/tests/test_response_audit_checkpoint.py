@@ -842,3 +842,23 @@ def test_duplicate_nested_json_keys_are_rejected(
 
     with pytest.raises(ValueError, match="Duplicate JSON key"):
         load_checkpoint_configuration()
+
+def test_checkpoint_inventory_rejects_duplicate_metadata_keys(tmp_path):
+    from app.response.checkpoint_inventory import _read_checkpoint_metadata
+
+    checkpoint_path = tmp_path / "response_71.json"
+    checkpoint_path.write_text(
+        (
+            '{"payload":{"schema_version":2,'
+            '"key_id":"trusted-key","key_id":"attacker-key"},'
+            '"signature":"invalid"}'
+        ),
+        encoding="utf-8",
+    )
+
+    metadata = _read_checkpoint_metadata(checkpoint_path)
+
+    assert metadata["readable"] is False
+    assert metadata["schema_version"] is None
+    assert metadata["key_id"] is None
+    assert "duplicate json key" in metadata["error"].lower()
