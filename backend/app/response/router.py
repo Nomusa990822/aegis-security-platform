@@ -2,7 +2,7 @@
 import ipaddress
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.auth import (
     AuthenticatedActor,
@@ -36,6 +36,8 @@ response_engine = ResponseEngine()
 
 
 class ResponsePreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     alert_id: int = Field(gt=0)
     action: ResponseAction
     target: str = Field(min_length=1, max_length=45)
@@ -49,6 +51,8 @@ class ResponsePreviewRequest(BaseModel):
 
 
 class ResponseDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     reason: str = Field(default="", max_length=500)
 
     @field_validator("reason")
