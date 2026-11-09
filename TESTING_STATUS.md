@@ -1,3 +1,33 @@
+## API authentication and authorisation boundary — NOT RUN
+
+This consolidated security batch protects operational API routes, enforces analyst/approver role boundaries, removes caller-controlled actor identities from correlation mutations, attributes alert and correlation audit records to authenticated actors, and adds a dashboard bearer-token sign-in flow.
+
+Coverage includes:
+- Unauthenticated access to event, alert, detection-rule, correlation, MITRE, intelligence, and response-history APIs.
+- Invalid bearer credentials and public health endpoint behaviour.
+- Server-derived authenticated identity.
+- Approver read access and denial of analyst-only alert mutations.
+- Analyst denial for approver-only response audit inspection.
+- Rejection of caller-supplied correlation actor/author fields.
+- Authenticated identity attribution in alert and correlation audit history.
+- Dashboard token submission, browser-session-only storage, and sign-out.
+
+Protected API routes require the configured `AEGIS_ANALYST_TOKEN` or `AEGIS_APPROVER_TOKEN`. Both tokens must be distinct and at least 32 characters. The dashboard accepts either token; analyst-only actions require an analyst token, while approval and audit-integrity inspection require an approver token. The health endpoint and dashboard static assets remain public; operational data APIs do not.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+./.venv/bin/python -m pytest tests/test_api_authorization.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Do not mark this batch passed until both commands complete successfully.
+
+---
+
 ## Concurrent simulation checkpoint-publication race — PASSED
 
 The full backend suite exposed a race in which a second simulation request observed the first request's committed simulated state while its signed checkpoint was still pending publication. The second request incorrectly returned `audit_integrity_failure` instead of the idempotent `already_simulated` result.
