@@ -86,3 +86,18 @@ def test_health_endpoint_returns_service_unavailable_when_database_fails(
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Database unavailable"
+
+
+
+def test_database_path_parent_directory_is_created(tmp_path, monkeypatch):
+    database_path = tmp_path / "persistent" / "nested" / "aegis.db"
+
+    monkeypatch.setattr(
+        "app.database.DATABASE_PATH",
+        database_path,
+    )
+
+    with get_connection() as connection:
+        assert connection.execute("SELECT 1").fetchone()[0] == 1
+
+    assert database_path.is_file()
