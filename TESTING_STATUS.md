@@ -1,32 +1,14 @@
-## API authentication and authorisation boundary — NOT RUN
+## API authentication and authorisation boundary — PASSED (owner-confirmed 2026-11-09)
 
 This consolidated security batch protects operational API routes, enforces analyst/approver role boundaries, removes caller-controlled actor identities from correlation mutations, attributes alert and correlation audit records to authenticated actors, and adds a dashboard bearer-token sign-in flow.
 
-Coverage includes:
-- Unauthenticated access to event, alert, detection-rule, correlation, MITRE, intelligence, and response-history APIs.
-- Invalid bearer credentials and public health endpoint behaviour.
-- Server-derived authenticated identity.
-- Approver read access and denial of analyst-only alert mutations.
-- Analyst denial for approver-only response audit inspection.
-- Rejection of caller-supplied correlation actor/author fields.
-- Authenticated identity attribution in alert and correlation audit history.
-- Dashboard token submission, browser-session-only storage, and sign-out.
+Verification completed:
+- All 17 tests in `tests/test_api_authorization.py` passed.
+- The complete backend regression suite passed after the legacy correlation integration tests were updated to rely on the authenticated server-derived actor.
+- Coverage includes unauthenticated and invalid-token rejection, public health behaviour, authenticated identity, analyst/approver permissions, caller-supplied actor/author rejection, and audit attribution.
+- The dashboard sends the bearer token from browser session storage and supports sign-out.
 
-Protected API routes require the configured `AEGIS_ANALYST_TOKEN` or `AEGIS_APPROVER_TOKEN`. Both tokens must be distinct and at least 32 characters. The dashboard accepts either token; analyst-only actions require an analyst token, while approval and audit-integrity inspection require an approver token. The health endpoint and dashboard static assets remain public; operational data APIs do not.
-
-Run from the Codespaces backend directory:
-
-```bash
-git pull --ff-only origin main
-
-./.venv/bin/python -m pytest tests/test_api_authorization.py -v
-
-./.venv/bin/python -m pytest -q
-```
-
-The first owner-run verification produced 17/17 passing authentication tests and 630 passing tests in the full suite, with four failures in legacy correlation integration tests. Those older tests still supplied caller-controlled `actor`/`author` fields, which the new request models correctly reject. `backend/tests/test_api_integration.py` has now been updated to omit those fields and rely on the authenticated analyst identity. The correction is committed but has not yet been rerun.
-
-**Verification state: NOT RUN.** Do not mark this batch passed until both commands complete successfully.
+**Verification state: PASSED.** Owner-confirmed on 2026-11-09. The full-suite run completed with all tests passing after the correlation integration-test compatibility correction.
 
 ---
 
