@@ -1,15 +1,17 @@
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field, field_validator
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.auth import AuthenticatedActor, get_analyst_actor, get_current_actor
 from app.database import get_connection
 
 
 router = APIRouter(
     prefix="/api/v1/correlations",
-    tags=["Correlation Management"]
+    tags=["Correlation Management"],
+    dependencies=[Depends(get_current_actor)],
 )
 
 
@@ -18,32 +20,30 @@ router = APIRouter(
 # --------------------------------------------------
 
 class CorrelationStatusUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     status: Literal["open", "investigating", "resolved"]
-    actor: str = Field(default="analyst", min_length=1, max_length=100)
     details: Optional[str] = Field(default=None, max_length=2000)
 
 
 class CorrelationAssignment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     assigned_to: Optional[str] = Field(
         default=None,
         max_length=100
     )
-    actor: str = Field(default="analyst", min_length=1, max_length=100)
 
 
 class CorrelationNoteCreate(BaseModel):
-    author: str = Field(
-        default="analyst",
-        min_length=1,
-        max_length=100
-    )
+    model_config = ConfigDict(extra="forbid")
 
     content: str = Field(
         min_length=1,
         max_length=10000
     )
 
-    @field_validator("author", "content")
+    @field_validator("content")
     @classmethod
     def reject_blank_values(cls, value):
         if not value.strip():
@@ -257,7 +257,8 @@ def get_correlation(correlation_id: int):
 @router.patch("/{correlation_id}/status")
 def update_correlation_status(
     correlation_id: int,
-    payload: CorrelationStatusUpdate
+    payload: CorrelationStatusUpdate,
+    actor: AuthenticatedActor = Depends(get_analyst_actor),
 ):
 
     with get_connection() as connection:
@@ -297,7 +298,7 @@ def update_correlation_status(
             correlation_id,
             "status_changed",
             f"Case status changed from {previous_status} to {payload.status}",
-            payload.actor,
+            actor.actor_id,
             payload.details,
             previous_status,
             payload.status
@@ -320,7 +321,8 @@ def update_correlation_status(
 @router.patch("/{correlation_id}/assignment")
 def assign_correlation_case(
     correlation_id: int,
-    payload: CorrelationAssignment
+    payload: CorrelationAssignment,
+    actor: AuthenticatedActor = Depends(get_analyst_actor),
 ):
 
     with get_connection() as connection:
@@ -369,7 +371,7 @@ def assign_correlation_case(
                 if new_assignment
                 else "Case assignment removed"
             ),
-            payload.actor,
+            actor.actor_id,
             previous_value=previous_assignment,
             new_value=new_assignment
         )
@@ -391,7 +393,8 @@ def assign_correlation_case(
 @router.post("/{correlation_id}/notes")
 def add_correlation_note(
     correlation_id: int,
-    payload: CorrelationNoteCreate
+    payload: CorrelationNoteCreate,
+    actor: AuthenticatedActor = Depends(get_analyst_actor),
 ):
 
     with get_connection() as connection:
@@ -415,7 +418,7 @@ def add_correlation_note(
             """,
             (
                 correlation_id,
-                payload.author,
+                actor.actor_id,
                 payload.content.strip(),
                 timestamp
             )
@@ -428,7 +431,7 @@ def add_correlation_note(
             correlation_id,
             "note_added",
             "Investigation note added",
-            payload.author,
+            actor.actor_id,
             payload.content.strip()
         )
 
