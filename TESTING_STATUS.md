@@ -1,4 +1,4 @@
-## Threat-intelligence enrichment authorization boundary — IMPLEMENTED; VERIFICATION NOT RUN
+## Threat-intelligence enrichment authorization boundary — PASSED (owner-confirmed 2026-11-09)
 
 The API-wide authentication dependency remains in place for the threat-intelligence router. The resource-intensive `POST /api/v1/intelligence/ip` operation now additionally requires the analyst role, preventing an approver-only account from initiating provider lookups and persistence.
 
@@ -16,7 +16,7 @@ printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Do not mark this boundary passed until the focused authorization/intelligence tests and complete backend suite pass.
+**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that the focused API authorization and intelligence tests, plus the complete backend regression suite, all passed.
 
 Implementation commits: `9c4e87b` (require analyst role) and `55bcc98` (add approver-denial regression).
 
