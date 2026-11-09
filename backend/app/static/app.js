@@ -101,6 +101,11 @@ async function fetchJSON(url, options = {}) {
             ...(options.body
                 ? { "Content-Type": "application/json" }
                 : {}),
+            ...(sessionStorage.getItem("aegis_access_token")
+                ? {
+                    "Authorization": `Bearer ${sessionStorage.getItem("aegis_access_token")}`
+                }
+                : {}),
             ...options.headers
         }
     });
@@ -2591,8 +2596,64 @@ $("mitre-tactic-filter")?.addEventListener(
    INITIALISE DASHBOARD
 ========================================================= */
 
-refreshDashboard();
+async function startDashboardSession(token) {
+    const gate = $("auth-gate");
+    const error = $("auth-error");
+
+    if (!token) {
+        if (gate) gate.hidden = false;
+        return;
+    }
+
+    sessionStorage.setItem("aegis_access_token", token);
+
+    try {
+        const session = await fetchJSON("/api/v1/auth/me");
+
+        if (gate) gate.hidden = true;
+        if ($("auth-identity")) {
+            $("auth-identity").textContent =
+                `${session.actor_id} · ${session.role}`;
+        }
+
+        await refreshDashboard();
+    } catch (requestError) {
+        sessionStorage.removeItem("aegis_access_token");
+        if (gate) gate.hidden = false;
+        if (error) {
+            error.textContent =
+                "Authentication failed. Check the token and try again.";
+        }
+    }
+}
+
+$("auth-form")?.addEventListener("submit", async event => {
+    event.preventDefault();
+
+    const token = $("auth-token")?.value.trim();
+
+    if (!token) {
+        if ($("auth-error")) {
+            $("auth-error").textContent = "Enter an access token.";
+        }
+        return;
+    }
+
+    if ($("auth-error")) $("auth-error").textContent = "";
+    await startDashboardSession(token);
+});
+
+$("logout-button")?.addEventListener("click", () => {
+    sessionStorage.removeItem("aegis_access_token");
+    window.location.reload();
+});
+
+startDashboardSession(
+    sessionStorage.getItem("aegis_access_token")
+);
 
 window.setInterval(() => {
-    refreshDashboard();
+    if (sessionStorage.getItem("aegis_access_token")) {
+        refreshDashboard();
+    }
 }, 15000);
