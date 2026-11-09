@@ -172,6 +172,19 @@ def recover_quarantine_manifests(
         else:
             unrecognized.append(path.name)
 
+    if response_ids is not None and (
+        not response_ids
+        or any(
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or value < 1
+            for value in response_ids
+        )
+    ):
+        raise ValueError("Selected response IDs must be positive integers.")
+    if apply and response_ids is None:
+        raise ValueError("Apply requires at least one explicit --response-id.")
+
     selected = set(response_ids) if response_ids is not None else None
     results: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
@@ -278,6 +291,8 @@ def recover_quarantine_manifests(
                 with checkpoint_lock(checkpoint_directory, response_id):
                     # Re-read all state while holding the same per-response lock.
                     current_manifest = _read_json_object(manifest_path)
+                    if current_manifest != manifest:
+                        raise ValueError("Manifest changed after inspection; refusing recovery.")
                     current_source_exists = os.path.lexists(source_path)
                     current_evidence_exists = os.path.lexists(evidence_path)
                     if source_path.is_symlink() or evidence_path.is_symlink():
