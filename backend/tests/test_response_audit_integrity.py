@@ -12,6 +12,7 @@ from app.response.models import (
 )
 from app.response.repository import (
     decide_response,
+    get_response_history,
     get_response_record,
     save_response,
     simulate_response,
@@ -576,4 +577,47 @@ def test_simulation_rolls_back_when_database_state_update_fails(
 
     assert head["event_count"] == 2
     assert head["final_hash"] == before["audit_log"][-1]["event_hash"]
+
+@pytest.mark.parametrize(
+    "stored_reasons",
+    [
+        '{"unexpected":"object"}',
+        '"unexpected scalar"',
+        'not-json',
+    ],
+)
+def test_invalid_persisted_response_reasons_block_simulation_and_remain_inspectable(
+    isolated_database,
+    stored_reasons,
+):
+    response_id = create_response()
+    assert approve_response(response_id) == "updated"
+
+    with database.get_connection() as connection:
+        connection.execute(
+            "UPDATE response_records SET reasons = ? WHERE id = ?",
+            (stored_reasons, response_id),
+        )
+        connection.commit()
+
+    with database.get_connection() as connection:
+        outcome = simulate_response(
+            connection=connection,
+            response_id=response_id,
+            actor_id="analyst-alpha",
+        )
+
+    assert outcome == "audit_integrity_failure"
+
+    record = get_record(response_id)
+    assert record["reasons"] == stored_reasons
+    assert record["status"] == "approved"
+    assert record["simulated"] is False
+    assert record["executed"] is False
+
+    with database.get_connection() as connection:
+        history = get_response_history(connection)
+
+    matching = next(item for item in history if item["id"] == response_id)
+    assert matching["reasons"] == stored_reasons
 
