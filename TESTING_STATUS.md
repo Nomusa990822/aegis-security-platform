@@ -25,7 +25,7 @@ git pull --ff-only origin main
 
 ---
 
-## Response decision-field tampering protection — NOT RUN
+## Response decision-field tampering protection — PASSED
 
 The response lifecycle validator already cross-checks approver identity, decision reason, and decision timestamp against the approval/rejection audit event. This batch adds a consolidated database-tampering regression for those three fields and binds the original execution mode to the signed creation event.
 
@@ -49,7 +49,7 @@ git pull --ff-only origin main
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Do not mark this batch passed until all three commands complete successfully.
+**Verification state: PASSED.** Owner-confirmed: all four decision-field tampering cases, the complete response audit-integrity module, and the full backend test suite passed after the concurrent checkpoint-publication race fix.
 
 ---
 
