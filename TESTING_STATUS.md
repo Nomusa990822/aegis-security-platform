@@ -43,7 +43,7 @@ This verification batch consolidates the existing detection-quality checks witho
 - Evaluation metric integrity and duplicate-telemetry regressions.
 - Malformed detection timestamp handling.
 
-The current synthetic benchmark contains 12 scenarios (6 malicious and 6 benign) across 6 detection rules. A perfect score on this small synthetic dataset is not evidence of real-world detection performance; the benchmark's stated limitations remain applicable.
+The current synthetic benchmark contains 17 scenarios (10 malicious and 7 benign) across 10 registered detection rules. These controlled scenarios are regression fixtures, not evidence of real-world detection performance; the benchmark's stated limitations remain applicable.
 
 Run from the Codespaces backend directory:
 
