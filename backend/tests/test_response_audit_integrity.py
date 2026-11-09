@@ -465,3 +465,115 @@ def test_simulation_rolls_back_when_checkpoint_intent_preparation_fails(
     assert head["event_count"] == 2
     assert head["final_hash"] == before["audit_log"][-1]["event_hash"]
 
+
+def test_decision_rolls_back_when_database_state_update_fails(
+    isolated_database,
+):
+    import sqlite3
+
+    response_id = create_response()
+    before = get_record(response_id)
+
+    with database.get_connection() as connection:
+        connection.execute(
+            """
+            CREATE TRIGGER reject_response_approval
+            BEFORE UPDATE ON response_records
+            WHEN OLD.id = NEW.id
+             AND NEW.status = 'approved'
+            BEGIN
+                SELECT RAISE(ABORT, 'Simulated response state update failure.');
+            END
+            """
+        )
+        connection.commit()
+
+    with pytest.raises(
+        sqlite3.IntegrityError,
+        match="Simulated response state update failure",
+    ):
+        with database.get_connection() as connection:
+            decide_response(
+                connection=connection,
+                response_id=response_id,
+                actor_id="approver-beta",
+                decision="approved",
+                reason="Must roll back if the database rejects the update.",
+            )
+
+    after = get_record(response_id)
+
+    assert after["status"] == "pending_approval"
+    assert after["decided_by"] is None
+    assert after["decision_at"] is None
+    assert after["decision_reason"] is None
+    assert after["audit_log"] == before["audit_log"]
+
+    with database.get_connection() as connection:
+        head = connection.execute(
+            """
+            SELECT event_count, final_hash
+            FROM response_audit_chain_heads
+            WHERE response_id = ?
+            """,
+            (response_id,),
+        ).fetchone()
+
+    assert head["event_count"] == 1
+    assert head["final_hash"] == before["audit_log"][-1]["event_hash"]
+
+
+def test_simulation_rolls_back_when_database_state_update_fails(
+    isolated_database,
+):
+    import sqlite3
+
+    response_id = create_response()
+    assert approve_response(response_id) == "updated"
+    before = get_record(response_id)
+
+    with database.get_connection() as connection:
+        connection.execute(
+            """
+            CREATE TRIGGER reject_response_simulation
+            BEFORE UPDATE ON response_records
+            WHEN OLD.id = NEW.id
+             AND NEW.status = 'simulated'
+            BEGIN
+                SELECT RAISE(ABORT, 'Simulated response state update failure.');
+            END
+            """
+        )
+        connection.commit()
+
+    with pytest.raises(
+        sqlite3.IntegrityError,
+        match="Simulated response state update failure",
+    ):
+        with database.get_connection() as connection:
+            simulate_response(
+                connection=connection,
+                response_id=response_id,
+                actor_id="analyst-alpha",
+            )
+
+    after = get_record(response_id)
+
+    assert after["status"] == "approved"
+    assert after["simulated"] is False
+    assert after["executed"] is False
+    assert after["audit_log"] == before["audit_log"]
+
+    with database.get_connection() as connection:
+        head = connection.execute(
+            """
+            SELECT event_count, final_hash
+            FROM response_audit_chain_heads
+            WHERE response_id = ?
+            """,
+            (response_id,),
+        ).fetchone()
+
+    assert head["event_count"] == 2
+    assert head["final_hash"] == before["audit_log"][-1]["event_hash"]
+
