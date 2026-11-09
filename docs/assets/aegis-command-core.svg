@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 760 280"
+     role="img"
+     aria-labelledby="title desc">
+  <title id="title">AEGIS — Command Core</title>
+  <desc id="desc">
+    An abstract geometric security platform symbol.
+    Four coordinated paths converge at a central blue node,
+    with an architectural A suggested by the outer structure.
+  </desc>
+
+  <!-- Symbol -->
+  <g transform="translate(30 15)"
+     fill="none"
+     stroke-linecap="square"
+     stroke-linejoin="miter">
+
+    <!-- Architectural outer structure -->
+    <path d="M34 207 L127 25 L220 207"
+          stroke="#E8EEF5"
+          stroke-width="11"/>
+
+    <!-- Inner structural bridge -->
+    <path d="M76 124 H178"
+          stroke="#91A0B2"
+          stroke-width="7"/>
+
+    <!-- Four coordinated paths -->
+    <path d="M127 25 V94"
+          stroke="#91A0B2"
+          stroke-width="4"/>
+
+    <path d="M76 124 L111 145"
+          stroke="#91A0B2"
+          stroke-width="4"/>
+
+    <path d="M178 124 L143 145"
+          stroke="#91A0B2"
+          stroke-width="4"/>
+
+    <path d="M127 207 V166"
+          stroke="#91A0B2"
+          stroke-width="4"/>
+    
+    <!-- Central intelligence node -->
+    <circle cx="127" cy="151" r="17"
+            fill="#0B0F14"
+            stroke="#2F80FF"
+            stroke-width="5"/>
+
+    <circle cx="127" cy="151" r="5"
+            fill="#E8EEF5"
+            stroke="none"/>
+
+    <!-- Restrained protective arc -->
+    <path d="M22 173
+             A119 119 0 0 1 232 173"
+          stroke="#2F80FF"
+          stroke-width="3.5"
+          stroke-linecap="round"
+          stroke-dasharray="105 34 105 100"/>
+
+    <!-- Structural terminal details -->
+    <path d="M34 207 H54 M200 207 H220"
+          stroke="#91A0B2"
+          stroke-width="5"/>
+  </g>
+
+  <!-- Wordmark -->
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="290" y="133"
+          fill="#E8EEF5"
+          font-size="76"
+          font-weight="700"
+          letter-spacing="8">
+      AEGIS
+    </text>
+
+    <path d="M293 153 H650"
+          stroke="#1C2836"
+          stroke-width="2"/>
+
+    <text x="294" y="181"
+          fill="#91A0B2"
+          font-size="14"
+          font-weight="500"
+          letter-spacing="3.5">
+      AUTONOMOUS SECURITY PLATFORM
+    </text>
+  </g>
+</svg>
