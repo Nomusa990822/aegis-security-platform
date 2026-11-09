@@ -204,7 +204,10 @@ def verify_audit_checkpoint(
         path = checkpoint_path(directory, response_id)
 
         with path.open("r", encoding="utf-8") as checkpoint_file:
-            document = json.load(checkpoint_file)
+            document = json.load(
+                checkpoint_file,
+                object_pairs_hook=reject_duplicate_json_keys,
+            )
 
         if not isinstance(document, dict):
             raise ValueError("Checkpoint document must be a JSON object.")
