@@ -1259,7 +1259,7 @@ def test_duplicate_json_keys_in_audit_details_block_simulation(
     assert history.json()["simulated"] is False
     assert history.json()["executed"] is False
     assert isinstance(history.json()["audit_log"][0]["details"], str)
-    assert "action":" in history.json()["audit_log"][0]["details"]
+    assert '"action":"tampered","action":"block_ip"' in history.json()["audit_log"][0]["details"]
 
     integrity = inspect_integrity(client, response_id)
     assert integrity.status_code == 200
