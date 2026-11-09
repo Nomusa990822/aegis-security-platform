@@ -34,8 +34,11 @@ class ProviderStatus(str, Enum):
 
 
 class IPAddressRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     ip_address: str = Field(
-        ...,
+        min_length=1,
+        max_length=45,
         description="IPv4 or IPv6 address to investigate",
         examples=["8.8.8.8"],
     )
