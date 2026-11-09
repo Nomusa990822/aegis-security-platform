@@ -79,12 +79,17 @@ class ThreatIntelligenceEnrichmentService:
         scoring_engine: ThreatScoringEngine | None = None,
         provider_timeout: float = 12.0,
     ):
-        if (
-            isinstance(provider_timeout, bool)
-            or not isinstance(provider_timeout, (int, float))
-            or not math.isfinite(provider_timeout)
-            or provider_timeout <= 0
-        ):
+        try:
+            valid_timeout = (
+                not isinstance(provider_timeout, bool)
+                and isinstance(provider_timeout, (int, float))
+                and math.isfinite(provider_timeout)
+                and provider_timeout > 0
+            )
+        except (OverflowError, TypeError, ValueError):
+            valid_timeout = False
+
+        if not valid_timeout:
             raise ValueError("provider_timeout must be a finite positive number.")
 
         self.provider_timeout = float(provider_timeout)
