@@ -657,3 +657,86 @@ def test_quarantine_recovery_apply_requires_explicit_response_id(isolated_databa
                 directory,
                 apply=True,
             )
+
+
+
+def test_quarantine_writer_interruption_after_move_is_recoverable(
+    isolated_database,
+    monkeypatch,
+):
+    import hashlib
+
+    from app.response import checkpoint_intent_quarantine
+    from app.response.checkpoint_intent import (
+        checkpoint_intent_path,
+        write_checkpoint_intent,
+    )
+    from app.response.checkpoint_quarantine_recovery import recover_quarantine_manifests
+
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    with _read_only_connection() as connection:
+        maximum = connection.execute(
+            "SELECT COALESCE(MAX(id), 0) FROM response_records"
+        ).fetchone()[0]
+    response_id = maximum + 80000
+    write_checkpoint_intent(
+        response_id=response_id,
+        event_count=1,
+        final_hash="9" * 64,
+        previous_event_count=0,
+        previous_final_hash="0" * 64,
+    )
+    source = checkpoint_intent_path(directory, response_id)
+    original = source.read_bytes()
+    digest = hashlib.sha256(original).hexdigest()
+    original_writer = checkpoint_intent_quarantine._write_manifest
+    calls = 0
+
+    def interrupt_completion(path, manifest):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("Simulated crash before completed-manifest publication.")
+        return original_writer(path, manifest)
+
+    monkeypatch.setattr(
+        checkpoint_intent_quarantine,
+        "_write_manifest",
+        interrupt_completion,
+    )
+    with _read_only_connection() as connection:
+        interrupted = checkpoint_intent_quarantine.quarantine_stale_checkpoint_intents(
+            connection,
+            directory,
+            apply=True,
+            response_ids={response_id},
+            reason="Exercise recovery after evidence move.",
+        )
+
+    assert interrupted["quarantined_response_ids"] == []
+    assert interrupted["errors"]
+    assert not source.exists()
+
+    quarantine = directory / "quarantine"
+    evidence = quarantine / f"response_{response_id}_{digest}.pending.json"
+    manifest_path = quarantine / f"response_{response_id}_{digest}.manifest.json"
+    assert evidence.read_bytes() == original
+    assert json.loads(manifest_path.read_text())["status"] == "prepared"
+
+    monkeypatch.setattr(
+        checkpoint_intent_quarantine,
+        "_write_manifest",
+        original_writer,
+    )
+    with _read_only_connection() as connection:
+        recovered = recover_quarantine_manifests(
+            connection,
+            directory,
+            apply=True,
+            response_ids={response_id},
+        )
+
+    result = next(item for item in recovered["manifest_results"] if item["response_id"] == response_id)
+    assert result["recovered"] is True
+    assert json.loads(manifest_path.read_text())["status"] == "completed"
+    assert evidence.read_bytes() == original
