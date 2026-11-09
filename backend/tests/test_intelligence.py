@@ -226,7 +226,11 @@ def test_timed_out_provider_does_not_discard_successful_provider_result():
     assert successful_provider.calls == ["8.8.8.8"]
 
 
-@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan"), True, 10**10000])
+@pytest.mark.parametrize(
+    "timeout",
+    [0, -1, float("inf"), float("nan"), True, 10**10000],
+    ids=["zero", "negative", "infinity", "nan", "boolean", "oversized_integer"],
+)
 def test_provider_timeout_configuration_must_be_finite_and_positive(timeout):
     with pytest.raises(ValueError, match="finite positive"):
         ThreatIntelligenceEnrichmentService(provider_timeout=timeout)
