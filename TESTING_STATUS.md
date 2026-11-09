@@ -1,3 +1,27 @@
+## Response policy-reasons audit binding — NOT RUN
+
+New response creation events now include the original policy-reasons list in their signed audit details. Lifecycle validation compares the persisted response reasons with that creation-event copy. Historical creation events that predate this field remain readable and valid.
+
+A database-level regression changes a response's reasons to a different, valid list of strings and attempts simulation. The operation must fail closed, preserve the tampered value for inspection, and leave the response approved, unexecuted, and its audit log unchanged.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+cd /workspaces/aegis-security-platform/backend
+
+./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -k valid_but_tampered_response_reasons_block_simulation_without_mutation -v
+
+./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Mark passed only after the focused regression, complete response audit-integrity module, and full backend suite pass.
+
+---
+
 ## Response identity-field tampering protection — PASSED
 
 The response lifecycle validator cross-checks security-critical response-record fields against the original creation event and audit-event references:
