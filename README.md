@@ -14,30 +14,44 @@
      CORE STATUS
 ========================= -->
 <p>
-<img alt="Status: Active Development" src="https://img.shields.io/badge/Status-Active%20Development-020617?style=for-the-badge&logo=github&logoColor=8ef1e5" />
-<a href="https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml"><img alt="Build: Automated Tests" src="https://img.shields.io/badge/Build-Automated%20Tests-020617?style=for-the-badge&logo=githubactions&logoColor=8ef1e5" /></a>
-<img alt="Architecture: Modular" src="https://img.shields.io/badge/Architecture-Modular-020617?style=for-the-badge&logo=databricks&logoColor=8ef1e5" />
-<img alt="Domain: Cybersecurity" src="https://img.shields.io/badge/Domain-Cybersecurity-020617?style=for-the-badge&logo=shield&logoColor=8ef1e5" />
+<img
+  alt="Status: Active Development"
+  src="https://img.shields.io/badge/Status-Active%20Development-0B0F14?style=for-the-badge&logo=github&logoColor=2F80FF"
+/>
+<a href="https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml">
+<img
+  alt="Backend Tests"
+  src="https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml/badge.svg?branch=main"
+/>
+</a>
+<img
+  alt="Architecture: Modular"
+  src="https://img.shields.io/badge/Architecture-Modular-0B0F14?style=for-the-badge&logo=databricks&logoColor=2F80FF"
+/>
+<img
+  alt="Domain: Cybersecurity"
+  src="https://img.shields.io/badge/Domain-Cybersecurity-0B0F14?style=for-the-badge&logo=shield&logoColor=2F80FF"
+/>
 </p>
 
 <!-- =========================
      TECH STACK
 ========================= -->
 <p>
-<img alt="Python 3.14" src="https://img.shields.io/badge/Python-3.14-0f172a?style=for-the-badge&logo=python&logoColor=7c9cff" />
-<img alt="FastAPI backend" src="https://img.shields.io/badge/FastAPI-Backend-0f172a?style=for-the-badge&logo=fastapi&logoColor=7c9cff" />
-<img alt="Pydantic validation" src="https://img.shields.io/badge/Pydantic-Validation-0f172a?style=for-the-badge&logo=pydantic&logoColor=7c9cff" />
-<img alt="SQLite database" src="https://img.shields.io/badge/SQLite-Database-0f172a?style=for-the-badge&logo=sqlite&logoColor=7c9cff" />
-<img alt="JavaScript dashboard" src="https://img.shields.io/badge/JavaScript-Dashboard-0f172a?style=for-the-badge&logo=javascript&logoColor=7c9cff" />
-<img alt="HTML5 interface" src="https://img.shields.io/badge/HTML5-Interface-0f172a?style=for-the-badge&logo=html5&logoColor=7c9cff" />
-<img alt="CSS3 styling" src="https://img.shields.io/badge/CSS3-Styling-0f172a?style=for-the-badge&logo=css3&logoColor=7c9cff" />
-<img alt="Pytest regression testing" src="https://img.shields.io/badge/Pytest-Regression%20Testing-0f172a?style=for-the-badge&logo=pytest&logoColor=7c9cff" />
+<img alt="Python 3.14" src="https://img.shields.io/badge/Python-3.14-0B0F14?style=for-the-badge&logo=python&logoColor=2F80FF" />
+<img alt="FastAPI backend" src="https://img.shields.io/badge/FastAPI-Backend-0B0F14?style=for-the-badge&logo=fastapi&logoColor=2F80FF" />
+<img alt="Pydantic validation" src="https://img.shields.io/badge/Pydantic-Validation-0B0F14?style=for-the-badge&logo=pydantic&logoColor=2F80FF" />
+<img alt="SQLite database" src="https://img.shields.io/badge/SQLite-Database-0B0F14?style=for-the-badge&logo=sqlite&logoColor=2F80FF" />
+<img alt="JavaScript dashboard" src="https://img.shields.io/badge/JavaScript-Dashboard-0B0F14?style=for-the-badge&logo=javascript&logoColor=2F80FF" />
+<img alt="HTML5 interface" src="https://img.shields.io/badge/HTML5-Interface-0B0F14?style=for-the-badge&logo=html5&logoColor=2F80FF" />
+<img alt="CSS3 styling" src="https://img.shields.io/badge/CSS3-Styling-0B0F14?style=for-the-badge&logo=css3&logoColor=2F80FF" />
+<img alt="Pytest regression testing" src="https://img.shields.io/badge/Pytest-Regression%20Testing-0B0F14?style=for-the-badge&logo=pytest&logoColor=2F80FF" />
 </p>
 
 <p>
-<img alt="Threat intelligence: IP enrichment" src="https://img.shields.io/badge/Threat%20Intelligence-IP%20Enrichment-1e293b?style=for-the-badge&logo=virustotal&logoColor=8ef1e5" />
-<img alt="MITRE ATT&CK technique mapping" src="https://img.shields.io/badge/MITRE%20ATT%26CK-Technique%20Mapping-1e293b?style=for-the-badge&logo=target&logoColor=7c9cff" />
-<img alt="Audit security: signed checkpoints" src="https://img.shields.io/badge/Audit%20Security-Signed%20Checkpoints-1e293b?style=for-the-badge&logo=letsencrypt&logoColor=8ef1e5" />
+<img alt="Threat intelligence: IP enrichment" src="https://img.shields.io/badge/Threat%20Intelligence-IP%20Enrichment-1C2836?style=for-the-badge&logo=virustotal&logoColor=E8EEF5" />
+<img alt="MITRE ATT&CK technique mapping" src="https://img.shields.io/badge/MITRE%20ATT%26CK-Technique%20Mapping-1C2836?style=for-the-badge&logo=target&logoColor=2F80FF" />
+<img alt="Audit security: signed checkpoints" src="https://img.shields.io/badge/Audit%20Security-Signed%20Checkpoints-1C2836?style=for-the-badge&logo=letsencrypt&logoColor=E8EEF5" />
 </p>
 
 <!-- =========================
@@ -212,9 +226,9 @@ flowchart LR
     E --> F
     F --> G["<b>Signed Checkpoint<br/>&amp; Verification</b>"]
 
-    classDef step    fill:#eaf3ff,stroke:#1e8cff,stroke-width:1.5px,color:#0f1b2e;
-    classDef gate    fill:#e6fbff,stroke:#17a8d4,stroke-width:2px,color:#0f1b2e;
-    classDef trust   fill:#0f1b2e,stroke:#0f1b2e,color:#ffffff;
+    classDef step fill:#EDF4FF,stroke:#2F80FF,stroke-width:1.5px,color:#0B0F14;
+    classDef gate fill:#E8EEF5,stroke:#2F80FF,stroke-width:2px,color:#0B0F14;
+    classDef trust fill:#0B0F14,stroke:#2F80FF,stroke-width:1.5px,color:#E8EEF5;
     class A,B,D,E step;
     class C gate;
     class F,G trust;
@@ -309,11 +323,11 @@ flowchart TB
     AUDIT --> DB
     DASH <-->|"Authenticated API"| AEGIS
 
-    classDef external fill:#0f1b2e,stroke:#0f1b2e,color:#ffffff,font-weight:bold;
-    classDef ingest   fill:#eaf3ff,stroke:#1e8cff,stroke-width:1.5px,color:#0f1b2e;
-    classDef analyse  fill:#e6fbff,stroke:#17a8d4,stroke-width:1.5px,color:#0f1b2e;
-    classDef respond  fill:#eef0f6,stroke:#5b6b85,stroke-width:1.5px,color:#0f1b2e;
-    classDef trust    fill:#f4f7fb,stroke:#0f1b2e,stroke-width:1.5px,color:#0f1b2e;
+    classDef external fill:#0B0F14,stroke:#2F80FF,color:#E8EEF5,font-weight:bold;
+    classDef ingest fill:#EDF4FF,stroke:#2F80FF,stroke-width:1.5px,color:#0B0F14;
+    classDef analyse fill:#E8EEF5,stroke:#2F80FF,stroke-width:1.5px,color:#0B0F14;
+    classDef respond fill:#F1F3F7,stroke:#91A0B2,stroke-width:1.5px,color:#0B0F14;
+    classDef trust fill:#F8FAFC,stroke:#0B0F14,stroke-width:1.5px,color:#0B0F14;
 
     class SRC,DASH external;
     class API,NORM ingest;
@@ -321,13 +335,13 @@ flowchart TB
     class ALERT,POLICY,SIM respond;
     class AUDIT,DB trust;
 
-    style AEGIS fill:#ffffff,stroke:#1e8cff,stroke-width:2px,stroke-dasharray: 6 4
-    style ING   fill:#f7fbff,stroke:#bcd6f5
-    style ANA   fill:#f5feff,stroke:#b5e3f2
-    style RESP  fill:#f8f9fc,stroke:#ccd3e0
-    style TRUST fill:#fafbfd,stroke:#c3cad8
+    style AEGIS fill:#FFFFFF,stroke:#2F80FF,stroke-width:2px,stroke-dasharray:6 4
+    style ING fill:#F7FAFF,stroke:#B8D0F5
+    style ANA fill:#F4F8FF,stroke:#B8D0F5
+    style RESP fill:#F8F9FC,stroke:#CBD3DF
+    style TRUST fill:#FAFBFD,stroke:#C3CAD8
 
-    linkStyle default stroke:#5b6b85,stroke-width:1.6px
+linkStyle default stroke:#91A0B2,stroke-width:1.6px
 ```
 
 ### Engineering Principles
