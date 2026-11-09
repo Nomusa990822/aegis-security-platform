@@ -1,3 +1,27 @@
+## Persisted response-reasons JSON shape validation — NOT RUN
+
+Response records store policy and workflow explanations in a JSON text column. The repository now accepts only a JSON array containing strings. Malformed JSON and valid JSON with an unexpected shape are preserved as their exact raw text for inspection rather than being silently returned as a different data type. Response lifecycle validation rejects records whose reasons field is not a list of strings, so approval/simulation cannot proceed on malformed response metadata.
+
+The regression injects an object, a scalar string, and malformed JSON into an approved response record. It verifies that simulation fails closed, the response remains approved and unexecuted, and both individual-record and history retrieval preserve the original stored value for inspection.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+cd /workspaces/aegis-security-platform/backend
+
+./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -k invalid_persisted_response_reasons_block_simulation_and_remain_inspectable -v
+
+./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Mark passed only after the focused regression, complete response audit-integrity module, and full backend suite pass.
+
+---
+
 ## Duplicate JSON keys in persisted audit-event details — PASSED (owner-confirmed 2026-11-09)
 
 Audit-event details stored in SQLite are now parsed with duplicate-key rejection in the repository reader, audit-chain storage initialisation/backfill, and checkpoint inventory. If details contain duplicate JSON keys, the repository preserves the original raw text for inspection rather than silently choosing the last value. Lifecycle and hash-chain validation then fail closed, preventing approval/simulation from trusting ambiguous evidence.
