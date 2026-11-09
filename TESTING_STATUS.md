@@ -1,4 +1,4 @@
-## Duplicate JSON keys in persisted audit-event details — NOT RUN
+## Duplicate JSON keys in persisted audit-event details — PASSED (owner-confirmed 2026-11-09)
 
 Audit-event details stored in SQLite are now parsed with duplicate-key rejection in the repository reader, audit-chain storage initialisation/backfill, and checkpoint inventory. If details contain duplicate JSON keys, the repository preserves the original raw text for inspection rather than silently choosing the last value. Lifecycle and hash-chain validation then fail closed, preventing approval/simulation from trusting ambiguous evidence.
 
@@ -18,7 +18,12 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Mark passed only after the focused regression, complete checkpoint integration module, and full backend suite pass.
+The project owner confirmed that all three verification runs passed:
+- Focused duplicate-key audit-details regression: `test_duplicate_json_keys_in_audit_details_block_simulation`.
+- Complete `test_response_audit_checkpoint_integration.py` module.
+- Complete backend test suite.
+
+**Verification state: OWNER-CONFIRMED PASSED.** The exact full-suite test count was not provided and is not inferred.
 
 ## Duplicate JSON keys in checkpoint inventory metadata — PASSED (owner-confirmed 2026-11-09)
 
