@@ -298,6 +298,32 @@ def build_scenarios(
     )
 
     # ---------------------------------------------------------
+    # MALICIOUS SCENARIO 10: REMOTE-SERVICE CONNECTION FAN-OUT
+    # ---------------------------------------------------------
+
+    events = [
+        create_event(
+            event_type="network_connection",
+            occurred_at=base_time - timedelta(seconds=10 * i),
+            source_ip="192.0.2.110",
+            destination_ip=f"198.51.100.{110 + i}",
+            destination_port=3389 if i % 2 else 445,
+            protocol="tcp",
+        )
+        for i in range(5)
+    ]
+
+    scenarios.append(
+        Scenario(
+            scenario_id="MAL-010",
+            name="Remote-administration port fan-out across multiple hosts",
+            category="malicious",
+            expected_rule_id="AEGIS-NET-005",
+            events=events,
+        )
+    )
+
+    # ---------------------------------------------------------
     # BENIGN SCENARIO 1: SUCCESSFUL AUTHENTICATION
     # ---------------------------------------------------------
 
@@ -452,6 +478,32 @@ def build_scenarios(
         Scenario(
             scenario_id="BEN-006",
             name="Repeated connections with irregular intervals",
+            category="benign",
+            expected_rule_id=None,
+            events=events,
+        )
+    )
+
+    # ---------------------------------------------------------
+    # BENIGN SCENARIO 7: LIMITED REMOTE ADMINISTRATION
+    # ---------------------------------------------------------
+
+    events = [
+        create_event(
+            event_type="network_connection",
+            occurred_at=base_time - timedelta(seconds=10 * i),
+            source_ip="192.0.2.76",
+            destination_ip=f"198.51.100.{76 + i}",
+            destination_port=3389 if i % 2 else 22,
+            protocol="tcp",
+        )
+        for i in range(2)
+    ]
+
+    scenarios.append(
+        Scenario(
+            scenario_id="BEN-007",
+            name="Routine remote administration to a small number of hosts",
             category="benign",
             expected_rule_id=None,
             events=events,
