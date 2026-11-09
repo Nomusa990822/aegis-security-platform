@@ -743,6 +743,55 @@ def test_missing_checkpoint_blocks_simulation_without_mutation(
     assert len(history.json()["audit_log"]) == 2
 
 
+
+
+def test_hash_chain_tampering_blocks_simulation_without_mutation(
+    client,
+):
+    response_id = create_pending_response(client)
+    approve_response(client, response_id)
+
+    with database.get_connection() as connection:
+        connection.execute(
+            """
+            UPDATE response_audit_log
+            SET actor = ?
+            WHERE response_id = ?
+            ORDER BY id ASC
+            LIMIT 1
+            """,
+            ("tampered-actor", response_id),
+        )
+        connection.commit()
+
+    simulation = client.post(
+        f"/api/v1/response/{response_id}/simulate",
+        headers=analyst_headers(),
+    )
+
+    assert simulation.status_code == 409
+    assert "audit evidence failed integrity verification" in (
+        simulation.json()["detail"].lower()
+    )
+
+    history = client.get(
+        f"/api/v1/response/history/{response_id}",
+        headers=analyst_headers(),
+    )
+    assert history.status_code == 200
+    assert history.json()["status"] == "approved"
+    assert history.json()["simulated"] is False
+    assert history.json()["executed"] is False
+    assert len(history.json()["audit_log"]) == 2
+    assert history.json()["audit_log"][0]["actor"] == "tampered-actor"
+
+    integrity = inspect_integrity(client, response_id)
+    assert integrity.status_code == 200
+    assert integrity.json()["valid"] is False
+    assert integrity.json()["chain_valid"] is False
+    assert integrity.json()["checkpoint_valid"] is False
+
+
 def test_hash_chain_tampering_blocks_approval_without_mutation(
     client,
 ):
