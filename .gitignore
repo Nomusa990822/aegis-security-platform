@@ -221,3 +221,6 @@ __marimo__/
 backend/aegis.db
 aegis.db
 backend/audit_checkpoints/
+.vscode
+# Local editor configuration
+.vscode/
