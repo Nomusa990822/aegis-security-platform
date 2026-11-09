@@ -1,0 +1,133 @@
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 2172 724"
+     width="1086"
+     height="362"
+     role="img"
+     aria-label="AEGIS Autonomous Security Platform">
+
+  <defs>
+    <linearGradient id="greyL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4f6fa"/>
+      <stop offset="1" stop-color="#9aa6bd"/>
+    </linearGradient>
+
+    <linearGradient id="greyR" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e6e9f0"/>
+      <stop offset="1" stop-color="#7d8aa6"/>
+    </linearGradient>
+
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1e8cff"/>
+      <stop offset="0.5" stop-color="#17d0ff"/>
+      <stop offset="1" stop-color="#1e8cff"/>
+    </linearGradient>
+
+    <linearGradient id="blueV" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e8cff" stop-opacity="0.2"/>
+      <stop offset="0.5" stop-color="#1e8cff"/>
+      <stop offset="1" stop-color="#1e8cff" stop-opacity="0.2"/>
+    </linearGradient>
+
+    <!-- Subtle ambient illumination around the silver emblem -->
+    <filter id="emblemGlow"
+            x="-30%" y="-30%"
+            width="160%" height="160%"
+            color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha"
+                      stdDeviation="9"
+                      result="blur"/>
+      <feFlood flood-color="#2f80ff"
+               flood-opacity="0.13"
+               result="glowColor"/>
+      <feComposite in="glowColor"
+                   in2="blur"
+                   operator="in"
+                   result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Concentrated electric-blue glow -->
+    <filter id="blueAccentGlow"
+            x="-60%" y="-100%"
+            width="220%" height="300%"
+            color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic"
+                      stdDeviation="13"
+                      result="wideGlow"/>
+      <feGaussianBlur in="SourceGraphic"
+                      stdDeviation="5"
+                      result="tightGlow"/>
+      <feMerge>
+        <feMergeNode in="wideGlow"/>
+        <feMergeNode in="tightGlow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Silver architectural emblem -->
+  <g filter="url(#emblemGlow)">
+
+    <!-- Upper chevron -->
+    <polygon
+      points="462,122 672,378 615,376 462,205 310,376 252,378"
+      fill="url(#greyL)"/>
+
+    <!-- Lower chevron: left half -->
+    <polygon
+      points="318,405 372,400 462,492 462,544"
+      fill="url(#greyL)"/>
+
+    <!-- Lower chevron: right half -->
+    <polygon
+      points="462,492 556,402 618,405 462,544"
+      fill="url(#greyR)"/>
+
+  </g>
+
+  <!-- Blue central triangle -->
+  <polygon
+    points="462,258 527,333 462,312 400,333"
+    fill="#1e8cff"
+    filter="url(#blueAccentGlow)"/>
+
+  <!-- Electric-blue protective arc -->
+  <path
+    d="M212,415 Q462,290 710,415 Q462,340 212,415 Z"
+    fill="url(#blue)"
+    filter="url(#blueAccentGlow)"/>
+
+  <!-- Vertical brand divider -->
+  <path
+    d="M737,178 L740,340 L737,502 L734,340 Z"
+    fill="url(#blueV)"/>
+
+  <!-- AEGIS wordmark: deliberately crisp, without glow -->
+  <text
+    x="820"
+    y="368"
+    textLength="1165"
+    lengthAdjust="spacing"
+    font-family="Montserrat, 'Helvetica Neue', Arial, sans-serif"
+    font-size="226"
+    font-weight="300"
+    fill="#fafbfd"
+    stroke="#d5d9e3"
+    stroke-width="2">AEGIS</text>
+
+  <!-- Platform subtitle -->
+  <text
+    x="820"
+    y="462"
+    textLength="1175"
+    lengthAdjust="spacing"
+    font-family="Montserrat, 'Helvetica Neue', Arial, sans-serif"
+    font-size="44"
+    font-weight="500"
+    fill="#c3c7d6">AUTONOMOUS SECURITY PLATFORM</text>
+
+</svg>
