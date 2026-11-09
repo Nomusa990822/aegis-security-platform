@@ -352,6 +352,7 @@ New tests — authored but **NOT RUN**:
 - `test_quarantine_recovery_refuses_modified_evidence`
 - `test_quarantine_recovery_inventories_orphan_evidence_and_manifest_temps`
 - `test_quarantine_recovery_apply_requires_explicit_response_id`
+- `test_quarantine_writer_interruption_after_move_is_recoverable`
 
 The existing `test_stale_orphan_intent_is_dry_run_then_quarantined_with_evidence` was updated to require a schema-v2 completed manifest.
 
