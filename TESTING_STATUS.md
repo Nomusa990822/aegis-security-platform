@@ -1,4 +1,4 @@
-## Persisted response-reasons JSON shape validation — NOT RUN
+## Persisted response-reasons JSON shape validation — PASSED (owner-confirmed 2026-11-09)
 
 Response records store policy and workflow explanations in a JSON text column. The repository now accepts only a JSON array containing strings. Malformed JSON and valid JSON with an unexpected shape are preserved as their exact raw text for inspection rather than being silently returned as a different data type. Response lifecycle validation rejects records whose reasons field is not a list of strings, so approval/simulation cannot proceed on malformed response metadata.
 
@@ -18,7 +18,9 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Mark passed only after the focused regression, complete response audit-integrity module, and full backend suite pass.
+The project owner confirmed that the focused regression, the complete response audit-integrity module, the lifecycle consistency module (including the corrected valid fixtures), and the full backend test suite all passed.
+
+**Verification state: OWNER-CONFIRMED PASSED.** The full-suite test count was not supplied in the confirmation and is not inferred.
 
 ---
 
