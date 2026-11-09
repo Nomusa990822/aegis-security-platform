@@ -650,6 +650,52 @@ def test_tampered_response_identity_fields_block_simulation_without_mutation(
     assert integrity["errors"]
 
 
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("decided_by", "attacker-account"),
+        ("decision_reason", "Tampered approval rationale."),
+        ("decision_at", "2026-11-09T12:00:00+00:00"),
+        ("mode", "live"),
+    ],
+)
+def test_tampered_response_decision_fields_block_simulation_without_mutation(
+    isolated_database,
+    field,
+    value,
+):
+    response_id = create_response()
+    assert approve_response(response_id) == "updated"
+    before = get_record(response_id)
+
+    with database.get_connection() as connection:
+        connection.execute(
+            f"UPDATE response_records SET {field} = ? WHERE id = ?",
+            (value, response_id),
+        )
+        connection.commit()
+
+    with database.get_connection() as connection:
+        outcome = simulate_response(
+            connection=connection,
+            response_id=response_id,
+            actor_id="analyst-alpha",
+        )
+
+    assert outcome == "audit_integrity_failure"
+
+    after = get_record(response_id)
+    assert after[field] == value
+    assert after["status"] == "approved"
+    assert after["simulated"] is False
+    assert after["executed"] is False
+    assert after["audit_log"] == before["audit_log"]
+
+    integrity = validate_response_audit(after)
+    assert integrity["valid"] is False
+    assert integrity["errors"]
+
+
 def test_valid_but_tampered_response_reasons_block_simulation_without_mutation(
     isolated_database,
 ):
