@@ -8,16 +8,16 @@ from typing import Optional
 
 
 _SSH_FAILURE = re.compile(
-    r"sshd\\[\\d+\\]:\\s+Failed password for (?:invalid user )?(?P<username>\\S+) from (?P<ip>\\S+) port \\d+\\b",
+    r"sshd\[\d+\]:\s+Failed password for (?:invalid user )?(?P<username>\S+) from (?P<ip>\S+) port \d+\b",
     re.IGNORECASE,
 )
 _SSH_SUCCESS = re.compile(
-    r"sshd\\[\\d+\\]:\\s+Accepted (?:password|publickey|keyboard-interactive/pam) for (?P<username>\\S+) from (?P<ip>\\S+) port \\d+\\b",
+    r"sshd\[\d+\]:\s+Accepted (?:password|publickey|keyboard-interactive/pam) for (?P<username>\S+) from (?P<ip>\S+) port \d+\b",
     re.IGNORECASE,
 )
-_SYSLOG_TIME = re.compile(r"^(?P<month>[A-Z][a-z]{2})\\s+(?P<day>\\d{1,2})\\s+(?P<time>\\d{2}:\\d{2}:\\d{2})")
+_SYSLOG_TIME = re.compile(r"^(?P<month>[A-Z][a-z]{2})\s+(?P<day>\d{1,2})\s+(?P<time>\d{2}:\d{2}:\d{2})")
 _NGINX_ACCESS = re.compile(
-    r'^(?P<ip>\\S+) \\S+ \\S+ \\[(?P<time>[^]]+)\\] "(?P<method>[A-Z]+) (?P<target>[^ ]+) (?P<protocol>HTTP/[^ ]+)" (?P<status>\\d{3}) (?P<size>\\S+)(?: "(?P<referer>[^"]*)" "(?P<agent>[^"]*)")?'
+    r'^(?P<ip>\S+) \S+ \S+ \[(?P<time>[^]]+)\] "(?P<method>[A-Z]+) (?P<target>[^ ]+) (?P<protocol>HTTP/[^ ]+)" (?P<status>\d{3}) (?P<size>\S+)(?: "(?P<referer>[^"]*)" "(?P<agent>[^"]*)")?'
 )
 
 
@@ -122,5 +122,5 @@ def parse_nginx_access_line(
 
 def stable_event_id(source_system: str, file_identity: str, line_number: int, line: str) -> str:
     """Create a deterministic, non-reversible ID for a particular file line."""
-    material = f"{source_system}\\0{file_identity}\\0{line_number}\\0{line}".encode("utf-8")
+    material = f"{source_system}\0{file_identity}\0{line_number}\0{line}".encode("utf-8")
     return hashlib.sha256(material).hexdigest()
