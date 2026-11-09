@@ -253,7 +253,6 @@
                         alert_id: alertId,
                         action: "block_ip",
                         target,
-                        requested_by: "analyst-01"
                     })
                 }
             );
