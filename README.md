@@ -21,7 +21,7 @@
 <a href="https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml">
 <img
   alt="Backend Tests"
-  src="https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml/badge.svg?branch=main"
+  src="https://img.shields.io/github/actions/workflow/status/Nomusa990822/aegis-security-platform/backend-tests.yml?branch=main&style=for-the-badge&label=Backend%20Tests&logo=githubactions&logoColor=2F80FF&color=0B0F14"
 />
 </a>
 <img
