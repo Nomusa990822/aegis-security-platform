@@ -4,6 +4,28 @@ Last updated: 2026-11-09
 
 ## Current rule
 
+## Database audit-event tampering blocks simulation — NOT RUN
+
+A focused API regression test approves a dry-run response, modifies an existing database audit event without updating its cryptographic hash, and attempts simulation. It verifies that AEGIS returns HTTP 409, leaves the response approved and unexecuted, preserves both audit events (including the tampered value for forensic visibility), and reports invalid chain/checkpoint integrity.
+
+Run from the Codespaces terminal:
+
+```bash
+git pull --ff-only origin main
+
+cd /workspaces/aegis-security-platform/backend
+
+./.venv/bin/python -m pytest tests/test_response_audit_checkpoint_integration.py -k hash_chain_tampering_blocks_simulation_without_mutation -v
+
+./.venv/bin/python -m pytest tests/test_response_audit_checkpoint_integration.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Mark passed only after the focused test, full checkpoint integration module, and full backend suite pass.
+
+
+
 ## Tampered signed checkpoint blocks simulation without mutation — PASSED
 
 The project owner confirmed that all three verification runs passed:
