@@ -8,7 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException, Response
 
 from app.auth import AuthenticatedActor, get_analyst_actor, get_current_actor
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.database import get_connection, initialize_database
 from app.idempotency import initialize_idempotency_schema
@@ -59,6 +59,8 @@ alert_intelligence_service = AlertIntelligenceService()
 
 
 class SecurityEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     event_type: str = Field(min_length=1, max_length=100)
 
     source_system: str = Field(
