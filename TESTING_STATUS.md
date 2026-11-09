@@ -1,3 +1,30 @@
+## Concurrent simulation checkpoint-publication race — RETEST REQUIRED
+
+The full backend suite exposed a race in which a second simulation request observed the first request's committed simulated state while its signed checkpoint was still pending publication. The second request incorrectly returned `audit_integrity_failure` instead of the idempotent `already_simulated` result.
+
+The verifier now permits this idempotent result only when:
+- The response lifecycle and database hash chain are valid.
+- A pending checkpoint intent has a valid signature and exactly matches the database audit head.
+- The intent's predecessor checkpoint is valid (or its predecessor is the genesis state).
+
+A deterministic regression leaves a valid signed intent pending after the first simulation, then retries simulation and verifies the second request returns `already_simulated`. Missing, invalid, stale, or mismatched intents are not accepted.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+./.venv/bin/python -m pytest tests/test_response_concurrency.py -v
+
+./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -v
+
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: RETEST REQUIRED.** The prior full-suite run had 615 passed and one failure in `test_concurrent_simulation_runs_only_once`. The decision-field regression and response audit-integrity module both passed.
+
+---
+
 ## Response decision-field tampering protection — NOT RUN
 
 The response lifecycle validator already cross-checks approver identity, decision reason, and decision timestamp against the approval/rejection audit event. This batch adds a consolidated database-tampering regression for those three fields and binds the original execution mode to the signed creation event.
