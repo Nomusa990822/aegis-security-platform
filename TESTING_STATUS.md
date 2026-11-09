@@ -1,3 +1,38 @@
+## MITRE ATT&CK dashboard coverage visibility — NOT RUN
+
+This batch extends the existing dashboard only; it does not change detection rules, MITRE catalogue data, or API contracts.
+
+Changes:
+- Adds registry-wide coverage reporting based on the existing detection-rules API response and MITRE mappings.
+- Lists every registered detection rule, showing mapped/unmapped status and linked techniques.
+- Adds total registered-rule and unmapped-rule metrics.
+- Adds mapping rationale and evidence considerations to the existing mapping table.
+- Refreshes coverage metrics when the detection-rule API response loads, avoiding a dashboard initial-load race.
+
+Verification required:
+- JavaScript syntax check with Node.js.
+- Complete backend regression suite.
+- Manual dashboard review: all ten registered rules should appear as mapped with the current curated catalogue; the unmapped count should be zero. This is the current state, not a hard-coded expectation: future rules without mappings must appear as unmapped.
+- Select a technique link from the coverage table and confirm the existing technique-detail panel opens.
+- Confirm each mapping row displays its rationale and evidence considerations where supplied.
+
+Consolidated command (from the repository root):
+
+```bash
+cd /workspaces/aegis-security-platform
+
+git pull --ff-only origin main
+
+printf '\\n========== DASHBOARD JAVASCRIPT SYNTAX ==========
+'
+node --check backend/app/static/app.js
+
+printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========
+'
+cd backend
+./.venv/bin/python -m pytest -q
+```
+
 ## Linux SSH and Nginx telemetry adapter — PASSED (owner-confirmed 2026-11-09)
 
 The dependency-free telemetry adapter parses supported OpenSSH authentication logs and Nginx combined access logs, normalises them into the existing AEGIS event schema, and submits them through the authenticated event-ingestion API. Normal validation, persistence, deduplication, detection, and enrichment remain in the existing pipeline.
