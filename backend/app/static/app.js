@@ -2039,16 +2039,100 @@ async function loadMitreData() {
 function renderMitreMetrics() {
     const techniques = state.mitreTechniques;
     const mappings = state.mitreMappings;
+    const registeredRules = state.rules;
 
     const mappedRules = new Set(
         mappings.map(item => item.rule_id).filter(Boolean)
     );
+
+    const unmappedCount = registeredRules.filter(
+        rule => !mappedRules.has(rule.rule_id)
+    ).length;
 
     setText("mitre-technique-count", techniques.length);
     setText("mitre-mapping-count", mappings.length);
     setText("mitre-mapped-rule-count", mappedRules.size);
     setText("mitre-tactic-count", getMitreTactics().length);
     setText("mitre-rule-counter", mappings.length);
+    setText("mitre-total-rule-count", registeredRules.length);
+    setText("mitre-unmapped-rule-count", unmappedCount);
+    setText("mitre-coverage-counter", registeredRules.length);
+    renderMitreRuleCoverage();
+}
+
+function renderMitreRuleCoverage() {
+    const rules = state.rules;
+    const mappingsByRule = new Map();
+
+    state.mitreMappings.forEach(mapping => {
+        if (!mapping.rule_id) return;
+
+        if (!mappingsByRule.has(mapping.rule_id)) {
+            mappingsByRule.set(mapping.rule_id, []);
+        }
+
+        mappingsByRule.get(mapping.rule_id).push(mapping);
+    });
+
+    if (!rules.length) {
+        setHTML(
+            "mitre-rule-coverage-table",
+            emptyRow(5, "No registered detection rules are available. Check the detection-rules API.")
+        );
+        return;
+    }
+
+    const sortedRules = [...rules].sort(
+        (a, b) => String(a.rule_id).localeCompare(String(b.rule_id))
+    );
+
+    setHTML(
+        "mitre-rule-coverage-table",
+        sortedRules.map(rule => {
+            const mappings = mappingsByRule.get(rule.rule_id) ?? [];
+            const techniques = mappings.map(mapping => {
+                const technique = mapping.technique || techniqueById(mapping.technique_id);
+                const name = technique?.name ?? mapping.technique_id;
+
+                return `
+                    <button
+                        type="button"
+                        class="mitre-table-link"
+                        data-mitre-technique="${escapeHTML(mapping.technique_id)}"
+                    >${escapeHTML(mapping.technique_id)} · ${escapeHTML(name)}</button>
+                `;
+            }).join("<br>");
+
+            return `
+                <tr>
+                    <td><strong>${escapeHTML(rule.rule_id)}</strong></td>
+                    <td>
+                        <strong>${escapeHTML(rule.name)}</strong>
+                        <span class="mitre-rule-description">${escapeHTML(rule.description ?? "")}</span>
+                    </td>
+                    <td>${severityPill(rule.severity)}</td>
+                    <td>
+                        ${mappings.length
+                            ? '<span class="mitre-coverage-status mapped">Mapped</span>'
+                            : '<span class="mitre-coverage-status unmapped">Unmapped</span>'}
+                    </td>
+                    <td>${techniques || '<span class="muted">No ATT&CK technique associated</span>'}</td>
+                </tr>
+            `;
+        }).join("")
+    );
+
+    document.querySelectorAll(
+        "#mitre-rule-coverage-table [data-mitre-technique]"
+    ).forEach(button => {
+        button.addEventListener("click", () => {
+            selectMitreTechnique(button.dataset.mitreTechnique);
+            $("mitre-detail-panel")?.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+        });
+    });
 }
 
 function renderMitreTacticFilter() {
@@ -2269,7 +2353,7 @@ function renderMitreMappings() {
     if (!mappings.length) {
         setHTML(
             "mitre-mappings-table",
-            emptyRow(5, "No detection rule mappings are available.")
+            emptyRow(6, "No detection rule mappings are available.")
         );
         return;
     }
@@ -2301,6 +2385,12 @@ function renderMitreMappings() {
                     <td>${escapeHTML(technique?.tactic ?? "-")}</td>
                     <td>${confidencePill(mapping.confidence)}</td>
                     <td>${escapeHTML(mapping.mapping_type ?? "-")}</td>
+                    <td>
+                        <span class="mitre-rationale">${escapeHTML(mapping.rationale ?? "No mapping rationale supplied.")}</span>
+                        ${mapping.evidence_requirements
+                            ? `<span class="mitre-evidence-note"><strong>Evidence:</strong> ${escapeHTML(Array.isArray(mapping.evidence_requirements) ? mapping.evidence_requirements.join(" ") : mapping.evidence_requirements)}</span>`
+                            : ""}
+                    </td>
                 </tr>`;
         }).join("")
     );
