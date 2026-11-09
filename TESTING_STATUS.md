@@ -1039,7 +1039,7 @@ Two additional rules reuse the existing event-ingestion and detection pipeline:
 
 MITRE ATT&CK associations:
 - `AEGIS-AUTH-003` → T1110.001 (Password Guessing), moderate behavioural association.
-- `AEGIS-AUTH-004` → T1078 (Valid Accounts), moderate behavioural association with explicit legitimate-user caveat.
+- `AEGIS-AUTH-004` → T1078 (Valid Accounts), low-confidence contextual candidate with an explicit legitimate-user caveat.
 
 The curated catalogue now contains nine entries. The synthetic evaluation dataset has been expanded to eight malicious and six benign scenarios, with one designated expected rule per malicious scenario. Synthetic results are not evidence of production detection performance.
 
