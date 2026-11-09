@@ -1,58 +1,78 @@
 <div align="center">
 
 # AEGIS Security Platform
+
 ### Autonomous Threat Detection • Intelligence • Controlled Response
 
----
+**Engineered for visibility. Built for investigation. Designed for controlled response.**
+
+*From raw security telemetry to actionable, auditable security decisions.*
+
+<br/>
 
 <!-- =========================
      CORE STATUS
 ========================= -->
 <p>
-<img src="https://img.shields.io/badge/Status-Active%20Development-020617?style=for-the-badge&logo=github&logoColor=8ef1e5" />
-<img src="https://img.shields.io/badge/Build-Automated%20Tests-020617?style=for-the-badge&logo=githubactions&logoColor=8ef1e5" />
-<img src="https://img.shields.io/badge/Architecture-Modular-020617?style=for-the-badge&logo=databricks&logoColor=8ef1e5" />
-<img src="https://img.shields.io/badge/Domain-Cybersecurity-020617?style=for-the-badge&logo=shield&logoColor=8ef1e5" />
+<img alt="Status: Active Development" src="https://img.shields.io/badge/Status-Active%20Development-020617?style=for-the-badge&logo=github&logoColor=8ef1e5" />
+<a href="https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml"><img alt="Build: Automated Tests" src="https://img.shields.io/badge/Build-Automated%20Tests-020617?style=for-the-badge&logo=githubactions&logoColor=8ef1e5" /></a>
+<img alt="Architecture: Modular" src="https://img.shields.io/badge/Architecture-Modular-020617?style=for-the-badge&logo=databricks&logoColor=8ef1e5" />
+<img alt="Domain: Cybersecurity" src="https://img.shields.io/badge/Domain-Cybersecurity-020617?style=for-the-badge&logo=shield&logoColor=8ef1e5" />
 </p>
 
 <!-- =========================
      TECH STACK
 ========================= -->
 <p>
-<img src="https://img.shields.io/badge/Python-3.14-0f172a?style=for-the-badge&logo=python&logoColor=7c9cff" />
-<img src="https://img.shields.io/badge/FastAPI-Backend-0f172a?style=for-the-badge&logo=fastapi&logoColor=7c9cff" />
-<img src="https://img.shields.io/badge/Pydantic-Validation-0f172a?style=for-the-badge&logo=pydantic&logoColor=7c9cff" />
-<img src="https://img.shields.io/badge/SQLite-Database-0f172a?style=for-the-badge&logo=sqlite&logoColor=7c9cff" />
-<img src="https://img.shields.io/badge/JavaScript-Dashboard-0f172a?style=for-the-badge&logo=javascript&logoColor=7c9cff" />
-<img src="https://img.shields.io/badge/HTML5-Interface-0f172a?style=for-the-badge&logo=html5&logoColor=7c9cff" />
-<img src="https://img.shields.io/badge/CSS3-Styling-0f172a?style=for-the-badge&logo=css3&logoColor=7c9cff" />
-<img src="https://img.shields.io/badge/Pytest-Regression%20Testing-0f172a?style=for-the-badge&logo=pytest&logoColor=7c9cff" />
+<img alt="Python 3.14" src="https://img.shields.io/badge/Python-3.14-0f172a?style=for-the-badge&logo=python&logoColor=7c9cff" />
+<img alt="FastAPI backend" src="https://img.shields.io/badge/FastAPI-Backend-0f172a?style=for-the-badge&logo=fastapi&logoColor=7c9cff" />
+<img alt="Pydantic validation" src="https://img.shields.io/badge/Pydantic-Validation-0f172a?style=for-the-badge&logo=pydantic&logoColor=7c9cff" />
+<img alt="SQLite database" src="https://img.shields.io/badge/SQLite-Database-0f172a?style=for-the-badge&logo=sqlite&logoColor=7c9cff" />
+<img alt="JavaScript dashboard" src="https://img.shields.io/badge/JavaScript-Dashboard-0f172a?style=for-the-badge&logo=javascript&logoColor=7c9cff" />
+<img alt="HTML5 interface" src="https://img.shields.io/badge/HTML5-Interface-0f172a?style=for-the-badge&logo=html5&logoColor=7c9cff" />
+<img alt="CSS3 styling" src="https://img.shields.io/badge/CSS3-Styling-0f172a?style=for-the-badge&logo=css3&logoColor=7c9cff" />
+<img alt="Pytest regression testing" src="https://img.shields.io/badge/Pytest-Regression%20Testing-0f172a?style=for-the-badge&logo=pytest&logoColor=7c9cff" />
 </p>
 
 <p>
-<img src="https://img.shields.io/badge/Threat%20Intelligence-IP%20Enrichment-1e293b?style=for-the-badge&logo=virustotal&logoColor=8ef1e5" />
-<img src="https://img.shields.io/badge/MITRE%20ATT%26CK-Technique%20Mapping-1e293b?style=for-the-badge&logo=target&logoColor=7c9cff" />
-<img src="https://img.shields.io/badge/Audit%20Security-Signed%20Checkpoints-1e293b?style=for-the-badge&logo=letsencrypt&logoColor=8ef1e5" />
+<img alt="Threat intelligence: IP enrichment" src="https://img.shields.io/badge/Threat%20Intelligence-IP%20Enrichment-1e293b?style=for-the-badge&logo=virustotal&logoColor=8ef1e5" />
+<img alt="MITRE ATT&CK technique mapping" src="https://img.shields.io/badge/MITRE%20ATT%26CK-Technique%20Mapping-1e293b?style=for-the-badge&logo=target&logoColor=7c9cff" />
+<img alt="Audit security: signed checkpoints" src="https://img.shields.io/badge/Audit%20Security-Signed%20Checkpoints-1e293b?style=for-the-badge&logo=letsencrypt&logoColor=8ef1e5" />
 </p>
 
 <!-- =========================
      GITHUB META
 ========================= -->
 <p>
-<img src="https://img.shields.io/github/stars/Nomusa990822/aegis-security-platform?style=for-the-badge&color=020617" />
-<img src="https://img.shields.io/github/forks/Nomusa990822/aegis-security-platform?style=for-the-badge&color=020617" />
-<img src="https://img.shields.io/github/issues/Nomusa990822/aegis-security-platform?style=for-the-badge&color=020617" />
-<img src="https://img.shields.io/github/last-commit/Nomusa990822/aegis-security-platform?style=for-the-badge&color=020617" />
-<img src="https://img.shields.io/github/repo-size/Nomusa990822/aegis-security-platform?style=for-the-badge&color=020617" />
+<img alt="GitHub stars" src="https://img.shields.io/github/stars/Nomusa990822/aegis-security-platform?style=for-the-badge&color=020617" />
+<img alt="GitHub forks" src="https://img.shields.io/github/forks/Nomusa990822/aegis-security-platform?style=for-the-badge&color=020617" />
+<img alt="GitHub issues" src="https://img.shields.io/github/issues/Nomusa990822/aegis-security-platform?style=for-the-badge&color=020617" />
+<img alt="Last commit" src="https://img.shields.io/github/last-commit/Nomusa990822/aegis-security-platform?style=for-the-badge&color=020617" />
+<img alt="Repository size" src="https://img.shields.io/github/repo-size/Nomusa990822/aegis-security-platform?style=for-the-badge&color=020617" />
 </p>
+
+<br/>
+
+[**Overview**](#overview) · [**Capabilities**](#core-capabilities) · [**Architecture**](#system-architecture) · [**Quality**](#quality--verification) · [**Quick Start**](#quick-start) · [**Docker Demo**](#docker-compose-demo-deployment) · [**Limitations**](#security-scope--current-limitations)
+
+</div>
 
 ---
 
-**Engineered for visibility. Built for investigation. Designed for controlled response.**
+## Table of Contents
 
-*From raw security telemetry to actionable, auditable security decisions.*
-
-</div>
+- [Overview](#overview)
+- [At a Glance](#at-a-glance)
+- [Core Capabilities](#core-capabilities)
+- [System Architecture](#system-architecture)
+- [Quality & Verification](#quality--verification)
+- [Technical Documentation](#technical-documentation)
+- [Quick Start](#quick-start)
+- [Run AEGIS Locally](#run-aegis-locally)
+- [Docker Compose Demo Deployment](#docker-compose-demo-deployment)
+- [Security Scope & Current Limitations](#security-scope--current-limitations)
+- [Next Engineering Milestones](#next-engineering-milestones)
+- [What AEGIS Demonstrates](#what-aegis-demonstrates)
 
 ---
 
@@ -64,7 +84,23 @@ It brings together event ingestion, detection engineering, alert investigation, 
 
 AEGIS is designed as a hands-on cybersecurity engineering project: the emphasis is not only on identifying suspicious activity, but also on preserving the reasoning, decisions, and evidence behind an investigation.
 
-> **Project classification:** Portfolio-grade engineering prototype. AEGIS is not a production SIEM, EDR, XDR, identity provider, or managed security service. Response execution is simulated; no real firewall or host-level changes are made.
+> [!IMPORTANT]
+> **Project classification: portfolio-grade engineering prototype.** AEGIS is not a production SIEM, EDR, XDR, identity provider, or managed security service. Response execution is simulated; no real firewall or host-level changes are made.
+
+---
+
+## At a Glance
+
+| | |
+|---|---|
+| **Detection** | 10 registered rules across authentication and network activity |
+| **Context** | Curated MITRE ATT&CK catalogue of 10 technique and sub-technique entries |
+| **Intelligence** | External IP reputation enrichment with failure isolation |
+| **Response** | Policy-gated approval workflow with dry-run simulation only |
+| **Integrity** | Tamper-evident audit events with signed, verifiable checkpoints |
+| **Telemetry** | Authenticated API ingestion plus Linux OpenSSH and Nginx log adapters |
+| **Interface** | Browser-based analyst dashboard served at `/dashboard` |
+| **Verification** | Automated backend regression suite run through GitHub Actions |
 
 ---
 
@@ -87,18 +123,18 @@ A structured API entry point for security events, with a lightweight log adapter
 
 A modular detection engine evaluates incoming telemetry against registered rules.
 
-| Rule ID | Detection capability |
-|---|---|
-| `AEGIS-AUTH-001` | Brute-force authentication |
-| `AEGIS-AUTH-002` | Password spraying |
-| `AEGIS-AUTH-003` | Distributed password guessing across source IPs |
-| `AEGIS-AUTH-004` | Successful authentication after repeated failures |
-| `AEGIS-AUTH-005` | Successful authentication to one account from multiple source IPs |
-| `AEGIS-NET-001` | Network port scanning |
-| `AEGIS-NET-002` | Horizontal network scanning |
-| `AEGIS-NET-003` | Broad network service discovery |
-| `AEGIS-NET-004` | Suspicious network beaconing |
-| `AEGIS-NET-005` | Remote-service connection fan-out across common administration ports |
+| Rule ID | Category | Detection capability |
+|---|---|---|
+| `AEGIS-AUTH-001` | Authentication | Brute-force authentication |
+| `AEGIS-AUTH-002` | Authentication | Password spraying |
+| `AEGIS-AUTH-003` | Authentication | Distributed password guessing across source IPs |
+| `AEGIS-AUTH-004` | Authentication | Successful authentication after repeated failures |
+| `AEGIS-AUTH-005` | Authentication | Successful authentication to one account from multiple source IPs |
+| `AEGIS-NET-001` | Network | Network port scanning |
+| `AEGIS-NET-002` | Network | Horizontal network scanning |
+| `AEGIS-NET-003` | Network | Broad network service discovery |
+| `AEGIS-NET-004` | Network | Suspicious network beaconing |
+| `AEGIS-NET-005` | Network | Remote-service connection fan-out across common administration ports |
 
 Detection logic includes threshold and time-window handling, with adversarial and regression tests for boundary conditions, duplicate telemetry, noisy activity, and overlapping patterns.
 
@@ -123,24 +159,25 @@ AEGIS enriches supported public IP assessments using its threat-intelligence pro
 - Risk scoring and confidence context
 - Intelligence context available to investigations
 
-Provider results depend on external service availability, configuration, and API limits.
+> [!NOTE]
+> Provider results depend on external service availability, configuration, and API limits.
 
 ### 5. MITRE ATT&CK Context
 
-Detection rules are associated with a curated MITRE ATT&CK catalogue.
+Detection rules are associated with a curated MITRE ATT&CK catalogue of **10 technique and sub-technique entries**:
 
-Current catalogue: **10 technique and sub-technique entries**, including:
-
-- T1110 — Brute Force
-- T1110.001 — Password Guessing
-- T1110.003 — Password Spraying
-- T1078 — Valid Accounts
-- T1021 — Remote Services
-- T1046 — Network Service Discovery
-- T1071 — Application Layer Protocol
-- T1071.001 — Web Protocols
-- T1595 — Active Scanning
-- T1595.001 — Scanning IP Blocks
+| Technique | Name |
+|---|---|
+| `T1110` | Brute Force |
+| `T1110.001` | Password Guessing |
+| `T1110.003` | Password Spraying |
+| `T1078` | Valid Accounts |
+| `T1021` | Remote Services |
+| `T1046` | Network Service Discovery |
+| `T1071` | Application Layer Protocol |
+| `T1071.001` | Web Protocols |
+| `T1595` | Active Scanning |
+| `T1595.001` | Scanning IP Blocks |
 
 This is a deliberately limited subset, not full ATT&CK coverage. Technique associations provide analytical context; they do not independently prove that a technique occurred.
 
@@ -156,7 +193,36 @@ A guarded response lifecycle designed around policy and accountability.
 - Signed audit checkpoints and integrity verification
 - Checkpoint quarantine and recovery safeguards
 
-The `BLOCK_IP` action is a workflow capability only. AEGIS does not apply real firewall rules or execute operating-system containment commands.
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif",
+    "primaryTextColor": "#0f1b2e",
+    "lineColor": "#5b6b85"
+  },
+  "flowchart": { "curve": "basis", "nodeSpacing": 36, "rankSpacing": 40, "htmlLabels": true }
+}}%%
+flowchart LR
+    A["<b>Alert /<br/>Investigation</b>"] --> B["<b>Response Preview<br/>&amp; Policy Check</b>"]
+    B --> C{"<b>Approver<br/>Decision</b>"}
+    C -->|"Approve"| D["<b>Dry-Run<br/>Simulation</b>"]
+    C -->|"Reject"| E["<b>Rejection<br/>Recorded</b>"]
+    D --> F["<b>Tamper-Evident<br/>Audit Event</b>"]
+    E --> F
+    F --> G["<b>Signed Checkpoint<br/>&amp; Verification</b>"]
+
+    classDef step    fill:#eaf3ff,stroke:#1e8cff,stroke-width:1.5px,color:#0f1b2e;
+    classDef gate    fill:#e6fbff,stroke:#17a8d4,stroke-width:2px,color:#0f1b2e;
+    classDef trust   fill:#0f1b2e,stroke:#0f1b2e,color:#ffffff;
+    class A,B,D,E step;
+    class C gate;
+    class F,G trust;
+    linkStyle default stroke:#5b6b85,stroke-width:1.6px
+```
+
+> [!WARNING]
+> The `BLOCK_IP` action is a workflow capability only. AEGIS does not apply real firewall rules or execute operating-system containment commands.
 
 ### 7. API Security & Access Control
 
@@ -183,57 +249,94 @@ A browser-based interface for interacting with AEGIS through its authenticated A
 
 ## System Architecture
 
-AEGIS is organised as a modular security workflow:
+AEGIS is organised as a modular security workflow. Events enter through an authenticated API, are validated and analysed, and any resulting response is gated by policy, simulated, and recorded in a signed audit trail.
 
-```text
-       Security Event Sources
-                 |
-                 v
-       Authenticated Ingestion API
-                 |
-                 v
-     Validation / Normalisation
-                 |
-                 v
-       Detection & Correlation
-                 |
-          +------+------+
-          |             |
-          v             v
-     Threat Intel    Detection
-      Enrichment      Findings
-          |             |
-          +------+------+
-                 |
-                 v
-        Alerts & Investigations
-                 |
-                 v
-       Response Policy & Approval
-                 |
-                 v
-         Dry-Run Simulation
-                 |
-                 v
-       Signed, Verifiable Audit
-                 |
-                 v
-          SQLite Persistence
+```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif",
+    "fontSize": "15px",
+    "primaryTextColor": "#0f1b2e",
+    "lineColor": "#5b6b85"
+  },
+  "flowchart": { "curve": "basis", "nodeSpacing": 40, "rankSpacing": 48, "htmlLabels": true }
+}}%%
+flowchart TB
+    SRC(["<b>Security Event Sources</b>"])
+    DASH(["<b>Analyst Dashboard</b>"])
 
-        Analyst Dashboard
-                 |
-          Authenticated API
-                 |
-               AEGIS
+    subgraph AEGIS["&nbsp;AEGIS PLATFORM&nbsp;"]
+        direction TB
+
+        subgraph ING["&nbsp;1 · INGESTION&nbsp;"]
+            direction TB
+            API["<b>Authenticated Ingestion API</b>"]
+            NORM["<b>Validation / Normalisation</b>"]
+        end
+
+        subgraph ANA["&nbsp;2 · ANALYSIS&nbsp;"]
+            direction TB
+            DET["<b>Detection &amp; Correlation</b>"]
+            INTEL["<b>Threat Intel Enrichment</b>"]
+            FIND["<b>Detection Findings</b>"]
+        end
+
+        subgraph RESP["&nbsp;3 · RESPONSE&nbsp;"]
+            direction TB
+            ALERT["<b>Alerts &amp; Investigations</b>"]
+            POLICY["<b>Response Policy &amp; Approval</b>"]
+            SIM["<b>Dry-Run Simulation</b>"]
+        end
+
+        subgraph TRUST["&nbsp;4 · TRUST &amp; STORAGE&nbsp;"]
+            direction TB
+            AUDIT["<b>Signed, Verifiable Audit</b>"]
+            DB[("<b>SQLite Persistence</b>")]
+        end
+    end
+
+    SRC --> API
+    API --> NORM
+    NORM --> DET
+    DET --> INTEL
+    DET --> FIND
+    INTEL --> ALERT
+    FIND --> ALERT
+    ALERT --> POLICY
+    POLICY --> SIM
+    SIM --> AUDIT
+    AUDIT --> DB
+    DASH <-->|"Authenticated API"| AEGIS
+
+    classDef external fill:#0f1b2e,stroke:#0f1b2e,color:#ffffff,font-weight:bold;
+    classDef ingest   fill:#eaf3ff,stroke:#1e8cff,stroke-width:1.5px,color:#0f1b2e;
+    classDef analyse  fill:#e6fbff,stroke:#17a8d4,stroke-width:1.5px,color:#0f1b2e;
+    classDef respond  fill:#eef0f6,stroke:#5b6b85,stroke-width:1.5px,color:#0f1b2e;
+    classDef trust    fill:#f4f7fb,stroke:#0f1b2e,stroke-width:1.5px,color:#0f1b2e;
+
+    class SRC,DASH external;
+    class API,NORM ingest;
+    class DET,INTEL,FIND analyse;
+    class ALERT,POLICY,SIM respond;
+    class AUDIT,DB trust;
+
+    style AEGIS fill:#ffffff,stroke:#1e8cff,stroke-width:2px,stroke-dasharray: 6 4
+    style ING   fill:#f7fbff,stroke:#bcd6f5
+    style ANA   fill:#f5feff,stroke:#b5e3f2
+    style RESP  fill:#f8f9fc,stroke:#ccd3e0
+    style TRUST fill:#fafbfd,stroke:#c3cad8
+
+    linkStyle default stroke:#5b6b85,stroke-width:1.6px
 ```
 
 ### Engineering Principles
 
-1. **Evidence before action** — response workflows are gated by policy and approval.
-2. **Integrity is part of the workflow** — audit evidence is verified before sensitive response operations.
-3. **Failure must be contained** — provider failures and database errors should not silently become successful outcomes.
-4. **Security controls need regression tests** — concurrency, malformed input, tampering, and authorisation boundaries are tested.
-5. **Be explicit about limitations** — prototype capabilities are not presented as production guarantees.
+1. **Evidence before action**: response workflows are gated by policy and approval.
+2. **Integrity is part of the workflow**: audit evidence is verified before sensitive response operations.
+3. **Failure must be contained**: provider failures and database errors should not silently become successful outcomes.
+4. **Security controls need regression tests**: concurrency, malformed input, tampering, and authorisation boundaries are tested.
+5. **Be explicit about limitations**: prototype capabilities are not presented as production guarantees.
 
 ---
 
@@ -259,11 +362,10 @@ cd backend
 python -m pytest -q
 ```
 
-Automated regression tests are configured through GitHub Actions:
+Automated regression tests are configured through GitHub Actions: [Backend Tests Workflow](https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml).
 
-[Backend Tests Workflow](https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml)
-
-A passing test suite demonstrates the tested behaviours; it is not a substitute for an independent penetration test, formal security audit, or real-world detection evaluation.
+> [!NOTE]
+> A passing test suite demonstrates the tested behaviours. It is not a substitute for an independent penetration test, formal security audit, or real-world detection evaluation.
 
 ---
 
@@ -271,10 +373,26 @@ A passing test suite demonstrates the tested behaviours; it is not a substitute 
 
 | Resource | Description |
 |---|---|
-| `README.md` | Project overview, setup, capabilities, and limitations |
-| `TESTING_STATUS.md` | Regression test batches and verification status |
-| `docs/security/AUDIT_CHECKPOINT_KEY_ROTATION.md` | Audit checkpoint signing-key rotation guidance |
-| `backend/app/telemetry/cli.py` | Linux SSH and Nginx log import command |
+| [`README.md`](README.md) | Project overview, setup, capabilities, and limitations |
+| [`TESTING_STATUS.md`](TESTING_STATUS.md) | Regression test batches and verification status |
+| [`docs/security/AUDIT_CHECKPOINT_KEY_ROTATION.md`](docs/security/AUDIT_CHECKPOINT_KEY_ROTATION.md) | Audit checkpoint signing-key rotation guidance |
+| [`backend/app/telemetry/cli.py`](backend/app/telemetry/cli.py) | Linux SSH and Nginx log import command |
+
+---
+
+## Quick Start
+
+The fastest way to see AEGIS running is the [Docker Compose demo](#docker-compose-demo-deployment):
+
+```bash
+git clone https://github.com/Nomusa990822/aegis-security-platform.git
+cd aegis-security-platform
+
+# Create a private .env first (see "Docker Compose Demo Deployment" below)
+docker compose up --build -d
+```
+
+Then open the dashboard at <http://localhost:8000/dashboard>. To run from source instead, follow [Run AEGIS Locally](#run-aegis-locally).
 
 ---
 
@@ -322,7 +440,8 @@ export AEGIS_AUDIT_CHECKPOINT_KEY_ID="local-v1"
 export AEGIS_AUDIT_CHECKPOINT_DIR="$PWD/audit_checkpoints"
 ```
 
-Keep these values private and out of source control. Preserve the signing key and key ID when you need to verify checkpoints from an earlier run.
+> [!CAUTION]
+> Keep these values private and out of source control. Preserve the signing key and key ID when you need to verify checkpoints from an earlier run.
 
 Optional threat-intelligence provider configuration:
 
@@ -345,7 +464,7 @@ From the `backend/` directory, configure an analyst token and preview a log befo
 ```bash
 read -rsp "AEGIS analyst token: " AEGIS_ANALYST_TOKEN
 export AEGIS_ANALYST_TOKEN
-printf '\\n'
+printf '\n'
 
 python -m app.telemetry.cli /path/to/auth.log --format sshd --dry-run
 python -m app.telemetry.cli /var/log/nginx/access.log --format nginx --dry-run
@@ -362,9 +481,9 @@ The importer uses the existing API URL by default (`http://127.0.0.1:8000/api/v1
 
 | Service | Local URL |
 |---|---|
-| Analyst Dashboard | http://127.0.0.1:8000/dashboard |
-| API Health | http://127.0.0.1:8000/api/v1/health |
-| Interactive API Docs | http://127.0.0.1:8000/docs |
+| Analyst Dashboard | <http://127.0.0.1:8000/dashboard> |
+| API Health | <http://127.0.0.1:8000/api/v1/health> |
+| Interactive API Docs | <http://127.0.0.1:8000/docs> |
 
 The local SQLite database is created under `backend/aegis.db`.
 
@@ -396,7 +515,8 @@ AEGIS_DATABASE_PATH=/data/aegis.db
 EOF
 ```
 
-Keep `.env` private. Preserve it between restarts: changing the checkpoint signing key can prevent verification of checkpoints signed with the previous key. Do not commit the file or paste its contents into issue trackers.
+> [!CAUTION]
+> Keep `.env` private and preserve it between restarts: changing the checkpoint signing key can prevent verification of checkpoints signed with the previous key. Do not commit the file or paste its contents into issue trackers.
 
 ### 2. Build and start AEGIS
 
@@ -409,9 +529,9 @@ docker compose ps
 
 | Service | URL |
 |---|---|
-| Analyst Dashboard | http://localhost:8000/dashboard |
-| API Health | http://localhost:8000/api/v1/health |
-| Interactive API Docs | http://localhost:8000/docs |
+| Analyst Dashboard | <http://localhost:8000/dashboard> |
+| API Health | <http://localhost:8000/api/v1/health> |
+| Interactive API Docs | <http://localhost:8000/docs> |
 
 Use the analyst token from your local `.env` file when the dashboard requests authentication. Keep the approver token separate for approval-only operations.
 
@@ -422,7 +542,10 @@ docker compose down
 docker compose up -d
 ```
 
-The named `aegis-data` volume survives `docker compose down`. **Do not use `docker compose down -v`** unless you intentionally want to delete the persisted database and audit checkpoints. Back up the volume and retain the matching signing credentials.
+The named `aegis-data` volume survives `docker compose down`.
+
+> [!WARNING]
+> **Do not use `docker compose down -v`** unless you intentionally want to delete the persisted database and audit checkpoints. Back up the volume and retain the matching signing credentials.
 
 This Compose configuration is for a local, single-container demonstration. It does not make SQLite or the process-local rate limiter suitable for multi-worker or public production deployment. Do not expose the service directly to the public internet.
 
@@ -488,5 +611,7 @@ MFA and stronger identity management remain a separate security milestone. Large
 **AEGIS — Autonomous Threat Detection and Response Platform**
 
 *Observe. Detect. Investigate. Verify.*
+
+<sub>[Back to top](#aegis-security-platform)</sub>
 
 </div>
