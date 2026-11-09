@@ -1,10 +1,16 @@
+import os
 import sqlite3
 from pathlib import Path
 
 from app.response.repository import initialize_response_tables
 
 
-DATABASE_PATH = Path(__file__).resolve().parent.parent / "aegis.db"
+DATABASE_PATH = Path(
+    os.getenv(
+        "AEGIS_DATABASE_PATH",
+        str(Path(__file__).resolve().parent.parent / "aegis.db"),
+    )
+)
 SQLITE_BUSY_TIMEOUT_MS = 30_000
 
 
@@ -19,6 +25,8 @@ class _ClosingSQLiteConnection(sqlite3.Connection):
 
 
 def get_connection():
+    DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
+
     # SQLite permits multiple readers but only one active writer. Give
     # transient write-lock contention a bounded window to clear.
     connection = sqlite3.connect(
