@@ -273,6 +273,31 @@ def build_scenarios(
     )
 
     # ---------------------------------------------------------
+    # MALICIOUS SCENARIO 9: MULTI-SOURCE SUCCESSFUL AUTHENTICATION
+    # ---------------------------------------------------------
+
+    events = [
+        create_event(
+            event_type="authentication",
+            occurred_at=base_time - timedelta(seconds=10 * i),
+            source_ip=f"192.0.2.{90 + i}",
+            username="operations-account",
+            outcome="success",
+        )
+        for i in range(3)
+    ]
+
+    scenarios.append(
+        Scenario(
+            scenario_id="MAL-009",
+            name="Successful authentication to one account from multiple source IPs",
+            category="malicious",
+            expected_rule_id="AEGIS-AUTH-005",
+            events=events,
+        )
+    )
+
+    # ---------------------------------------------------------
     # BENIGN SCENARIO 1: SUCCESSFUL AUTHENTICATION
     # ---------------------------------------------------------
 
