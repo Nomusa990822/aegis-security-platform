@@ -370,3 +370,15 @@ Then run the full backend suite:
 
 **Verification state: NOT RUN.** The implementation and tests are committed, but must not be considered verified until the project owner runs the commands above. Do not run the recovery command with `--apply` against real quarantine evidence without first reviewing the dry-run report. Test suite commands do not invoke operational recovery.
 
+Implementation commit trail:
+- `bbe439b` — add quarantine recovery inspection and explicit recovery.
+- `2cec518` — write prepared manifest before moving evidence and completed manifest after.
+- `7647f0a` — add recovery tests for both interruption windows, tampering, orphan evidence, and temporary manifests.
+- `34a7e1e` — require explicit response IDs for apply and revalidate manifest under lock.
+- `52ed5e3` — strengthen assertions and test scoped apply.
+- `e91ce4d` — validate initial-orphan provenance and manifest metadata.
+- `6a7fc9c` — exercise an actual interruption after the evidence move.
+- `64f2ab4` — tighten recovery apply reporting.
+- `b22d969` — register the final interruption test.
+
+
