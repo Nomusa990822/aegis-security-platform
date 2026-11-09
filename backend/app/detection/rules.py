@@ -148,6 +148,24 @@ AUTH_SUCCESS_AFTER_FAILURES_RULE = {
 }
 
 
+MULTI_SOURCE_SUCCESSFUL_AUTH_RULE = {
+    "rule_id": "AEGIS-AUTH-005",
+    "name": "Successful Authentication from Multiple Source IPs",
+    "description": (
+        "The same account authenticates successfully from at least "
+        "three distinct source IP addresses within a short time window."
+    ),
+    "event_type": "authentication",
+    "threshold": 3,
+    "window_minutes": 10,
+    "severity": "medium",
+    "mitre_tactic": "Initial Access",
+    "mitre_technique": "T1078",
+    "mitre_name": "Valid Accounts",
+    "enabled": True
+}
+
+
 DETECTION_RULES = [
     BRUTE_FORCE_RULE,
     PASSWORD_SPRAYING_RULE,
@@ -157,4 +175,5 @@ DETECTION_RULES = [
     BEACONING_RULE,
     DISTRIBUTED_PASSWORD_GUESSING_RULE,
     AUTH_SUCCESS_AFTER_FAILURES_RULE,
+    MULTI_SOURCE_SUCCESSFUL_AUTH_RULE,
 ]
