@@ -60,6 +60,29 @@ Corrective commits:
 
 **Verification state after these commits: NOT YET RERUN.** The fixes are committed but are not considered verified until the affected tests and complete suite are rerun. Keep the full backend suite marked pending until then.
 
+## Second Codespace verification run — 2026-11-09
+
+After the first corrective commits (`4d76fd5`, `c92f742`, and `f63d7d2`), the project owner reran the tests.
+
+Confirmed results:
+- Targeted audit/concurrency/integrity batch: **37 passed**, 1 Starlette deprecation warning.
+- Checkpoint bootstrap/quarantine: **10 passed**, 1 Starlette deprecation warning.
+- Complete backend suite: **573 passed, 1 failed** (574 collected).
+- The remaining failure was `tests/test_response_audit_consistency.py::test_wrong_simulation_actor_is_detected`.
+
+Analysis: the previous validator correction correctly allowed a simulator to be a different analyst from the original requester, as demonstrated by the concurrency test, but removed the independent actor-consistency assertion. The corrected design records `simulated_by` in the simulation event details and validates that it matches the event's `actor`. This allows legitimate alternate analysts while detecting an actor field altered independently. Historical simulation events without `simulated_by` remain accepted for compatibility.
+
+New regression coverage:
+- `test_wrong_simulation_actor_is_detected` — changes only the event actor and must fail.
+- `test_different_authorised_simulator_is_valid_when_identity_matches` — changes both the event actor and its recorded simulator identity and must pass.
+
+Corrective commits on `main`:
+- `bb3376e` — restore simulation actor consistency validation.
+- `c062c10` — record simulator identity in signed audit details.
+- `6e29c19` — add/update simulator identity regression tests.
+
+**Verification state: NOT YET RERUN.** Pull these commits, run the targeted audit consistency and concurrency tests, then run the complete backend suite. Keep the full suite marked pending until all pass.
+
 ## Deferred test modules
 
 - `tests/test_response_audit_checkpoint_integration.py` — entire module, including existing checkpoint creation, advancement, tampering, key rotation, integrity-gate, and checkpoint-failure scenarios.
