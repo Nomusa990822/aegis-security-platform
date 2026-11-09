@@ -536,7 +536,8 @@ def test_quarantine_recovery_finishes_prepared_manifest_before_move(isolated_dat
     assert result["recovered"] is True
     assert result["classification"] == "recovered_completed"
     assert not source.exists()
-    assert evidence.read_bytes() == (quarantine / evidence_name).read_bytes()
+    import hashlib
+    assert hashlib.sha256(evidence.read_bytes()).hexdigest() == digest
     completed = json.loads(manifest_path.read_text())
     assert completed["status"] == "completed"
     assert completed["sha256"] == digest
@@ -640,3 +641,19 @@ def test_quarantine_recovery_inventories_orphan_evidence_and_manifest_temps(isol
     assert any(item["response_id"] == response_id for item in report["temporary_artifacts"])
     assert evidence.exists()
     assert temp.read_text(encoding="utf-8") == "partial"
+
+
+
+def test_quarantine_recovery_apply_requires_explicit_response_id(isolated_database):
+    import pytest
+
+    from app.response.checkpoint_quarantine_recovery import recover_quarantine_manifests
+
+    directory = Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"])
+    with _read_only_connection() as connection:
+        with pytest.raises(ValueError, match="explicit --response-id"):
+            recover_quarantine_manifests(
+                connection,
+                directory,
+                apply=True,
+            )
