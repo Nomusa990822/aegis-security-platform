@@ -829,3 +829,43 @@ def test_concurrent_checkpoint_recovery_publishes_only_one_checkpoint(
 
     assert integrity["valid"] is True
 
+
+
+def test_checkpoint_intent_rejects_duplicate_json_keys(isolated_database):
+    from app.response.checkpoint_intent import (
+        checkpoint_intent_path,
+        verify_checkpoint_intent,
+        write_checkpoint_intent,
+    )
+
+    response_id = 987654321
+    write_checkpoint_intent(
+        response_id=response_id,
+        event_count=1,
+        final_hash="a" * 64,
+        previous_event_count=0,
+        previous_final_hash="0" * 64,
+    )
+    intent_path = checkpoint_intent_path(
+        Path(os.environ["AEGIS_AUDIT_CHECKPOINT_DIR"]),
+        response_id,
+    )
+    original = intent_path.read_text(encoding="utf-8")
+    duplicate_key = f'"response_id":{response_id}'
+    assert original.count(duplicate_key) == 1
+
+    intent_path.write_text(
+        original.replace(
+            duplicate_key,
+            f'"response_id":{response_id},"response_id":{response_id}',
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    result = verify_checkpoint_intent(response_id)
+
+    assert result["valid"] is False
+    assert result["intent"] is None
+    assert len(result["errors"]) == 1
+    assert "Duplicate JSON key" in result["errors"][0]
