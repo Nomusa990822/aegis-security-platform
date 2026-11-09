@@ -1,3 +1,38 @@
+## End-to-end API workflows and concurrent operations — IMPLEMENTED; VERIFICATION NOT RUN
+
+This is the consolidated Phase 9 integration/concurrency verification batch. It exercises existing workflows and does not add new runtime features:
+
+- API integration: health, authenticated event ingestion and reads, alert investigation, evidence linking, correlation management, timelines, and audit history.
+- End-to-end threat-intelligence pipeline: submit a brute-force sequence, verify threshold behaviour, create and enrich the alert, persist provider results, and verify duplicate replay does not repeat detection or enrichment.
+- Concurrent enrichment: ensure simultaneous requests do not create duplicate assessments.
+- Concurrent intelligence persistence and simultaneous history reads/writes: verify records and provider results remain complete and consistently ordered.
+- Mixed concurrent ingestion: verify repeated external event identities are stored once while distinct events remain independent.
+- Concurrent ingestion regression coverage.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+printf '\\n========== END-TO-END API AND CONCURRENCY REGRESSIONS ==========\\n'
+./.venv/bin/python -m pytest \\
+    tests/test_api_integration.py \\
+    tests/test_end_to_end_threat_intelligence_pipeline.py \\
+    tests/test_concurrent_enrichment.py \\
+    tests/test_concurrent_intelligence_persistence.py \\
+    tests/test_concurrent_intelligence_reads_and_writes.py \\
+    tests/test_concurrent_ingestion.py \\
+    tests/test_concurrent_read_write_consistency.py \\
+    tests/test_mixed_concurrent_ingestion.py -v
+
+printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Record as PASSED only after the focused integration/concurrency modules and complete backend suite pass. This automated batch does not constitute production load testing or a multi-worker deployment test.
+ 
+---
+
 ## Detection effectiveness and adversarial regression batch — PASSED (owner-confirmed 2026-11-09)
 
 This verification batch consolidates the existing detection-quality checks without changing detection thresholds or claiming production effectiveness:
