@@ -11,6 +11,12 @@ from app.detection.detectors.beaconing import detect as detect_beaconing
 from app.detection.detectors.password_spraying import (
     detect as detect_password_spraying
 )
+from app.detection.detectors.distributed_password_guessing import (
+    detect as detect_distributed_password_guessing
+)
+from app.detection.detectors.auth_success_after_failures import (
+    detect as detect_auth_success_after_failures
+)
 
 DETECTOR_REGISTRY = {
     "AEGIS-AUTH-001": detect_brute_force,
@@ -18,7 +24,9 @@ DETECTOR_REGISTRY = {
     "AEGIS-NET-002": detect_horizontal_scan,
     "AEGIS-NET-003": detect_service_sweep,
     "AEGIS-NET-004": detect_beaconing,
-    "AEGIS-AUTH-002": detect_password_spraying
+    "AEGIS-AUTH-002": detect_password_spraying,
+    "AEGIS-AUTH-003": detect_distributed_password_guessing,
+    "AEGIS-AUTH-004": detect_auth_success_after_failures
 }
 
 
