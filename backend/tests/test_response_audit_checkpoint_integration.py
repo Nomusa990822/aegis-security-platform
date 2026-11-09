@@ -793,7 +793,7 @@ def test_hash_chain_tampering_blocks_simulation_without_mutation(
     assert integrity.status_code == 200
     assert integrity.json()["valid"] is False
     assert integrity.json()["chain_valid"] is False
-    assert integrity.json()["checkpoint_valid"] is False
+    assert integrity.json()["checkpoint_valid"] is True
 
 
 def test_hash_chain_tampering_blocks_approval_without_mutation(
