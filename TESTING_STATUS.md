@@ -303,3 +303,69 @@ Standalone command for future regression checks:
 ```bash
 ./.venv/bin/python -m pytest tests/test_checkpoint_key_rotation.py -v
 ```
+
+
+## Checkpoint quarantine recovery integrity — NOT RUN
+
+New module: `backend/app/response/checkpoint_quarantine_recovery.py`.
+
+The quarantine writer now uses a two-stage manifest protocol:
+1. Atomically persist a schema-v2 manifest with `status="prepared"` before moving the signed intent.
+2. Atomically move the exact signed intent bytes into the quarantine evidence directory and fsync both directories.
+3. Atomically update the manifest to `status="completed"`.
+
+This makes both interruption windows detectable:
+- Prepared manifest + original intent still present: recovery can finish the move after revalidating the signed intent and database state.
+- Prepared manifest + evidence already moved: recovery can validate the evidence and complete the manifest.
+
+Recovery safeguards:
+- Dry-run by default; `--apply` requires at least one explicit `--response-id`.
+- SQLite is opened read-only by the CLI.
+- Rechecks the manifest, source/evidence paths, SHA-256, HMAC signature, database references, and checkpoint absence under the per-response lock.
+- Only initial orphan intents are eligible (event count 1, predecessor count 0, genesis predecessor hash).
+- Rejects missing/invalid signing keys, malformed or duplicate-key JSON, mismatched manifest metadata, symlinks, both source and evidence existing, changed database references, and unexpected checkpoints.
+- Does not delete evidence, overwrite evidence, invent a manifest for an orphan evidence file, or process temporary manifest files.
+- Orphan evidence without a manifest and interrupted manifest temp files are inventoried and preserved.
+- Historical schema-v1 completed manifests remain readable.
+
+Read-only dry run (stop the API server first and load the local environment without displaying secrets):
+
+```bash
+cd /workspaces/aegis-security-platform/backend
+set -a
+source .env
+set +a
+./.venv/bin/python -m app.response.checkpoint_quarantine_recovery
+```
+
+Explicit recovery of a reviewed response ID:
+
+```bash
+./.venv/bin/python -m app.response.checkpoint_quarantine_recovery \
+    --apply \
+    --response-id RESPONSE_ID
+```
+
+New tests — authored but **NOT RUN**:
+- `test_quarantine_recovery_finishes_prepared_manifest_before_move`
+- `test_quarantine_recovery_completes_manifest_after_atomic_move`
+- `test_quarantine_recovery_refuses_modified_evidence`
+- `test_quarantine_recovery_inventories_orphan_evidence_and_manifest_temps`
+- `test_quarantine_recovery_apply_requires_explicit_response_id`
+
+The existing `test_stale_orphan_intent_is_dry_run_then_quarantined_with_evidence` was updated to require a schema-v2 completed manifest.
+
+Run the focused tests:
+
+```bash
+./.venv/bin/python -m pytest tests/test_checkpoint_bootstrap.py -v
+```
+
+Then run the full backend suite:
+
+```bash
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** The implementation and tests are committed, but must not be considered verified until the project owner runs the commands above. Do not run the recovery command with `--apply` against real quarantine evidence without first reviewing the dry-run report. Test suite commands do not invoke operational recovery.
+
