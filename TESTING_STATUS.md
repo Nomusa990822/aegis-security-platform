@@ -1,3 +1,25 @@
+## HTTP request-body size limit — RETEST REQUIRED
+
+The API now applies a global 1 MiB request-body ceiling before route handlers run. The middleware rejects an oversized declared Content-Length without reading the body, and also enforces the same limit while buffering requests without a declared length (including chunked uploads). Invalid or conflicting Content-Length values receive HTTP 400. Requests at or below the limit continue through normal routing and validation.
+
+New regression module: `backend/tests/test_request_body_limits.py`.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+printf '\n========== HTTP REQUEST-BODY LIMIT REGRESSIONS ==========\n'
+./.venv/bin/python -m pytest tests/test_request_body_limits.py tests/test_api_input_hardening.py tests/test_security_input.py -v
+
+printf '\n========== COMPLETE BACKEND REGRESSION SUITE ==========\n'
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Mark passed only after the focused request/input-hardening modules and complete backend suite pass.
+
+---
+
 ## SQLite connection lifecycle and health-check hardening — PASSED (owner-confirmed 2026-11-09)
 
 This batch improves the existing SQLite runtime without changing the database engine or schema:
