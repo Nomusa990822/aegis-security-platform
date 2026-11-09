@@ -4,7 +4,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import Depends, FastAPI, HTTPException, Response
+
+from app.auth import AuthenticatedActor, get_analyst_actor, get_current_actor
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
@@ -153,6 +155,16 @@ def home():
     }
 
 
+@app.get("/api/v1/auth/me")
+def current_session(
+    actor: AuthenticatedActor = Depends(get_current_actor),
+):
+    return {
+        "actor_id": actor.actor_id,
+        "role": actor.role,
+    }
+
+
 @app.get("/api/v1/health")
 def health():
     return {
@@ -166,6 +178,7 @@ def health():
 async def ingest_event(
     event: SecurityEvent,
     response: Response,
+    actor: AuthenticatedActor = Depends(get_analyst_actor),
 ):
     received_at = datetime.now(timezone.utc)
     occurred_at = event.occurred_at or received_at
@@ -358,7 +371,10 @@ async def ingest_event(
 
 
 @app.get("/api/v1/events")
-def get_events(limit: int = 100):
+def get_events(
+    limit: int = 100,
+    actor: AuthenticatedActor = Depends(get_current_actor),
+):
     if not 1 <= limit <= 1000:
         raise HTTPException(
             status_code=400,
@@ -383,7 +399,9 @@ def get_events(limit: int = 100):
 
 
 @app.get("/api/v1/alerts")
-def get_alerts():
+def get_alerts(
+    actor: AuthenticatedActor = Depends(get_current_actor),
+):
     with get_connection() as connection:
         rows = connection.execute(
             """
@@ -400,7 +418,9 @@ def get_alerts():
 
 
 @app.get("/api/v1/detection/rules")
-def get_detection_rules_endpoint():
+def get_detection_rules_endpoint(
+    actor: AuthenticatedActor = Depends(get_current_actor),
+):
     rules = get_detection_rules()
 
     return {
