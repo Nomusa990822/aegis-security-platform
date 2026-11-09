@@ -1,3 +1,38 @@
+## SQLite connection lifecycle and health-check hardening — NOT RUN
+
+This batch improves the existing SQLite runtime without changing the database engine or schema:
+
+- SQLite connections created by `get_connection()` now close automatically when used as context managers, while retaining normal commit-on-success and rollback-on-exception behaviour.
+- Connections use an explicit 30-second lock wait (`timeout=30` and `PRAGMA busy_timeout=30000`) to tolerate transient SQLite writer contention.
+- Foreign-key enforcement remains enabled on every connection.
+- The public health endpoint now executes `SELECT 1` and returns HTTP 503 with a generic error when SQLite cannot be reached, rather than always reporting a healthy database.
+
+SQLite still allows only one active writer at a time. A longer bounded lock wait does not turn SQLite into a multi-writer database; PostgreSQL remains the appropriate next step for a multi-worker production deployment.
+
+New regression tests in `tests/test_database_operational_readiness.py` verify connection closure, rollback on exceptions, per-connection pragmas, and both healthy and unavailable database health responses.
+
+Run from the Codespaces backend directory:
+
+```bash
+git pull --ff-only origin main
+
+printf '\\n========== DATABASE LIFECYCLE AND CONCURRENCY REGRESSIONS ==========\\n'
+./.venv/bin/python -m pytest \
+    tests/test_database_operational_readiness.py \
+    tests/test_concurrent_database_integrity.py \
+    tests/test_concurrent_ingestion.py \
+    tests/test_concurrent_read_write_consistency.py \
+    tests/test_mixed_concurrent_ingestion.py \
+    tests/test_ingestion_transaction_atomicity.py -v
+
+printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
+./.venv/bin/python -m pytest -q
+```
+
+**Verification state: NOT RUN.** Mark passed only after the targeted database/concurrency tests and complete backend suite succeed.
+
+---
+
 ## Strict API request contracts — PASSED (owner-confirmed 2026-11-09)
 
 This batch makes API request models reject unknown JSON properties instead of silently ignoring them. It covers event ingestion, alert mutations, response preview/decision requests, and IP intelligence requests. Correlation request models already enforce this policy. The IP intelligence request also has explicit length boundaries.
