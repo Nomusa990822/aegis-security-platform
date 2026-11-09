@@ -83,6 +83,8 @@
                     <span class="status-dot"></span>
                     LIVE MONITORING
                 </div>
+                <span class="auth-identity" id="auth-identity"></span>
+                <button class="text-button" id="logout-button" type="button">Sign out</button>
                 <button class="icon-button" id="refresh-button"
                         title="Refresh dashboard" aria-label="Refresh dashboard">↻</button>
             </div>
@@ -1073,6 +1075,28 @@
         </footer>
 
     </main>
+</div>
+
+<div class="auth-gate" id="auth-gate" hidden>
+    <form class="auth-panel" id="auth-form">
+        <p class="eyebrow">AEGIS SECURE ACCESS</p>
+        <h1>Authenticate to continue</h1>
+        <p class="muted">
+            Enter an AEGIS analyst or approver bearer token configured by the operator.
+        </p>
+        <label for="auth-token">Access token</label>
+        <input
+            id="auth-token"
+            name="token"
+            type="password"
+            autocomplete="current-password"
+            minlength="32"
+            required
+            placeholder="Enter your access token"
+        >
+        <p class="auth-error" id="auth-error" role="alert"></p>
+        <button class="primary-button" type="submit">Sign in</button>
+    </form>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
