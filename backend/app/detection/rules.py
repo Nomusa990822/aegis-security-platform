@@ -166,6 +166,25 @@ MULTI_SOURCE_SUCCESSFUL_AUTH_RULE = {
 }
 
 
+REMOTE_SERVICE_FANOUT_RULE = {
+    "rule_id": "AEGIS-NET-005",
+    "name": "Remote-Service Connection Fan-Out",
+    "description": (
+        "A source IP contacts multiple distinct destination hosts over "
+        "common remote-administration ports within a short time window."
+    ),
+    "event_type": "network_connection",
+    "threshold": 5,
+    "window_minutes": 5,
+    "remote_service_ports": [22, 445, 3389, 5985, 5986],
+    "severity": "medium",
+    "mitre_tactic": "Lateral Movement",
+    "mitre_technique": "T1021",
+    "mitre_name": "Remote Services",
+    "enabled": True
+}
+
+
 DETECTION_RULES = [
     BRUTE_FORCE_RULE,
     PASSWORD_SPRAYING_RULE,
@@ -176,4 +195,5 @@ DETECTION_RULES = [
     DISTRIBUTED_PASSWORD_GUESSING_RULE,
     AUTH_SUCCESS_AFTER_FAILURES_RULE,
     MULTI_SOURCE_SUCCESSFUL_AUTH_RULE,
+    REMOTE_SERVICE_FANOUT_RULE,
 ]
