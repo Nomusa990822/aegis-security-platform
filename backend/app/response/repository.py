@@ -452,8 +452,10 @@ def decide_response(
     if decision not in {"approved", "rejected"}:
         raise ValueError("Unsupported response decision.")
 
-    decision_at = datetime.now(timezone.utc).isoformat()
     connection.execute("BEGIN IMMEDIATE")
+    # Timestamp only after acquiring SQLite's writer lock. A competing
+    # lifecycle operation may have committed while this call was waiting.
+    decision_at = datetime.now(timezone.utc).isoformat()
 
     try:
         existing = connection.execute(
@@ -576,8 +578,10 @@ def simulate_response(
     or network operations.
     """
 
-    simulation_at = datetime.now(timezone.utc).isoformat()
     connection.execute("BEGIN IMMEDIATE")
+    # Timestamp only after acquiring SQLite's writer lock so audit-event
+    # chronology follows the serialized lifecycle mutation order.
+    simulation_at = datetime.now(timezone.utc).isoformat()
 
     try:
         record = connection.execute(
