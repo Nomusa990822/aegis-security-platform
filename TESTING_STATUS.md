@@ -24,6 +24,8 @@ git pull --ff-only origin main
 ./.venv/bin/python -m pytest -q
 ```
 
+The first owner-run verification produced 17/17 passing authentication tests and 630 passing tests in the full suite, with four failures in legacy correlation integration tests. Those older tests still supplied caller-controlled `actor`/`author` fields, which the new request models correctly reject. `backend/tests/test_api_integration.py` has now been updated to omit those fields and rely on the authenticated analyst identity. The correction is committed but has not yet been rerun.
+
 **Verification state: NOT RUN.** Do not mark this batch passed until both commands complete successfully.
 
 ---
