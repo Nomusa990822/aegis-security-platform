@@ -1090,3 +1090,8 @@ cd /workspaces/aegis-security-platform/backend
 ```
 
 **Verification state: NOT RUN.** Awaiting owner execution of the focused modules and complete backend suite. Synthetic evaluation now contains nine malicious and six benign scenarios across nine registered rules; these synthetic results do not establish production detection effectiveness.
+
+
+### Regression follow-up — stale detection-rule counts
+
+The first owner-run verification of this batch reported 81 focused tests passed and 2 failed; the full suite reported 674 passed and 2 failed. Both failures were stale assertions in `tests/test_detection_regression.py` that still expected eight registered rules and an API count of eight. The new detector, its focused tests, MITRE mapping, and synthetic evaluation passed. Updated the registry and API expectations to nine, including `AEGIS-AUTH-005`. **Verification remains NOT RUN pending rerun of the focused batch and complete suite.**
