@@ -650,6 +650,44 @@ def test_tampered_response_identity_fields_block_simulation_without_mutation(
     assert integrity["errors"]
 
 
+def test_valid_but_tampered_response_reasons_block_simulation_without_mutation(
+    isolated_database,
+):
+    response_id = create_response()
+    assert approve_response(response_id) == "updated"
+    before = get_record(response_id)
+
+    assert isinstance(before["reasons"], list)
+    tampered_reasons = ["Tampered policy explanation."]
+
+    with database.get_connection() as connection:
+        connection.execute(
+            "UPDATE response_records SET reasons = ? WHERE id = ?",
+            (__import__("json").dumps(tampered_reasons), response_id),
+        )
+        connection.commit()
+
+    with database.get_connection() as connection:
+        outcome = simulate_response(
+            connection=connection,
+            response_id=response_id,
+            actor_id="analyst-alpha",
+        )
+
+    assert outcome == "audit_integrity_failure"
+
+    after = get_record(response_id)
+    assert after["reasons"] == tampered_reasons
+    assert after["status"] == "approved"
+    assert after["simulated"] is False
+    assert after["executed"] is False
+    assert after["audit_log"] == before["audit_log"]
+
+    integrity = validate_response_audit(after)
+    assert integrity["valid"] is False
+    assert any("reasons" in error.lower() for error in integrity["errors"])
+
+
 @pytest.mark.parametrize(
     "stored_reasons",
     [
