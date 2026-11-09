@@ -1030,7 +1030,7 @@ Implementation commit: `6335db2`.
 
 
 
-## Authentication detection expansion — NOT RUN
+## Authentication detection expansion — PASSED (owner-confirmed 2026-11-09)
 
 Two additional rules reuse the existing event-ingestion and detection pipeline:
 
@@ -1059,4 +1059,4 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Awaiting the project owner's focused and full-suite test results.
+**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that all five focused regression modules and the complete backend test suite passed.
