@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.auth import get_current_actor
 
 from app.intelligence.enrichment import (
     ThreatIntelligenceEnrichmentService,
@@ -10,6 +12,7 @@ from app.intelligence.repository import IntelligenceRepository
 router = APIRouter(
     prefix="/api/v1/intelligence",
     tags=["Threat Intelligence"],
+    dependencies=[Depends(get_current_actor)],
 )
 
 enrichment_service = ThreatIntelligenceEnrichmentService()
