@@ -354,7 +354,7 @@ AEGIS focuses on a defined set of security operations workflows. It does not att
 | MFA / OTP | Not implemented |
 | SSO / OAuth / OIDC / SAML | Not implemented |
 | Detection | Ten registered rules |
-| MITRE ATT&CK | Curated nine-entry subset |
+| MITRE ATT&CK | Curated ten-entry subset |
 | Telemetry collection | API-based event submission; no endpoint agent |
 | Packet inspection | Not implemented |
 | Syslog / Sysmon collectors | Not implemented |
@@ -372,17 +372,16 @@ Do not expose the development server directly to the public internet.
 
 ---
 
-## Development Roadmap
+## Next Engineering Milestones
 
-The next improvements are intentionally scoped to add meaningful capability without unnecessary infrastructure:
+The core detection, investigation, threat-intelligence, MITRE-context, and controlled-response workflows are implemented and covered by the current regression suite. Remaining work should focus on making the prototype easier to demonstrate and operate:
 
-1. Improve deployment and contributor documentation.
-2. Add high-value detection rules backed by explicit telemetry fields.
-3. Make MITRE technique coverage and unmapped areas visible.
-4. Add a lightweight telemetry adapter using representative sample logs.
-5. Consider MFA and stronger identity/session management as a separate security milestone.
+1. Add a lightweight telemetry adapter that converts representative Linux or web-server logs into the existing event schema.
+2. Improve the dashboard's visibility into detection evidence, MITRE mappings, and unmapped findings.
+3. Prepare a reproducible demonstration deployment with persistent storage, managed secrets, backups, and explicit single-process constraints.
+4. Evaluate PostgreSQL and shared rate limiting only when moving beyond the local, single-process prototype.
 
-Large endpoint agents, malware sandboxes, full ATT&CK ingestion, unsupported machine-learning claims, and real automated containment are outside the current low-cost prototype scope.
+MFA and stronger identity management remain a separate security milestone. Large endpoint agents, malware sandboxes, full ATT&CK ingestion, unsupported machine-learning claims, and real automated containment remain outside the current low-cost prototype scope.
 
 ---
 
