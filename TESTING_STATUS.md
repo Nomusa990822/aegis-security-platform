@@ -472,7 +472,7 @@ Then run the complete backend suite:
 Implementation commit: `796ef5f`.
 
 
-## Response transaction rollback on database state-update failure — NOT RUN
+## Response transaction rollback on database state-update failure — PASSED (owner-confirmed 2026-11-09)
 
 Two SQLite-trigger failure-injection tests verify that a database-level rejection of the response state update leaves no partial lifecycle change:
 
@@ -493,7 +493,7 @@ Then run the complete backend suite:
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Wait for confirmation that both commands pass before marking this task complete.
+**Verification state: PASSED.** The project owner confirmed that both the focused response audit-integrity module and the complete backend test suite passed after pulling the implementation. Exact test counts were not provided and are not inferred.
 
 Implementation commit: `6335db2`.
 
