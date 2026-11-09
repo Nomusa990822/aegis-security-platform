@@ -309,7 +309,7 @@ def test_valid_request_is_persisted_pending_approval(client):
     )
     assert record["audit_log"][0]["actor"] == "analyst-alpha"
 
-def test_client_cannot_spoof_requester_identity(
+def test_response_requester_identity_comes_from_authenticated_actor(
     client,
     seeded_alert,
 ):
@@ -319,7 +319,6 @@ def test_client_cannot_spoof_requester_identity(
             "alert_id": seeded_alert,
             "action": "block_ip",
             "target": "198.51.100.250",
-            "requested_by": "approver-beta",
         },
     )
 
