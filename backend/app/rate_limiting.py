@@ -43,6 +43,12 @@ class APIRateLimitMiddleware:
         self._lock = threading.Lock()
         self._checks = 0
 
+    def reset(self):
+        """Clear counters; intended for isolated test/application lifecycle use."""
+        with self._lock:
+            self._hits.clear()
+            self._checks = 0
+
     @staticmethod
     def _client_ip(scope):
         client = scope.get("client")
