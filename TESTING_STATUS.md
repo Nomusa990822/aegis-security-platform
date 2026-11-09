@@ -305,7 +305,7 @@ Standalone command for future regression checks:
 ```
 
 
-## Checkpoint quarantine recovery integrity — NOT RUN
+## Checkpoint quarantine recovery integrity — PASSED (owner-confirmed 2026-11-09)
 
 New module: `backend/app/response/checkpoint_quarantine_recovery.py`.
 
@@ -346,7 +346,7 @@ Explicit recovery of a reviewed response ID:
     --response-id RESPONSE_ID
 ```
 
-New tests — authored but **NOT RUN**:
+New tests — authored and **PASSED in the owner's test run**:
 - `test_quarantine_recovery_finishes_prepared_manifest_before_move`
 - `test_quarantine_recovery_completes_manifest_after_atomic_move`
 - `test_quarantine_recovery_refuses_modified_evidence`
@@ -368,7 +368,7 @@ Then run the full backend suite:
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** The implementation and tests are committed, but must not be considered verified until the project owner runs the commands above. Do not run the recovery command with `--apply` against real quarantine evidence without first reviewing the dry-run report. Test suite commands do not invoke operational recovery.
+**Verification state: PASSED.** The project owner confirmed that all tests passed after pulling the implementation. The exact focused and full-suite counts were not provided, so no totals are inferred. This verifies automated tests only; it does not mean the operational recovery command was run. Do not run the recovery command with `--apply` against real quarantine evidence without first reviewing the dry-run report.
 
 Implementation commit trail:
 - `bbe439b` — add quarantine recovery inspection and explicit recovery.
@@ -384,7 +384,7 @@ Implementation commit trail:
 
 
 
-## Threat-intelligence provider timeout isolation — NOT RUN
+## Threat-intelligence provider timeout isolation — PASSED (owner-confirmed 2026-11-09)
 
 The enrichment service now enforces a finite, positive per-provider timeout (default: 12 seconds) using `asyncio.wait_for`.
 
@@ -398,7 +398,7 @@ Expected behaviour:
 
 Default timeout is a service-level ceiling. The AbuseIPDB HTTP client retains its own lower-level network timeout as an additional bound.
 
-New tests — authored but **NOT RUN**:
+New tests — authored and **PASSED in the owner's test run**:
 - `test_provider_timeout_becomes_unavailable_without_crashing_enrichment`
 - `test_timed_out_provider_does_not_discard_successful_provider_result`
 - `test_provider_timeout_configuration_must_be_finite_and_positive` (six cases, including an oversized integer)
@@ -416,6 +416,6 @@ Then run the complete backend suite:
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** No live AbuseIPDB requests are needed; the new timeout tests use local asynchronous test providers.
+**Verification state: PASSED.** The project owner confirmed that the focused intelligence tests and complete backend test suite passed after the pytest parameter-ID correction (`8540b98`). The exact pass count was not provided. No live AbuseIPDB requests were needed; the timeout tests use local asynchronous test providers.
 
-Implementation commits: `c7fdd04` (provider deadline), `3411ee3` (timeout isolation tests), `bab4122` (timeout validation edge cases), and `52eb4b9` (cancellation and oversized-value tests).
+Implementation commits: `c7fdd04` (provider deadline), `3411ee3` (timeout isolation tests), `bab4122` (timeout validation edge cases), `52eb4b9` (cancellation and oversized-value tests), and `8540b98` (explicit pytest parameter IDs for Python 3.14 compatibility).
