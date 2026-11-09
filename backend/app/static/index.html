@@ -987,6 +987,24 @@
                     <div class="metric-value" id="mitre-tactic-count">—</div>
                     <div class="metric-foot">Distinct ATT&CK tactics</div>
                 </article>
+                
+                <article class="metric-card">
+                    <div class="metric-top">
+                        <span>REGISTERED RULES</span>
+                        <span class="metric-symbol">≡</span>
+                    </div>
+                    <div class="metric-value" id="mitre-total-rule-count">—</div>
+                    <div class="metric-foot">Rules in the detection registry</div>
+                </article>
+                
+                <article class="metric-card">
+                    <div class="metric-top">
+                        <span>UNMAPPED RULES</span>
+                        <span class="metric-symbol warning">!</span>
+                    </div>
+                    <div class="metric-value" id="mitre-unmapped-rule-count">—</div>
+                    <div class="metric-foot">Rules needing ATT&CK review</div>
+                </article>
             </div>
             
             <section class="panel mitre-catalogue-panel">
@@ -1016,6 +1034,36 @@
                 </div>
             </section>
             
+            <section class="panel investigation-section" id="mitre-rule-coverage-panel">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">REGISTRY COVERAGE</p>
+                        <h2>Detection rule coverage</h2>
+                    </div>
+                    <span class="section-counter" id="mitre-coverage-counter">0</span>
+                </div>
+                <p class="muted mitre-explanation">
+                    Every registered rule is listed, including rules without an ATT&CK association.
+                    A mapping is an analytical relationship, not proof that an adversary technique occurred.
+                </p>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>RULE ID</th>
+                                <th>DETECTION RULE</th>
+                                <th>SEVERITY</th>
+                                <th>ATT&CK COVERAGE</th>
+                                <th>MAPPED TECHNIQUES</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mitre-rule-coverage-table">
+                            <tr><td colspan="5" class="empty-state">Loading registered detection rules...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
             <section class="panel investigation-section">
                 <div class="panel-heading">
                     <div>
@@ -1040,11 +1088,12 @@
                             <th>TACTIC</th>
                             <th>CONFIDENCE</th>
                             <th>MAPPING TYPE</th>
+                            <th>RATIONALE</th>
                         </tr>
                     </thead>
                     <tbody id="mitre-mappings-table">
                         <tr>
-                            <td colspan="5" class="empty-state">
+                            <td colspan="6" class="empty-state">
                                 Loading rule mappings...
                             </td>
                         </tr>
