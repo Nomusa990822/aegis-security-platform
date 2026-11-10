@@ -425,7 +425,11 @@ CRITICAL findings for which Trivy identifies an available fix. Unfixed
 findings remain visible in the report and require review and tracking.
 
 The Trivy GitHub Action is pinned to a reviewed full commit SHA, and the
-Trivy scanner version is explicitly selected. This scan covers the image
+Trivy scanner version is explicitly selected. The scanner uses the checked-in
+`.trivyignore` exception for CVE-2025-47273 because the finding comes from
+setuptools metadata in the upstream Python image layer; the Dockerfile removes
+setuptools from the final runtime filesystem and asserts that it is absent.
+The exception must be revisited if the base image or runtime packaging changes. This scan covers the image
 built in CI; it does not establish that a separately built or deployed
 image is identical, and it is not a substitute for runtime monitoring,
 configuration review, or a complete software supply-chain assessment.
