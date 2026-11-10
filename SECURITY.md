@@ -311,25 +311,26 @@ Do not use real production credentials or sensitive operational data in demonstr
 
 ## Known Limitations
 
-AEGIS is an evolving cybersecurity engineering prototype.
-The following limitations should be considered when evaluating
-or deploying the platform.
+AEGIS is an evolving cybersecurity engineering prototype. The following
+limitations describe the current implementation and should be considered
+before deployment or security evaluation.
 
 | Area | Current limitation |
 |---|---|
-| Identity management | Authentication relies on configured Bearer tokens rather than a dedicated identity-management platform. |
-| Multi-factor authentication | MFA and enterprise identity federation are not currently implemented. |
-| Human identity assurance | Separate application roles do not independently verify the identities of the people using shared credentials. |
-| Database architecture | SQLite is used instead of a distributed database architecture. |
-| Audit storage | Audit checkpoints are stored locally and are not independently administered by an external security authority. |
-| Audit integrity | Cryptographic verification cannot protect against every compromise of the application host, database, or signing keys. |
-| Rate limiting | Rate-limit effectiveness depends partly on deployment configuration, particularly client IP identification and reverse-proxy trust. |
-| Response execution | Response operations are simulated. Real endpoint containment and operating-system command execution are not implemented. |
-| Security assurance | Automated regression tests do not replace independent security assessments. |
+| Authentication model | Response authentication uses two configured static Bearer tokens. OAuth 2.0, OpenID Connect, SSO, MFA, an external identity provider, and user or session lifecycle management are not implemented. |
+| Human identity assurance | Separate analyst and approver tokens and actor IDs enforce application roles, but do not independently establish that different people are using them. Credential sharing remains possible. |
+| Rate limiting | Rate-limit counters are held in process memory. They reset when the application process restarts and are not shared across multiple workers, containers, or replicas. |
+| Reverse-proxy deployment | Client IP addresses are taken from the ASGI connection scope. Forwarded headers are deliberately ignored; behind a reverse proxy, requests may therefore be grouped under the proxy's address. Trusted-proxy handling is not implemented. |
+| Database architecture | SQLite is used for persistent application data. A distributed database, high-availability configuration, and multi-instance coordination are not implemented. |
+| Audit storage and trust boundary | Audit events, chain-head records, and signed checkpoints are stored on the application-managed data volume. Checkpoints are not independently administered or anchored in external immutable/WORM storage. |
+| Audit integrity | The SHA-256 event chain, chain-head comparison, and HMAC-signed checkpoints provide integrity checks and tamper evidence. They cannot guarantee detection if an attacker can compromise or rewrite the database, checkpoint files, and relevant signing keys together. |
+| Response execution | Response actions are restricted to dry-run simulation. AEGIS does not currently block traffic, isolate endpoints, terminate processes, or execute operating-system containment commands. |
+| Transport security | The application does not terminate HTTPS itself. Production network exposure requires a separately configured TLS-terminating reverse proxy or gateway and appropriate network restrictions. |
+| Security assurance | Automated tests and CI checks validate expected behavior; they do not establish that the platform is vulnerability-free. No independent penetration test, formal security certification, or production security assessment is claimed. |
 
-These limitations define the current scope of the project and
-should not be interpreted as guarantees of security.
----
+These limitations define the current scope of the project. Deployment
+controls and successful automated tests must not be interpreted as a
+guarantee that AEGIS is secure or suitable for production use.
 
 ## Security Testing
 
