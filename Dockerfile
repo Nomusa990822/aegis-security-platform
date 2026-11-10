@@ -10,9 +10,9 @@ RUN groupadd --system aegis \
 
 WORKDIR /app/backend
 
-COPY --chown=aegis:aegis backend/requirements.txt ./requirements.txt
+COPY --chown=aegis:aegis backend/requirements.lock ./requirements.lock
 RUN python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir -r requirements.txt
+    && python -m pip install --no-cache-dir -r requirements.lock
 
 COPY --chown=aegis:aegis backend/ ./
 
