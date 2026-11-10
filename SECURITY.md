@@ -341,6 +341,13 @@ it is not a comprehensive security assessment.
 
 ### Continuous integration
 
+Third-party GitHub Actions used by the CI workflows are pinned to full
+commit SHAs rather than mutable major-version tags. Version comments are
+retained beside the pins for readability. This reduces the risk that a
+tag is moved to different action code without a corresponding reviewed
+repository change. Pinning does not replace reviewing action updates,
+their maintainers, permissions, or transitive dependencies.
+
 The backend suite runs through GitHub Actions on:
 
 - Push events
