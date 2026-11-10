@@ -6,6 +6,11 @@
      role="img"
      aria-label="AEGIS Autonomous Security Platform">
 
+<rect
+    width="2172"
+    height="724"
+    fill="#0B0F14"/>
+
   <defs>
     <linearGradient id="greyL" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#f4f6fa"/>
