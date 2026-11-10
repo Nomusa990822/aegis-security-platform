@@ -460,6 +460,24 @@ built in CI; it does not establish that a separately built or deployed
 image is identical, and it is not a substitute for runtime monitoring,
 configuration review, or a complete software supply-chain assessment.
 
+### Repository secret scanning
+
+The `.github/workflows/secret-scanning.yml` workflow runs Gitleaks against
+the repository's complete Git history. It scans on pushes to `main`, pull
+requests targeting `main`, manual dispatch, and a weekly schedule. The
+workflow checks out full history so that secrets introduced in earlier
+commits can also be detected. The Gitleaks action and checkout action are
+pinned to full commit SHAs. Pull-request comments and SARIF artifact uploads
+are disabled; the workflow publishes its scan summary in the Actions run.
+
+This CI scan is separate from GitHub's native secret-scanning alerts and
+push protection. The presence of this workflow does not mean those repository
+features are enabled. A clean scan is not a guarantee that no credential has
+ever been exposed. If a real credential is detected, revoke or rotate it
+immediately, remove it from the current source, and assess whether the Git
+history also needs remediation. Do not copy detected secret values into
+issues, logs, or public discussions.
+
 ### Testing limitations
 
 The current CI security checks include backend regression tests,
