@@ -1,7 +1,7 @@
 
 import pytest
 
-from app.database import get_connection, initialize_database
+from app.database import get_connection
 from app.intelligence.models import (
     EnrichmentStatus,
     IPClassification,
@@ -13,8 +13,7 @@ from app.intelligence.repository import IntelligenceRepository
 
 
 @pytest.fixture
-def repository():
-    initialize_database()
+def repository(isolated_database):
     return IntelligenceRepository()
 
 
@@ -102,28 +101,16 @@ def test_retrieve_assessment_history_by_ip(repository):
     assert all(item["ip_address"] == "8.8.8.8" for item in history)
 
 
-def test_assessment_can_be_linked_to_alert(repository):
-    connection = get_connection()
+def test_assessment_can_be_linked_to_alert(repository, seeded_alert):
+    assessment_id = repository.save_assessment(
+        create_assessment(),
+        alert_id=seeded_alert,
+    )
 
-    try:
-        alert_id = connection.execute(
-            "SELECT id FROM security_alerts ORDER BY id LIMIT 1"
-        ).fetchone()
+    stored = repository.get_assessment(assessment_id)
 
-        if alert_id is None:
-            pytest.skip("No security alert exists in the test database")
-
-        assessment_id = repository.save_assessment(
-            create_assessment(),
-            alert_id=alert_id["id"],
-        )
-
-        stored = repository.get_assessment(assessment_id)
-
-        assert stored["alert_id"] == alert_id["id"]
-
-    finally:
-        connection.close()
+    assert stored is not None
+    assert stored["alert_id"] == seeded_alert
 
 
 def test_save_assessment_with_external_connection(repository):

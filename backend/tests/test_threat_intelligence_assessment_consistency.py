@@ -11,7 +11,7 @@ from app.intelligence.models import (
 )
 
 
-class TestProvider:
+class ProviderStub:
     def __init__(self, name, result=None, error=None):
         self.PROVIDER_NAME = name
         self.result = result
@@ -43,7 +43,7 @@ def provider_result(
 def test_multiple_successful_providers_produce_consistent_assessment():
     service = ThreatIntelligenceEnrichmentService(
         providers=[
-            TestProvider(
+            ProviderStub(
                 "abuseipdb",
                 provider_result(
                     "abuseipdb",
@@ -52,7 +52,7 @@ def test_multiple_successful_providers_produce_consistent_assessment():
                     ["brute_force"],
                 ),
             ),
-            TestProvider(
+            ProviderStub(
                 "secondary_provider",
                 provider_result(
                     "secondary_provider",
@@ -82,7 +82,7 @@ def test_multiple_successful_providers_produce_consistent_assessment():
 def test_failed_provider_does_not_contaminate_partial_assessment():
     service = ThreatIntelligenceEnrichmentService(
         providers=[
-            TestProvider(
+            ProviderStub(
                 "abuseipdb",
                 provider_result(
                     "abuseipdb",
@@ -91,7 +91,7 @@ def test_failed_provider_does_not_contaminate_partial_assessment():
                     ["malicious_activity"],
                 ),
             ),
-            TestProvider(
+            ProviderStub(
                 "failing_provider",
                 error=RuntimeError("Provider unavailable"),
             ),
@@ -114,11 +114,11 @@ def test_failed_provider_does_not_contaminate_partial_assessment():
 def test_all_failed_providers_produce_consistent_failed_assessment():
     service = ThreatIntelligenceEnrichmentService(
         providers=[
-            TestProvider(
+            ProviderStub(
                 "provider_one",
                 error=RuntimeError("First provider failed"),
             ),
-            TestProvider(
+            ProviderStub(
                 "provider_two",
                 error=RuntimeError("Second provider failed"),
             ),
@@ -140,7 +140,7 @@ def test_all_failed_providers_produce_consistent_failed_assessment():
 
 
 def test_non_global_ip_is_classified_without_external_provider_calls():
-    provider = TestProvider(
+    provider = ProviderStub(
         "must_not_run",
         error=RuntimeError("External lookup should not happen"),
     )
