@@ -8,17 +8,21 @@
     <title>AEGIS | Security Operations Centre</title>
     <link rel="stylesheet" href="/dashboard/styles.css">
     <link rel="stylesheet" href="/dashboard/response.css">
+    <link rel="stylesheet" href="/dashboard/theme.css">
+    <script src="/dashboard/theme.js"></script>
 </head>
 <body>
 <div class="app-shell">
 
     <aside class="sidebar">
         <a class="brand" href="/dashboard/" aria-label="AEGIS overview">
-            <div class="brand-mark">A</div>
-            <div class="brand-copy">
-                <span class="brand-name">AEGIS</span>
-                <span class="brand-subtitle">SECURITY PLATFORM</span>
-            </div>
+            <img
+                class="brand-logo"
+                id="brand-logo"
+                src="/dashboard/assets/aegis-sentinel-dark.svg"
+                alt="AEGIS Autonomous Security Platform"
+            >
+            <div class="brand-mark" aria-hidden="true">A</div>
         </a>
 
         <div class="nav-label">OPERATIONS</div>
@@ -76,6 +80,15 @@
                     <strong id="breadcrumb-current">Overview</strong>
                 </div>
                 <div class="page-heading" id="page-heading">Security overview</div>
+            </div>
+
+            <div class="theme-control">
+                <label for="theme-select">THEME</label>
+                <select id="theme-select" aria-label="Application colour theme">
+                    <option value="system">System</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                </select>
             </div>
 
             <div class="topbar-actions">
