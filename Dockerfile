@@ -21,7 +21,8 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir -r requirements.lock \
     && rm -rf /usr/local/lib/python3.14/site-packages/setuptools* \
         /usr/local/lib/python3.14/site-packages/_distutils_hack \
-        /usr/local/lib/python3.14/site-packages/distutils-precedence.pth
+        /usr/local/lib/python3.14/site-packages/distutils-precedence.pth \
+    && test -z "$(find /usr/local/lib/python3.14/site-packages -maxdepth 1 -name 'setuptools*' -print -quit)"
 
 COPY --chown=aegis:aegis backend/ ./
 
