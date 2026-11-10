@@ -1,11 +1,21 @@
 # Security Policy
 
 <p>
-  <img alt="Project status: educational prototype" src="https://img.shields.io/badge/Status-Educational%20Prototype-0f172a?style=for-the-badge&logo=github&logoColor=8ef1e5" />
-  <img alt="Security support: best effort" src="https://img.shields.io/badge/Security%20Support-Best%20Effort-0f172a?style=for-the-badge&logo=letsencrypt&logoColor=8ef1e5" />
-  <img alt="Tests: 702 passing" src="https://img.shields.io/badge/Tests-702%20Passing-0f172a?style=for-the-badge&logo=pytest&logoColor=8ef1e5" />
+  <img
+    alt="Project status: educational prototype"
+    src="https://img.shields.io/badge/Status-Educational%20Prototype-0f172a?style=for-the-badge&logo=github&logoColor=8ef1e5"
+  />
+  <img
+    alt="Security support: best effort"
+    src="https://img.shields.io/badge/Security%20Support-Best%20Effort-0f172a?style=for-the-badge&logo=letsencrypt&logoColor=8ef1e5"
+  />
+  <a href="https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml">
+    <img
+      alt="Backend tests"
+      src="https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml/badge.svg?branch=main"
+    />
+  </a>
 </p>
-
 **Quick links:** [Report a vulnerability](#reporting-a-vulnerability) · [Supported versions](#supported-versions) · [Security controls](#implemented-security-controls) · [Deployment guidance](#deployment-and-configuration) · [Known limitations](#known-limitations)
 
 ---
@@ -53,8 +63,40 @@ Security fixes are intended for the latest version on the repository's `main` br
 
 ### How to report
 
-1. **Use GitHub's private vulnerability reporting.** If it is enabled for this repository, use the **Report a vulnerability** feature.
-2. **Otherwise, contact the maintainer privately** through an available GitHub contact channel.
+Use GitHub's **Private vulnerability reporting** feature to submit
+security vulnerabilities confidentially.
+
+**[Submit a private vulnerability report](https://github.com/Nomusa990822/aegis-security-platform/security/advisories/new)**
+
+If private vulnerability reporting is unavailable, contact the
+repository maintainer through a private GitHub communication channel.
+
+Do not submit vulnerability details through public issues, pull
+requests, discussions, or other public channels.
+
+### What a useful report includes
+
+- A concise description of the vulnerability
+- The affected component, endpoint, or file
+- The conditions required to reproduce the issue
+- The potential security impact
+- Relevant logs or a minimal proof of concept, with secrets and
+  personal information removed
+- Any suggested mitigation, if known
+
+### Acknowledgement and remediation
+
+Reports will be reviewed on a best-effort basis.
+
+Where appropriate, the maintainer will investigate the report,
+assess its impact, and work towards a corrective change.
+
+There is currently no guaranteed acknowledgement, response,
+or remediation timeframe.
+
+Security researchers are encouraged to coordinate disclosure
+with the maintainer before publicly disclosing an unresolved
+vulnerability.
 
 ### What a useful report includes
 
@@ -103,6 +145,20 @@ Please allow reasonable time for investigation and remediation before publicly d
 ---
 
 ## Implemented Security Controls
+
+The security controls documented below are implemented in the
+application codebase. The following source files provide direct
+implementation references.
+
+| Security area | Implementation |
+|---|---|
+| Authentication and authorization | [`backend/app/auth.py`](backend/app/auth.py) |
+| Request-size validation | [`backend/app/request_limits.py`](backend/app/request_limits.py) |
+| API rate limiting | [`backend/app/rate_limiting.py`](backend/app/rate_limiting.py) |
+| Audit-chain storage | [`backend/app/response/audit_chain_storage.py`](backend/app/response/audit_chain_storage.py) |
+| Audit checkpoint integrity | [`backend/app/response/audit_checkpoint.py`](backend/app/response/audit_checkpoint.py) |
+| Response audit validation | [`backend/app/response/audit.py`](backend/app/response/audit.py) |
+| Response authorization policy | [`backend/app/response/policy.py`](backend/app/response/policy.py) |
 
 ### Authentication and authorization
 
@@ -239,33 +295,69 @@ Do not use real production credentials or sensitive operational data in demonstr
 
 ## Known Limitations
 
-The project should be evaluated with the following limitations in mind:
+AEGIS is an evolving cybersecurity engineering prototype.
+The following limitations should be considered when evaluating
+or deploying the platform.
 
-| Area | Limitation |
+| Area | Current limitation |
 |---|---|
-| **Identity** | Authentication uses configured Bearer tokens rather than a complete identity-management system |
-| **MFA / federation** | Multi-factor authentication and enterprise identity federation are not currently provided |
-| **Role separation** | It does not establish independent human identities when credentials are shared |
-| **Storage** | SQLite and local checkpoint storage are not substitutes for independently administered security infrastructure |
-| **Audit integrity** | The mechanisms cannot protect against every compromise of the application host or signing-key environment |
-| **Rate limiting** | It and deployment security depend partly on network and infrastructure configuration |
-| **Response** | Dry-run simulation does not provide real containment |
-| **Testing** | Automated tests do not establish the absence of security vulnerabilities |
+| Identity management | Authentication relies on configured Bearer tokens rather than a dedicated identity-management platform. |
+| Multi-factor authentication | MFA and enterprise identity federation are not currently implemented. |
+| Human identity assurance | Separate application roles do not independently verify the identities of the people using shared credentials. |
+| Database architecture | SQLite is used instead of a distributed database architecture. |
+| Audit storage | Audit checkpoints are stored locally and are not independently administered by an external security authority. |
+| Audit integrity | Cryptographic verification cannot protect against every compromise of the application host, database, or signing keys. |
+| Rate limiting | Rate-limit effectiveness depends partly on deployment configuration, particularly client IP identification and reverse-proxy trust. |
+| Response execution | Response operations are simulated. Real endpoint containment and operating-system command execution are not implemented. |
+| Security assurance | Automated regression tests do not replace independent security assessments. |
 
+These limitations define the current scope of the project and
+should not be interpreted as guarantees of security.
 ---
 
 ## Security Testing
 
-The repository includes automated regression tests for application functionality and security-related behaviour.
+AEGIS includes an automated regression test suite covering
+application functionality, security-related behaviour, and
+critical application workflows.
 
-**Documented test baseline: 10 November 2026**
+### Continuous integration
 
-| Passed | Failed | Skipped | Warnings |
-|:---:|:---:|:---:|:---:|
-| **702** | **0** | **0** | **0** |
+The backend regression suite is executed through GitHub Actions.
 
-> [!NOTE]
-> The test suite is intended to detect regressions in implemented behaviour. It is not a substitute for independent penetration testing, threat modelling, code auditing, or deployment-specific security assessments.
+**[View Backend Tests Workflow](https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml)**
+
+The workflow runs against changes submitted to the repository
+and provides an automated regression check.
+
+### Recorded test baseline
+
+**Baseline: 10 November 2026**
+
+| Metric | Result |
+|---|---:|
+| Passed | 702 |
+| Failed | 0 |
+| Skipped | 0 |
+| Warnings | 0 |
+
+These figures represent a recorded test execution, not a
+permanent guarantee of the current test count or application
+security.
+
+### Testing limitations
+
+Automated tests help identify regressions in implemented
+behaviour. However, passing tests do not establish that the
+application is free from security vulnerabilities.
+
+The test suite is not a substitute for:
+
+- Independent penetration testing
+- Security-focused code review
+- Threat modelling
+- Dependency vulnerability assessments
+- Deployment-specific security assessments
 
 ---
 
