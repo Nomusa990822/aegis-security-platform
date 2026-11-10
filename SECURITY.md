@@ -156,8 +156,10 @@ implementation references.
 | Authentication and authorization | [`backend/app/auth.py`](backend/app/auth.py) |
 | Request-size validation | [`backend/app/request_limits.py`](backend/app/request_limits.py) |
 | API rate limiting | [`backend/app/rate_limiting.py`](backend/app/rate_limiting.py) |
+| Audit-chain hashing and verification | [`backend/app/response/audit_chain.py`](backend/app/response/audit_chain.py) |
 | Audit-chain storage | [`backend/app/response/audit_chain_storage.py`](backend/app/response/audit_chain_storage.py) |
 | Audit checkpoint integrity | [`backend/app/response/audit_checkpoint.py`](backend/app/response/audit_checkpoint.py) |
+| Audit integrity inspection endpoint | [`backend/app/response/audit_router.py`](backend/app/response/audit_router.py) |
 | Response audit validation | [`backend/app/response/audit.py`](backend/app/response/audit.py) |
 | Response authorization policy | [`backend/app/response/policy.py`](backend/app/response/policy.py) |
 
@@ -193,12 +195,14 @@ These mechanisms provide application-level role separation. They do not replace 
 
 The response audit subsystem includes:
 
-- Cryptographically linked audit events
-- Audit-chain consistency verification
-- HMAC-signed audit checkpoints
+- A SHA-256 hash chain that links each audit event to the preceding event
+- Audit-chain verification of event ordering, hash linkage, and event contents
+- Comparison of the verified chain against its stored event count and final hash
+- HMAC-SHA-256-signed audit checkpoints
 - Checkpoint key identifiers and support for configured previous signing keys
 - Checkpoint validation before an existing checkpoint is advanced
 - Per-response file locking and atomic checkpoint-file replacement during writes
+- An audit-integrity inspection endpoint protected by approver-role authorization
 
 These mechanisms help detect certain forms of audit-record alteration and inconsistency. They do **not** guarantee tamper-proof storage. An attacker with sufficient control over the application, database, checkpoint files, and signing keys may be able to compromise the integrity evidence.
 
