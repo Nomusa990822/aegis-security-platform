@@ -397,10 +397,17 @@ reviewed separately.
 
 `backend/requirements.txt` remains the human-maintained direct dependency
 input. `backend/requirements.lock` records exact versions for the resolved
-Python dependency set and is used by CI and the Docker build. The current
-lock snapshot pins versions but does not include package hashes, so it does
-not provide hash-verified installation. When changing dependencies, update
-the input and regenerate/review the complete lock snapshot in a clean
+Python dependency set and is used by CI and the Docker build. The
+`.github/scripts/verify_requirements_lock.py` check rejects non-exact lock
+entries, duplicate normalized package names, and direct requirements that
+are absent from the lockfile. CI then installs from the lockfile and runs
+`pip check` to verify that the installed distributions have compatible
+declared dependencies.
+
+The current lock snapshot pins versions but does not include package hashes,
+so installation is **not hash-verified** and this validation does not prove
+the identity of downloaded package files. When changing dependencies,
+update the input and regenerate/review the complete lock snapshot in a clean
 Python 3.14 environment. Updates must be reviewed and tested before
 merging; do not treat an automatically opened update pull request as
 approved for release.
