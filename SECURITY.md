@@ -165,9 +165,9 @@ implementation references.
 
 | Control | Detail |
 |---|---|
-| **Bearer-token authentication** | API authentication uses HTTP Bearer tokens |
+| **Bearer-token authentication** | Protected API routes use HTTP Bearer credentials; public health and root endpoints are not authenticated |
 | **Separate credentials** | Analyst and approver credentials are configured separately |
-| **Minimum token length** | Both credentials must be at least 32 characters long |
+| **Minimum token length** | Both configured tokens must contain at least 32 characters after surrounding whitespace is stripped |
 | **Distinct tokens** | The application rejects identical analyst and approver tokens |
 | **Distinct identities** | Analyst and approver identities must also be distinct |
 | **Constant-time comparison** | Credential comparisons use `hmac.compare_digest` |
@@ -179,13 +179,15 @@ These mechanisms provide application-level role separation. They do not replace 
 
 | Control | Detail |
 |---|---|
-| **Request-size validation** | Implemented through request middleware |
-| **API rate limiting** | Implemented for event ingestion |
-| **Rate-limit identity** | Ingestion limits use both bearer-token fingerprints and client IP addresses |
-| **Token fingerprinting** | Fingerprints are generated with SHA-256, so raw bearer tokens are not retained as rate-limit identities |
+| **Request-size validation** | Middleware rejects request bodies larger than 1 MiB, including chunked bodies, before passing the buffered body to application handlers |
+| **General API limit** | API routes under `/api/v1/` are limited to 300 requests per 60-second window by client connection address, excluding the health endpoint and the separately limited authentication endpoint |
+| **Authentication endpoint limit** | `/api/v1/auth/me` is limited to 20 requests per 60-second window by client connection address |
+| **Event-ingestion limits** | `POST /api/v1/events` is limited to 120 requests per 60-second window per bearer-token fingerprint and 240 requests per 60-second window per client connection address |
+| **Token fingerprinting** | Bearer tokens are SHA-256 fingerprinted for rate-limit keys; raw tokens are not stored as rate-limit identities |
+| **Counter scope** | Rate-limit counters are held in process memory and are not shared between multiple worker processes or application instances |
 
 > [!NOTE]
-> Rate limiting and client IP identification depend on the deployment environment. Reverse proxies and forwarded client addresses must be configured and trusted carefully.
+> Client addresses are taken from the ASGI connection scope. Forwarded headers such as `X-Forwarded-For` are deliberately ignored; trusted-proxy address resolution is not implemented. When deployed behind a reverse proxy, requests may therefore be grouped under the proxy's connection address.
 
 ### Audit integrity
 
@@ -194,8 +196,9 @@ The response audit subsystem includes:
 - Cryptographically linked audit events
 - Audit-chain consistency verification
 - HMAC-signed audit checkpoints
-- Checkpoint key identifiers and support for previous signing keys
-- Checkpoint validation and recovery safeguards
+- Checkpoint key identifiers and support for configured previous signing keys
+- Checkpoint validation before an existing checkpoint is advanced
+- Per-response file locking and atomic checkpoint-file replacement during writes
 
 These mechanisms help detect certain forms of audit-record alteration and inconsistency. They do **not** guarantee tamper-proof storage. An attacker with sufficient control over the application, database, checkpoint files, and signing keys may be able to compromise the integrity evidence.
 
