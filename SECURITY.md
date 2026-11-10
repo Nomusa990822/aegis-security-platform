@@ -258,12 +258,16 @@ flowchart LR
 
 Create a local `.env` file using `.env.example` as the template. Before running the application:
 
-- [ ] Replace all placeholder credentials with unique, randomly generated secrets
-- [ ] Use separate analyst and approver tokens
-- [ ] Configure a strong audit checkpoint signing key
+- [ ] Replace the analyst and approver token placeholders with separate, randomly generated secrets of at least 32 characters
+- [ ] Keep the analyst and approver tokens different
+- [ ] Set distinct analyst and approver actor IDs
+- [ ] Configure an audit checkpoint signing key of at least 32 characters
+- [ ] Keep the checkpoint signing key separate from the bearer tokens
 - [ ] Keep `.env` private and outside version control
 - [ ] Never publish tokens, signing keys, API keys, or database credentials
 - [ ] Rotate credentials if they are exposed or suspected to be compromised
+
+Restrict local access to the environment file, for example with `chmod 600 .env` on Linux. Do not paste its contents into issues, logs, screenshots, or support requests.
 
 The example configuration is not intended to provide production secrets.
 
@@ -284,16 +288,20 @@ The supplied Docker configuration includes several container-hardening measures:
 These measures reduce certain container risks but do not independently secure the host, Docker daemon, network, persistent volumes, or deployment environment.
 
 > [!CAUTION]
-> The Compose configuration publishes the application on port `8000`. Restrict network access appropriately. Do not expose an unauthenticated or unprotected development deployment to the public internet.
+> The current Compose mapping, `8000:8000`, publishes the application on the host's network interfaces by default. For local-only access, change it to `127.0.0.1:8000:8000`. If remote access is required, place the service behind a properly configured reverse proxy or gateway, enforce TLS there, and restrict inbound network access. The application container does not itself provide HTTPS termination.
+>
+> Do not expose an unauthenticated or unprotected development deployment to the public internet. Also note that the current rate limiter deliberately ignores forwarded headers; behind a proxy, requests may be grouped under the proxy's connection address until trusted-proxy handling is implemented.
 
 ### Data protection
 
-The application uses SQLite and persistent storage for its database and audit checkpoints. Operators are responsible for:
+The Compose configuration mounts a named Docker volume at `/data`, where the SQLite database and audit checkpoint directory are configured to persist. The container's read-only root filesystem does not make this mounted volume read-only.
 
-- Protecting database and checkpoint files
-- Restricting filesystem permissions
+Operators are responsible for:
+
+- Protecting database and checkpoint files in the persistent volume
+- Restricting filesystem permissions on host-side data and backup locations
 - Maintaining secure backups
-- Protecting backup copies and signing keys
+- Protecting backup copies and signing keys independently of the application host
 - Testing recovery procedures
 - Avoiding the inclusion of sensitive information in demonstration data
 
