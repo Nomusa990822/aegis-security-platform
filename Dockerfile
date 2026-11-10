@@ -1,5 +1,11 @@
 FROM python:3.14-slim
 
+# Apply current Debian security updates before installing application packages.
+RUN apt-get update \
+    && apt-get -y upgrade \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -10,9 +16,13 @@ RUN groupadd --system aegis \
 
 WORKDIR /app/backend
 
-COPY --chown=aegis:aegis backend/requirements.txt ./requirements.txt
+COPY --chown=aegis:aegis backend/requirements.lock ./requirements.lock
 RUN python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir -r requirements.txt
+    && python -m pip install --no-cache-dir -r requirements.lock \
+    && rm -rf /usr/local/lib/python3.14/site-packages/setuptools* \
+        /usr/local/lib/python3.14/site-packages/_distutils_hack \
+        /usr/local/lib/python3.14/site-packages/distutils-precedence.pth \
+    && test -z "$(find /usr/local/lib/python3.14/site-packages -maxdepth 1 -name 'setuptools*' -print -quit)"
 
 COPY --chown=aegis:aegis backend/ ./
 

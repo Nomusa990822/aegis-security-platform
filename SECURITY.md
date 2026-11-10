@@ -182,6 +182,7 @@ These mechanisms provide application-level role separation. They do not replace 
 | Control | Detail |
 |---|---|
 | **Request-size validation** | Middleware rejects request bodies larger than 1 MiB, including chunked bodies, before passing the buffered body to application handlers |
+| **HTTP response security headers** | Responses include `X-Content-Type-Options: nosniff` and `Cross-Origin-Resource-Policy: same-origin`, including middleware-generated error responses |
 | **General API limit** | API routes under `/api/v1/` are limited to 300 requests per 60-second window by client connection address, excluding the health endpoint and the separately limited authentication endpoint |
 | **Authentication endpoint limit** | `/api/v1/auth/me` is limited to 20 requests per 60-second window by client connection address |
 | **Event-ingestion limits** | `POST /api/v1/events` is limited to 120 requests per 60-second window per bearer-token fingerprint and 240 requests per 60-second window per client connection address |
@@ -341,14 +342,22 @@ it is not a comprehensive security assessment.
 
 ### Continuous integration
 
+Third-party GitHub Actions used by the CI workflows are pinned to full
+commit SHAs rather than mutable major-version tags. Version comments are
+retained beside the pins for readability. This reduces the risk that a
+tag is moved to different action code without a corresponding reviewed
+repository change. Pinning does not replace reviewing action updates,
+their maintainers, permissions, or transitive dependencies.
+
 The backend suite runs through GitHub Actions on:
 
 - Push events
 - Pull requests
 - Manual workflow dispatches
 
-The workflow uses an Ubuntu runner and Python 3.14, installs the
-dependencies listed in `backend/requirements.txt`, and executes:
+The workflow uses an Ubuntu runner and Python 3.14, installs the pinned
+dependency snapshot in `backend/requirements.lock`, runs `pip-audit`
+against the installed environment, and executes:
 
 ```bash
 python -m pytest -q
@@ -387,20 +396,129 @@ or a dependency vulnerability scan. GitHub Dependabot alerts and security
 updates depend on repository security settings and should be enabled and
 reviewed separately.
 
-The current `backend/requirements.txt` does not fully pin dependency
-versions, and the repository does not currently include a generated
-Python lockfile. Consequently, dependency resolution may change between
-installations. Updates must be reviewed and tested before merging; do not
-treat an automatically opened update pull request as approved for release.
+`backend/requirements.txt` remains the human-maintained direct dependency
+input. `backend/requirements.lock` records exact versions for the resolved
+Python dependency set and is used by CI and the Docker build. The
+`.github/scripts/verify_requirements_lock.py` check rejects non-exact lock
+entries, duplicate normalized package names, and direct requirements that
+are absent from the lockfile. CI then installs from the lockfile and runs
+`pip check` to verify that the installed distributions have compatible
+declared dependencies.
+
+The current lock snapshot pins versions but does not include package hashes,
+so installation is **not hash-verified** and this validation does not prove
+the identity of downloaded package files. When changing dependencies,
+update the input and regenerate/review the complete lock snapshot in a clean
+Python 3.14 environment. Updates must be reviewed and tested before
+merging; do not treat an automatically opened update pull request as
+approved for release.
+
+### Python dependency vulnerability auditing
+
+The backend CI workflow installs `pip-audit` and runs it against the
+installed Python environment after installing `backend/requirements.lock`.
+The audit checks installed distributions against known vulnerability
+advisories available to the tool. A reported vulnerability causes the
+workflow step to fail and should be investigated before merging or
+releasing.
+
+This check is not a substitute for hash-verified dependency installation,
+software composition analysis across every artifact, container image
+scanning, or review of vulnerabilities that have not yet been disclosed
+or added to the advisory data sources. The auditor itself is installed
+during CI and is not currently pinned to a fixed version.
+
+### Container software bill of materials (SBOM)
+
+The container security workflow generates a CycloneDX JSON software bill
+of materials from the same Docker image that is scanned by Trivy. Before
+uploading it, CI validates that the file is non-empty valid JSON, declares
+the CycloneDX format and a specification version, and contains named,
+typed top-level components with no duplicate component `bom-ref` values.
+The workflow writes a concise component-count summary to the GitHub Actions
+run summary, then uploads the file as the `aegis-container-sbom` artifact
+and retains it for 30 days. The artifact can be downloaded from a successful
+container security workflow run to inspect the package inventory.
+
+The SBOM is a build-specific inventory, not proof that every component
+is vulnerability-free or that the image is safe. It describes the image
+built by that workflow run; rebuilds may produce a different inventory
+as upstream base-image packages and dependency sources change. Preserve
+the artifact alongside the corresponding workflow run when an audit
+record is required.
+
+### Container image vulnerability scanning
+
+The `.github/workflows/container-security.yml` workflow builds the
+application Docker image from the repository Dockerfile and scans the
+resulting local image with Trivy. It runs on pushes, pull requests, and
+manual dispatches. The scan reports operating-system and application library packages
+with HIGH and CRITICAL vulnerabilities, including findings for which a
+fix is not yet available. A separate blocking scan fails on HIGH and
+CRITICAL findings for which Trivy identifies an available fix. Unfixed
+findings remain visible in the report and require review and tracking.
+
+The Trivy GitHub Action is pinned to a reviewed full commit SHA, and the
+Trivy scanner version is explicitly selected. The scanner uses the checked-in
+`.trivyignore` exception for CVE-2025-47273 because the finding comes from
+setuptools metadata in the upstream Python image layer; the Dockerfile removes
+setuptools from the final runtime filesystem and asserts that it is absent.
+The exception must be revisited if the base image or runtime packaging changes. This scan covers the image
+built in CI; it does not establish that a separately built or deployed
+image is identical, and it is not a substitute for runtime monitoring,
+configuration review, or a complete software supply-chain assessment.
+
+### Repository secret scanning
+
+The `.github/workflows/secret-scanning.yml` workflow runs Gitleaks against
+the repository's complete Git history. It scans on pushes to `main`, pull
+requests targeting `main`, manual dispatch, and a weekly schedule. The
+workflow checks out full history so that secrets introduced in earlier
+commits can also be detected. The Gitleaks action and checkout action are
+pinned to full commit SHAs. Pull-request comments and SARIF artifact uploads
+are disabled; the workflow publishes its scan summary in the Actions run.
+
+This CI scan is separate from GitHub's native secret-scanning alerts and
+push protection. The presence of this workflow does not mean those repository
+features are enabled. A clean scan is not a guarantee that no credential has
+ever been exposed. If a real credential is detected, revoke or rotate it
+immediately, remove it from the current source, and assess whether the Git
+history also needs remediation. Do not copy detected secret values into
+issues, logs, or public discussions.
+
+### API dynamic security baseline
+
+The `.github/workflows/api-security.yml` workflow runs OWASP ZAP against an
+isolated instance of the FastAPI application. CI creates a temporary SQLite
+database, a temporary audit-checkpoint directory, and fresh test-only analyst
+and approver credentials. It starts the application on the GitHub-hosted
+runner and imports the generated OpenAPI definition into ZAP.
+
+The workflow performs separate authenticated baseline scans using the analyst
+and approver test roles. It uses ZAP's safe mode (`-S`), which skips the active
+scanner and performs passive analysis of traffic generated while importing
+and inspecting the API definition. The ZAP action and scanner image version
+are explicitly pinned. Scan reports are retained as workflow artifacts for
+review; findings are not silently treated as proof of a clean security
+assessment, and the initial workflow does not automatically fail on every
+reported warning.
+
+This is a non-destructive baseline check against an ephemeral test instance.
+It does not execute a full active attack scan, does not test production
+infrastructure, and does not replace manual review or an independently
+authorized penetration test. Review reports after each run and investigate
+new findings rather than suppressing them without justification.
 
 ### Testing limitations
 
-The current workflow runs the backend regression suite. It does not
-itself perform:
+The current CI security checks include backend regression tests,
+Python dependency auditing, container image vulnerability scanning,
+CycloneDX SBOM generation and structural validation, and CodeQL static
+application security testing (SAST) for Python and JavaScript/TypeScript.
 
-- Static application security testing (SAST)
-- Dynamic application security testing (DAST)
-- Dependency vulnerability or software composition analysis
+The automated workflows do not themselves perform:
+
+- Full active dynamic application security testing (DAST)
 - Fuzz testing
 - Independent penetration testing
 - Formal threat modelling or security certification

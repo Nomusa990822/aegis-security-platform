@@ -1,0 +1,6 @@
+# CVE-2025-47273 is reported from setuptools 70.3.0 metadata in the
+# upstream python:3.14-slim image layer. The Dockerfile removes all setuptools
+# package files and metadata from the final runtime filesystem and asserts
+# that no setuptools distribution remains. Revisit if the base image or
+# runtime packaging strategy changes.
+CVE-2025-47273

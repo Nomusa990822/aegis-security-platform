@@ -154,6 +154,48 @@
                 </article>
             </div>
 
+            <div class="overview-chart-grid">
+                <section class="panel chart-panel">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">TELEMETRY TREND</p>
+                            <h2>Security event activity</h2>
+                        </div>
+                        <span class="chart-period">Last 7 days</span>
+                    </div>
+                    <p class="chart-description">
+                        Daily event volume from the latest 100 events retrieved by the dashboard.
+                    </p>
+                    <div
+                        id="event-activity-chart"
+                        class="chart-bars"
+                        aria-label="Security events by day over the last seven days"
+                    >
+                        <div class="chart-empty-state">Waiting for event data...</div>
+                    </div>
+                </section>
+
+                <section class="panel chart-panel">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="eyebrow">DETECTION SEVERITY</p>
+                            <h2>Alert distribution</h2>
+                        </div>
+                        <span class="chart-period">All loaded alerts</span>
+                    </div>
+                    <p class="chart-description">
+                        Alert counts grouped by their recorded severity.
+                    </p>
+                    <div
+                        id="alert-severity-chart"
+                        class="chart-bars"
+                        aria-label="Alert distribution by severity"
+                    >
+                        <div class="chart-empty-state">Waiting for alert data...</div>
+                    </div>
+                </section>
+            </div>
+
             <div class="content-grid">
                 <section class="panel">
                     <div class="panel-heading">

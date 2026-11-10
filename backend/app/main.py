@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException, Response
 from app.request_limits import RequestBodyLimitMiddleware
 from app.rate_limiting import APIRateLimitMiddleware
+from app.security_headers import SecurityHeadersMiddleware
 
 from app.auth import AuthenticatedActor, get_analyst_actor, get_current_actor
 from fastapi.staticfiles import StaticFiles
@@ -43,6 +44,8 @@ app = FastAPI(
 
 app.add_middleware(RequestBodyLimitMiddleware)
 app.add_middleware(APIRateLimitMiddleware)
+# Keep this outermost so headers also cover middleware-generated error responses.
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 app.mount(
