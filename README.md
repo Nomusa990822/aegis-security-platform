@@ -1,11 +1,21 @@
 <div align="center">
 
 <h1 align="center" id="aegis-security-platform">
-  <img
-    src="docs/assets/aegis-sentinel-glow.svg"
-    alt="AEGIS Security Platform — The Sentinel"
-    width="650"
-  />
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="docs/assets/aegis-sentinel-dark.svg"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="docs/assets/aegis-sentinel-light.svg"
+    />
+    <img
+      src="docs/assets/aegis-sentinel-light.svg"
+      alt="AEGIS Security Platform — The Sentinel"
+      width="650"
+    />
+  </picture>
 </h1>
 
 ### Autonomous Threat Detection • Intelligence • Controlled Response
