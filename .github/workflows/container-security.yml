@@ -25,6 +25,26 @@ jobs:
       - name: Build application image
         run: docker build --pull -t aegis-security-platform:ci .
 
+      - name: Generate CycloneDX container SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: aegis-security-platform:ci
+          format: cyclonedx
+          output: aegis-image.sbom.cdx.json
+          exit-code: '0'
+          vuln-type: os,library
+          version: v0.70.0
+          trivyignores: .trivyignore
+
+      - name: Upload container SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: aegis-container-sbom
+          path: aegis-image.sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Report all HIGH and CRITICAL image vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
