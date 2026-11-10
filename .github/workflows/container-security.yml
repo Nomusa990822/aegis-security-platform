@@ -37,6 +37,86 @@ jobs:
           version: v0.70.0
           trivyignores: .trivyignore
 
+      - name: Validate CycloneDX SBOM
+        run: |
+          python - <<'PY'
+          import collections
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("aegis-image.sbom.cdx.json")
+          if not path.is_file() or path.stat().st_size == 0:
+              raise SystemExit("SBOM validation failed: file is missing or empty.")
+
+          try:
+              bom = json.loads(path.read_text(encoding="utf-8"))
+          except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+              raise SystemExit(f"SBOM validation failed: invalid JSON ({exc}).")
+
+          if not isinstance(bom, dict):
+              raise SystemExit("SBOM validation failed: document root must be a JSON object.")
+          if bom.get("bomFormat") != "CycloneDX":
+              raise SystemExit("SBOM validation failed: bomFormat is not CycloneDX.")
+          spec_version = bom.get("specVersion")
+          if not isinstance(spec_version, str) or not spec_version.strip():
+              raise SystemExit("SBOM validation failed: specVersion is missing.")
+
+          components = bom.get("components")
+          if not isinstance(components, list) or not components:
+              raise SystemExit("SBOM validation failed: no top-level components were found.")
+
+          invalid = [
+              index for index, component in enumerate(components)
+              if not isinstance(component, dict)
+              or not isinstance(component.get("type"), str)
+              or not component["type"].strip()
+              or not isinstance(component.get("name"), str)
+              or not component["name"].strip()
+          ]
+          if invalid:
+              raise SystemExit(
+                  "SBOM validation failed: components have missing/invalid type or name "
+                  f"(indexes: {invalid[:10]})."
+              )
+
+          bom_refs = [
+              component["bom-ref"] for component in components
+              if isinstance(component.get("bom-ref"), str)
+          ]
+          if len(bom_refs) != len(set(bom_refs)):
+              raise SystemExit("SBOM validation failed: duplicate component bom-ref values found.")
+
+          dependencies = bom.get("dependencies", [])
+          if not isinstance(dependencies, list):
+              raise SystemExit("SBOM validation failed: dependencies must be a JSON array.")
+
+          type_counts = collections.Counter(component["type"] for component in components)
+          type_summary = ", ".join(
+              f"{kind}: {count}" for kind, count in sorted(type_counts.items())
+          )
+          summary = [
+              "### CycloneDX SBOM validation",
+              "",
+              "- **Result:** Passed",
+              "- **Format:** CycloneDX",
+              f"- **Specification version:** {spec_version}",
+              f"- **Top-level components:** {len(components)}",
+              f"- **Dependency relationships:** {len(dependencies)}",
+              f"- **Component types:** {type_summary}",
+              f"- **Serial number present:** {'Yes' if bom.get('serialNumber') else 'No'}",
+              "",
+              "Validation confirms basic SBOM structure and component metadata; it does not certify package accuracy or prove the image is vulnerability-free.",
+          ]
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as output:
+              output.write("\n".join(summary) + "\n")
+
+          print(
+              f"SBOM validation passed: CycloneDX {spec_version}, "
+              f"{len(components)} components, {len(dependencies)} dependency relationships."
+          )
+          PY
+
       - name: Upload container SBOM
         uses: actions/upload-artifact@v4
         with:
