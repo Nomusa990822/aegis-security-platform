@@ -393,6 +393,21 @@ Python lockfile. Consequently, dependency resolution may change between
 installations. Updates must be reviewed and tested before merging; do not
 treat an automatically opened update pull request as approved for release.
 
+### Python dependency vulnerability auditing
+
+The backend CI workflow installs `pip-audit` and runs it against the
+installed Python environment after installing `backend/requirements.txt`.
+The audit checks installed distributions against known vulnerability
+advisories available to the tool. A reported vulnerability causes the
+workflow step to fail and should be investigated before merging or
+releasing.
+
+This check is not a substitute for a fully pinned dependency lockfile,
+software composition analysis across every artifact, container image
+scanning, or review of vulnerabilities that have not yet been disclosed
+or added to the advisory data sources. The auditor itself is installed
+during CI and is not currently pinned to a fixed version.
+
 ### Testing limitations
 
 The current workflow runs the backend regression suite. It does not
