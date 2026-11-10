@@ -375,6 +375,24 @@ This is a dated result from one successful CI execution. It is not a
 live test count, does not guarantee that later commits pass, and should
 not be presented as proof that the platform is secure.
 
+### Dependency update automation
+
+Dependabot version-update checks are configured weekly for the Python
+dependencies in `/backend` and the GitHub Actions used by this repository.
+Dependabot may open pull requests when newer compatible dependency or
+action versions are available.
+
+Version-update pull requests are not the same as vulnerability alerts
+or a dependency vulnerability scan. GitHub Dependabot alerts and security
+updates depend on repository security settings and should be enabled and
+reviewed separately.
+
+The current `backend/requirements.txt` does not fully pin dependency
+versions, and the repository does not currently include a generated
+Python lockfile. Consequently, dependency resolution may change between
+installations. Updates must be reviewed and tested before merging; do not
+treat an automatically opened update pull request as approved for release.
+
 ### Testing limitations
 
 The current workflow runs the backend regression suite. It does not
