@@ -418,10 +418,11 @@ during CI and is not currently pinned to a fixed version.
 The `.github/workflows/container-security.yml` workflow builds the
 application Docker image from the repository Dockerfile and scans the
 resulting local image with Trivy. It runs on pushes, pull requests, and
-manual dispatches. The scan checks operating-system and application
-library packages for HIGH and CRITICAL vulnerabilities, including
-vulnerabilities for which a fix is not yet available. A finding at either
-severity causes the scan step to fail.
+manual dispatches. The scan reports operating-system and application library packages
+with HIGH and CRITICAL vulnerabilities, including findings for which a
+fix is not yet available. A separate blocking scan fails on HIGH and
+CRITICAL findings for which Trivy identifies an available fix. Unfixed
+findings remain visible in the report and require review and tracking.
 
 The Trivy GitHub Action is pinned to a reviewed full commit SHA, and the
 Trivy scanner version is explicitly selected. This scan covers the image
