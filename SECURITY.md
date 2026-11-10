@@ -64,16 +64,25 @@ Security fixes are intended for the latest version on the repository's `main` br
 
 ### How to report
 
-Use GitHub's **Private vulnerability reporting** feature to submit
-security vulnerabilities confidentially.
+Use GitHub's **Private vulnerability reporting** feature to
+confidentially report security vulnerabilities.
 
-**[Submit a private vulnerability report](https://github.com/Nomusa990822/aegis-security-platform/security/advisories/new)**
+<p align="center">
+  <a href="https://github.com/Nomusa990822/aegis-security-platform/security/advisories/new">
+    <img
+      alt="Submit a Private Security Report"
+      src="https://img.shields.io/badge/Report%20a%20Vulnerability-Submit%20Privately-0f172a?style=for-the-badge&logo=github&logoColor=8ef1e5"
+    />
+  </a>
+</p>
 
-If private vulnerability reporting is unavailable, contact the
-repository maintainer through a private GitHub communication channel.
+The report will be submitted privately through GitHub Security Advisories.
 
-Do not submit vulnerability details through public issues, pull
-requests, discussions, or other public channels.
+If private reporting is unavailable, contact the repository
+maintainer through a private GitHub communication channel.
+
+Do not disclose vulnerability details through public issues,
+pull requests, discussions, or other public channels.
 
 ### What a useful report includes
 
@@ -98,15 +107,6 @@ or remediation timeframe.
 Security researchers are encouraged to coordinate disclosure
 with the maintainer before publicly disclosing an unresolved
 vulnerability.
-
-### What a useful report includes
-
-- A concise description of the vulnerability
-- The affected component, endpoint, or file
-- The conditions required to reproduce the issue
-- The potential security impact
-- Relevant logs or a minimal proof of concept, with secrets and personal information removed
-- Any suggested mitigation, if known
 
 ### Reporting process
 
