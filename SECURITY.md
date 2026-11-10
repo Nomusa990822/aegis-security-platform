@@ -413,6 +413,23 @@ scanning, or review of vulnerabilities that have not yet been disclosed
 or added to the advisory data sources. The auditor itself is installed
 during CI and is not currently pinned to a fixed version.
 
+### Container software bill of materials (SBOM)
+
+The container security workflow generates a CycloneDX JSON software bill
+of materials from the same Docker image that is scanned by Trivy. The
+workflow uploads the generated file as the `aegis-container-sbom`
+GitHub Actions artifact and retains it for 30 days. Download the artifact
+from a successful container security workflow run to inspect the
+inventory of operating-system and application packages represented in
+that image.
+
+The SBOM is a build-specific inventory, not proof that every component
+is vulnerability-free or that the image is safe. It describes the image
+built by that workflow run; rebuilds may produce a different inventory
+as upstream base-image packages and dependency sources change. Preserve
+the artifact alongside the corresponding workflow run when an audit
+record is required.
+
 ### Container image vulnerability scanning
 
 The `.github/workflows/container-security.yml` workflow builds the
