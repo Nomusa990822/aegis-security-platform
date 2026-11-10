@@ -278,6 +278,21 @@ A browser-based interface for interacting with AEGIS through its authenticated A
 - Security operations and investigation workflows
 - API-backed data rather than hardcoded actor identities
 
+#### Dashboard Screenshots
+
+The screenshots below show the actual AEGIS Overview dashboard captured during a local demonstration. They are presented as captured, in both supported themes.
+
+**Dark theme**
+
+![AEGIS Overview dashboard — dark theme](docs/assets/aegis-dashboard-dark.png)
+
+**Light theme**
+
+![AEGIS Overview dashboard — light theme](docs/assets/aegis-dashboard-light.png)
+
+The captured demonstration snapshot shows five security events received, one high-severity alert, no active or critical cases, and healthy API and database status. These are point-in-time values from this demonstration environment, not benchmark results or claims about detection effectiveness.
+
+
 ---
 
 ## System Architecture
