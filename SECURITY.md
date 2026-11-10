@@ -413,6 +413,22 @@ scanning, or review of vulnerabilities that have not yet been disclosed
 or added to the advisory data sources. The auditor itself is installed
 during CI and is not currently pinned to a fixed version.
 
+### Container image vulnerability scanning
+
+The `.github/workflows/container-security.yml` workflow builds the
+application Docker image from the repository Dockerfile and scans the
+resulting local image with Trivy. It runs on pushes, pull requests, and
+manual dispatches. The scan checks operating-system and application
+library packages for HIGH and CRITICAL vulnerabilities, including
+vulnerabilities for which a fix is not yet available. A finding at either
+severity causes the scan step to fail.
+
+The Trivy GitHub Action is pinned to a reviewed full commit SHA, and the
+Trivy scanner version is explicitly selected. This scan covers the image
+built in CI; it does not establish that a separately built or deployed
+image is identical, and it is not a substitute for runtime monitoring,
+configuration review, or a complete software supply-chain assessment.
+
 ### Testing limitations
 
 The current workflow runs the backend regression suite. It does not
