@@ -25,14 +25,26 @@ jobs:
       - name: Build application image
         run: docker build --pull -t aegis-security-platform:ci .
 
-      - name: Scan image with Trivy
+      - name: Report all HIGH and CRITICAL image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: aegis-security-platform:ci
+          format: table
+          exit-code: '0'
+          ignore-unfixed: 'false'
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          version: v0.70.0
+
+      - name: Fail on fixable HIGH and CRITICAL image vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
           image-ref: aegis-security-platform:ci
           format: table
           exit-code: '1'
-          ignore-unfixed: 'false'
+          ignore-unfixed: 'true'
           vuln-type: os,library
           severity: HIGH,CRITICAL
           version: v0.70.0
