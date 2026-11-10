@@ -1,5 +1,11 @@
 FROM python:3.14-slim
 
+# Apply current Debian security updates before installing application packages.
+RUN apt-get update \
+    && apt-get -y upgrade \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
