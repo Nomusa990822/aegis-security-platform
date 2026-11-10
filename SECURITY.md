@@ -334,49 +334,64 @@ guarantee that AEGIS is secure or suitable for production use.
 
 ## Security Testing
 
-AEGIS includes an automated regression test suite covering
-application functionality, security-related behaviour, and
-critical application workflows.
+AEGIS has an automated backend regression suite. It checks expected
+application behaviour, including implemented security-related controls
+and response workflows. The suite is useful for detecting regressions;
+it is not a comprehensive security assessment.
 
 ### Continuous integration
 
-The backend regression suite is executed through GitHub Actions.
+The backend suite runs through GitHub Actions on:
+
+- Push events
+- Pull requests
+- Manual workflow dispatches
+
+The workflow uses an Ubuntu runner and Python 3.14, installs the
+dependencies listed in `backend/requirements.txt`, and executes:
+
+```bash
+python -m pytest -q
+```
 
 **[View Backend Tests Workflow](https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml)**
 
-The workflow runs against changes submitted to the repository
-and provides an automated regression check.
-
 ### Recorded test baseline
 
-**Baseline: 10 November 2026**
+**Recorded execution: 10 November 2026**
+
+[View the recorded GitHub Actions run](https://github.com/Nomusa990822/aegis-security-platform/actions/runs/42789706062)
 
 | Metric | Result |
 |---|---:|
-| Passed | 702 |
-| Failed | 0 |
-| Skipped | 0 |
-| Warnings | 0 |
+| Tests passed | 702 |
+| Tests failed | 0 |
+| Tests skipped | 0 |
+| Pytest warnings | 0 |
+| Test execution time | 20.22 seconds |
+| Workflow result | Success |
 
-These figures represent a recorded test execution, not a
-permanent guarantee of the current test count or application
-security.
+This is a dated result from one successful CI execution. It is not a
+live test count, does not guarantee that later commits pass, and should
+not be presented as proof that the platform is secure.
 
 ### Testing limitations
 
-Automated tests help identify regressions in implemented
-behaviour. However, passing tests do not establish that the
-application is free from security vulnerabilities.
+The current workflow runs the backend regression suite. It does not
+itself perform:
 
-The test suite is not a substitute for:
-
+- Static application security testing (SAST)
+- Dynamic application security testing (DAST)
+- Dependency vulnerability or software composition analysis
+- Fuzz testing
 - Independent penetration testing
-- Security-focused code review
-- Threat modelling
-- Dependency vulnerability assessments
-- Deployment-specific security assessments
+- Formal threat modelling or security certification
+- Production infrastructure or deployment security testing
 
----
+Automated regression tests help verify implemented behaviour, but
+passing tests do not establish that the application is free from
+security vulnerabilities. Additional security review and deployment-
+specific testing are required before production use.
 
 ## Responsible Use
 
