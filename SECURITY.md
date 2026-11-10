@@ -10,11 +10,11 @@
     src="https://img.shields.io/badge/Security%20Support-Best%20Effort-0f172a?style=for-the-badge&logo=letsencrypt&logoColor=8ef1e5"
   />
   <a href="https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml">
-    <img
-      alt="Backend tests"
-      src="https://github.com/Nomusa990822/aegis-security-platform/actions/workflows/backend-tests.yml/badge.svg?branch=main"
-    />
-  </a>
+  <img
+    alt="Backend tests"
+    src="https://img.shields.io/github/actions/workflow/status/Nomusa990822/aegis-security-platform/backend-tests.yml?branch=main&style=for-the-badge&label=Backend%20Tests&logo=githubactions&logoColor=8ef1e5&color=0f172a"
+  />
+</a>
 </p>
 
 **Quick links:** [Report a vulnerability](#reporting-a-vulnerability) · [Supported versions](#supported-versions) · [Security controls](#implemented-security-controls) · [Deployment guidance](#deployment-and-configuration) · [Known limitations](#known-limitations)
