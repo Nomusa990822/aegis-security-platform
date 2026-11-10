@@ -441,6 +441,125 @@ async function refreshDashboard() {
    OVERVIEW METRICS
 ========================================================= */
 
+function renderOverviewCharts() {
+    const activityContainer = $("event-activity-chart");
+    const severityContainer = $("alert-severity-chart");
+
+    if (activityContainer) {
+        const now = new Date();
+        const days = [];
+
+        for (let offset = 6; offset >= 0; offset -= 1) {
+            const date = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate() - offset
+            );
+            const key = [
+                date.getFullYear(),
+                String(date.getMonth() + 1).padStart(2, "0"),
+                String(date.getDate()).padStart(2, "0")
+            ].join("-");
+
+            days.push({
+                key,
+                label: date.toLocaleDateString([], { weekday: "short" }),
+                count: 0
+            });
+        }
+
+        const dayLookup = new Map(days.map(day => [day.key, day]));
+
+        state.events.forEach(event => {
+            const timestamp = event.occurred_at || event.received_at;
+            if (!timestamp) return;
+
+            const date = new Date(timestamp);
+            if (Number.isNaN(date.getTime())) return;
+
+            const key = [
+                date.getFullYear(),
+                String(date.getMonth() + 1).padStart(2, "0"),
+                String(date.getDate()).padStart(2, "0")
+            ].join("-");
+
+            const bucket = dayLookup.get(key);
+            if (bucket) bucket.count += 1;
+        });
+
+        const maximum = Math.max(1, ...days.map(day => day.count));
+
+        activityContainer.innerHTML = days.map(day => {
+            const width = day.count === 0
+                ? 0
+                : Math.max(2, (day.count / maximum) * 100);
+
+            return `
+                <div class="chart-bar-row">
+                    <span class="chart-axis-label">${escapeHTML(day.label)}</span>
+                    <div
+                        class="chart-track"
+                        role="img"
+                        aria-label="${escapeHTML(day.label)}: ${day.count} events"
+                    >
+                        <span class="chart-bar activity-bar" style="width: ${width}%"></span>
+                    </div>
+                    <strong class="chart-value">${day.count}</strong>
+                </div>
+            `;
+        }).join("");
+    }
+
+    if (severityContainer) {
+        const severities = [
+            { key: "critical", label: "Critical" },
+            { key: "high", label: "High" },
+            { key: "medium", label: "Medium" },
+            { key: "low", label: "Low" }
+        ];
+
+        const counts = severities.map(item => ({
+            ...item,
+            count: state.alerts.filter(alert =>
+                String(alert.severity ?? "").toLowerCase() === item.key
+            ).length
+        }));
+
+        const maximum = Math.max(1, ...counts.map(item => item.count));
+
+        if (!state.alerts.length) {
+            severityContainer.innerHTML = `
+                <div class="chart-empty-state">
+                    No alert records are available yet.
+                </div>
+            `;
+        } else {
+            severityContainer.innerHTML = counts.map(item => {
+                const width = item.count === 0
+                    ? 0
+                    : Math.max(2, (item.count / maximum) * 100);
+
+                return `
+                    <div class="chart-bar-row severity-chart-row">
+                        <span class="chart-axis-label">${item.label}</span>
+                        <div
+                            class="chart-track"
+                            role="img"
+                            aria-label="${item.label}: ${item.count} alerts"
+                        >
+                            <span
+                                class="chart-bar severity-bar ${item.key}"
+                                style="width: ${width}%"
+                            ></span>
+                        </div>
+                        <strong class="chart-value">${item.count}</strong>
+                    </div>
+                `;
+            }).join("");
+        }
+    }
+}
+
 function renderMetrics() {
     const openAlerts = state.alerts.filter(alert =>
         String(alert.status).toLowerCase() === "open"
@@ -464,6 +583,8 @@ function renderMetrics() {
     // Sidebar counters
     setText("sidebar-alert-count", openAlerts);
     setText("sidebar-case-count", activeCases);
+
+    renderOverviewCharts();
 }
 
 /* =========================================================

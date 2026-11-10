@@ -1136,3 +1136,138 @@ tbody tr:hover { background: #172235; }
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
+
+/* Overview analytics */
+.overview-chart-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    margin: 22px 0;
+}
+
+.chart-panel {
+    min-width: 0;
+}
+
+.chart-period {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.chart-description {
+    margin: -5px 0 20px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+.chart-bars {
+    display: grid;
+    gap: 15px;
+    min-height: 170px;
+    align-content: center;
+}
+
+.chart-bar-row {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) 30px;
+    align-items: center;
+    gap: 10px;
+}
+
+.severity-chart-row {
+    grid-template-columns: 62px minmax(0, 1fr) 30px;
+}
+
+.chart-axis-label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.chart-track {
+    height: 11px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--border);
+}
+
+.chart-bar {
+    display: block;
+    height: 100%;
+    min-width: 0;
+    border-radius: inherit;
+    transition: width .35s ease;
+}
+
+.activity-bar {
+    background: var(--blue, #5798e8);
+}
+
+.severity-bar.critical {
+    background: #e05b64;
+}
+
+.severity-bar.high {
+    background: #e69a4b;
+}
+
+.severity-bar.medium {
+    background: #d7b64d;
+}
+
+.severity-bar.low {
+    background: #4eae8a;
+}
+
+.chart-value {
+    color: var(--text);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.chart-empty-state {
+    display: grid;
+    min-height: 150px;
+    place-items: center;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+}
+
+@media (max-width: 900px) {
+    .overview-chart-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 520px) {
+    .chart-panel {
+        padding: 16px;
+    }
+
+    .chart-period {
+        font-size: 9px;
+    }
+}
+
+
+
+/* AEGIS brand logo sizing */
+.brand-logo {
+    display: block;
+    width: 100%;
+    max-width: 220px;
+    height: auto;
+    flex: 0 1 220px;
+    object-fit: contain;
+}
+
+.brand-mark {
+    display: none;
+}
