@@ -1,12 +1,12 @@
 <div align="center">
 
-<p align="center">
+<h1 align="center" id="aegis-security-platform">
   <img
     src="docs/assets/aegis-sentinel-glow.svg"
     alt="AEGIS Security Platform — The Sentinel"
     width="650"
   />
-</p>
+</h1>
 
 ### Autonomous Threat Detection • Intelligence • Controlled Response
 
@@ -54,6 +54,9 @@
 <img alt="Pytest regression testing" src="https://img.shields.io/badge/Pytest-Regression%20Testing-0B0F14?style=for-the-badge&logo=pytest&logoColor=2F80FF" />
 </p>
 
+<!-- =========================
+     SECURITY CAPABILITIES
+========================= -->
 <p>
 <img alt="Threat intelligence: IP enrichment" src="https://img.shields.io/badge/Threat%20Intelligence-IP%20Enrichment-1C2836?style=for-the-badge&logo=virustotal&logoColor=E8EEF5" />
 <img alt="MITRE ATT&CK technique mapping" src="https://img.shields.io/badge/MITRE%20ATT%26CK-Technique%20Mapping-1C2836?style=for-the-badge&logo=target&logoColor=2F80FF" />
