@@ -24,7 +24,7 @@ pytest==9.2.0
 python-dotenv==1.2.4
 PyYAML==6.0.3
 starlette==1.10.0
-setuptools==80.9.0
+setuptools==84.1.0
 truststore==0.10.5
 typing-extensions==4.16.0
 typing-inspection==0.4.5
