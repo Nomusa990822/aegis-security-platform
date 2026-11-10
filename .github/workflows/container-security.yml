@@ -36,6 +36,7 @@ jobs:
           vuln-type: os,library
           severity: HIGH,CRITICAL
           version: v0.70.0
+          trivyignores: .trivyignore
 
       - name: Fail on fixable HIGH and CRITICAL image vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -48,3 +49,4 @@ jobs:
           vuln-type: os,library
           severity: HIGH,CRITICAL
           version: v0.70.0
+          trivyignores: .trivyignore
