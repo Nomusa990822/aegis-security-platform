@@ -593,3 +593,202 @@ html[data-theme] .auth-panel input {
         scroll-behavior: auto !important;
     }
 }
+
+
+/* ---------------------------------------------------------
+   COMPLETE THEME COVERAGE FOR EXISTING DASHBOARD COMPONENTS
+--------------------------------------------------------- */
+
+html[data-theme] .brand-subtitle,
+html[data-theme] .sidebar-version,
+html[data-theme] .breadcrumb span,
+html[data-theme] .form-footer small,
+html[data-theme] .audit-disclaimer {
+    color: var(--muted);
+}
+
+html[data-theme] .brand-mark {
+    border-color: var(--accent-border);
+}
+
+html[data-theme] .nav-label,
+html[data-theme] .eyebrow {
+    color: var(--muted);
+}
+
+html[data-theme] .live-indicator,
+html[data-theme] .nav-count {
+    color: var(--text-soft);
+}
+
+html[data-theme] .alert-item,
+html[data-theme] .health-row {
+    border-color: var(--table-border);
+}
+
+html[data-theme] .alert-severity-mark.medium {
+    background: var(--amber);
+}
+
+html[data-theme] .health-label {
+    border-color: var(--accent-border);
+}
+
+html[data-theme] .system-note,
+html[data-theme] .record-card .evidence-annotation {
+    background: var(--panel-elevated);
+    border-color: var(--accent-border);
+}
+
+html[data-theme] .system-note p,
+html[data-theme] .evidence-details span,
+html[data-theme] .record-card .evidence-annotation,
+html[data-theme] .timeline-content p,
+html[data-theme] .mitre-rationale,
+html[data-theme] .response-reasons {
+    color: var(--text-body);
+}
+
+html[data-theme] .footer {
+    color: var(--muted);
+    border-color: var(--border);
+}
+
+html[data-theme] .outcome,
+html[data-theme] .evidence-outcome {
+    color: var(--green);
+}
+
+html[data-theme] .outcome.failed,
+html[data-theme] .evidence-outcome.failed,
+html[data-theme] .response-feedback.error,
+html[data-theme] .auth-error {
+    color: var(--red);
+}
+
+html[data-theme] .severity.medium,
+html[data-theme] .mitre-confidence.medium {
+    color: var(--warning-text);
+    background: var(--warning-bg);
+}
+
+html[data-theme] .mitre-technique-card {
+    background: var(--panel-elevated);
+    border-color: var(--border);
+    color: var(--text);
+}
+
+html[data-theme] .mitre-technique-card:hover {
+    background: var(--panel-hover);
+    border-color: var(--accent);
+}
+
+html[data-theme] .mitre-technique-card.selected {
+    background: var(--panel-selected);
+    border-color: var(--accent);
+}
+
+html[data-theme] .mitre-tactic {
+    color: var(--text-soft);
+    background: var(--panel-subtle);
+    border-color: var(--accent-border);
+}
+
+html[data-theme] .mitre-confidence.high,
+html[data-theme] .mitre-coverage-status.mapped {
+    color: var(--success-text);
+    background: var(--success-bg);
+}
+
+html[data-theme] .mitre-confidence.medium,
+html[data-theme] .mitre-confidence.low,
+html[data-theme] .mitre-coverage-status.unmapped {
+    color: var(--warning-text);
+    background: var(--warning-bg);
+}
+
+html[data-theme] .mitre-confidence.unknown {
+    color: var(--text-soft);
+    background: var(--panel-elevated);
+}
+
+html[data-theme] .timeline-item:not(:last-child)::before {
+    background: var(--border);
+}
+
+html[data-theme] .timeline-marker {
+    background: var(--panel-selected);
+    border-color: var(--accent);
+}
+
+html[data-theme] .incident-summary-grid .detail-field,
+html[data-theme] .investigation-form,
+html[data-theme] .response-form {
+    border-color: var(--border);
+}
+
+html[data-theme] .investigation-form,
+html[data-theme] .response-form,
+html[data-theme] .response-result-item {
+    background: var(--panel-subtle);
+}
+
+html[data-theme] .investigation-form label,
+html[data-theme] .response-field label,
+html[data-theme] .auth-panel label {
+    color: var(--text-strong);
+}
+
+html[data-theme] .auth-panel {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+html[data-theme] .auth-panel input {
+    background: var(--input-bg);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+html[data-theme] .primary-button {
+    background: var(--accent);
+    color: #FFFFFF;
+    border-color: var(--accent);
+}
+
+html[data-theme] .primary-button:hover {
+    filter: brightness(.94);
+}
+
+html[data-theme] .response-feedback {
+    color: var(--muted);
+}
+
+html[data-theme] .response-feedback.error {
+    color: var(--red);
+}
+
+html[data-theme] .response-audit-details pre {
+    color: var(--text-body);
+}
+
+/* Keep the theme selector aligned with the existing action cluster. */
+.topbar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.theme-control {
+    flex-shrink: 0;
+}
+
+@media (max-width: 700px) {
+    .topbar-actions {
+        gap: 7px;
+    }
+
+    .theme-control select {
+        min-width: 78px;
+    }
+}
