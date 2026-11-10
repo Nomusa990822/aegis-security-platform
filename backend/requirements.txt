@@ -3,4 +3,4 @@ uvicorn[standard]
 pydantic
 pytest
 httpx
-httpx2>=2.0.0
+httpx2>=2.16.0
