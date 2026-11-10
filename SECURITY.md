@@ -416,12 +416,14 @@ during CI and is not currently pinned to a fixed version.
 ### Container software bill of materials (SBOM)
 
 The container security workflow generates a CycloneDX JSON software bill
-of materials from the same Docker image that is scanned by Trivy. The
-workflow uploads the generated file as the `aegis-container-sbom`
-GitHub Actions artifact and retains it for 30 days. Download the artifact
-from a successful container security workflow run to inspect the
-inventory of operating-system and application packages represented in
-that image.
+of materials from the same Docker image that is scanned by Trivy. Before
+uploading it, CI validates that the file is non-empty valid JSON, declares
+the CycloneDX format and a specification version, and contains named,
+typed top-level components with no duplicate component `bom-ref` values.
+The workflow writes a concise component-count summary to the GitHub Actions
+run summary, then uploads the file as the `aegis-container-sbom` artifact
+and retains it for 30 days. The artifact can be downloaded from a successful
+container security workflow run to inspect the package inventory.
 
 The SBOM is a build-specific inventory, not proof that every component
 is vulnerability-free or that the image is safe. It describes the image
