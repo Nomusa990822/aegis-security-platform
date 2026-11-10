@@ -182,6 +182,7 @@ These mechanisms provide application-level role separation. They do not replace 
 | Control | Detail |
 |---|---|
 | **Request-size validation** | Middleware rejects request bodies larger than 1 MiB, including chunked bodies, before passing the buffered body to application handlers |
+| **HTTP response security headers** | Responses include `X-Content-Type-Options: nosniff` and `Cross-Origin-Resource-Policy: same-origin`, including middleware-generated error responses |
 | **General API limit** | API routes under `/api/v1/` are limited to 300 requests per 60-second window by client connection address, excluding the health endpoint and the separately limited authentication endpoint |
 | **Authentication endpoint limit** | `/api/v1/auth/me` is limited to 20 requests per 60-second window by client connection address |
 | **Event-ingestion limits** | `POST /api/v1/events` is limited to 120 requests per 60-second window per bearer-token fingerprint and 240 requests per 60-second window per client connection address |
@@ -485,6 +486,29 @@ immediately, remove it from the current source, and assess whether the Git
 history also needs remediation. Do not copy detected secret values into
 issues, logs, or public discussions.
 
+### API dynamic security baseline
+
+The `.github/workflows/api-security.yml` workflow runs OWASP ZAP against an
+isolated instance of the FastAPI application. CI creates a temporary SQLite
+database, a temporary audit-checkpoint directory, and fresh test-only analyst
+and approver credentials. It starts the application on the GitHub-hosted
+runner and imports the generated OpenAPI definition into ZAP.
+
+The workflow performs separate authenticated baseline scans using the analyst
+and approver test roles. It uses ZAP's safe mode (`-S`), which skips the active
+scanner and performs passive analysis of traffic generated while importing
+and inspecting the API definition. The ZAP action and scanner image version
+are explicitly pinned. Scan reports are retained as workflow artifacts for
+review; findings are not silently treated as proof of a clean security
+assessment, and the initial workflow does not automatically fail on every
+reported warning.
+
+This is a non-destructive baseline check against an ephemeral test instance.
+It does not execute a full active attack scan, does not test production
+infrastructure, and does not replace manual review or an independently
+authorized penetration test. Review reports after each run and investigate
+new findings rather than suppressing them without justification.
+
 ### Testing limitations
 
 The current CI security checks include backend regression tests,
@@ -494,7 +518,7 @@ application security testing (SAST) for Python and JavaScript/TypeScript.
 
 The automated workflows do not themselves perform:
 
-- Dynamic application security testing (DAST)
+- Full active dynamic application security testing (DAST)
 - Fuzz testing
 - Independent penetration testing
 - Formal threat modelling or security certification
