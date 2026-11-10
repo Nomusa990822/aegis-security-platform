@@ -455,10 +455,13 @@ configuration review, or a complete software supply-chain assessment.
 
 ### Testing limitations
 
-The current workflow runs the backend regression suite. It does not
-itself perform:
+The current CI security checks include backend regression tests,
+Python dependency auditing, container image vulnerability scanning,
+CycloneDX SBOM generation and structural validation, and CodeQL static
+application security testing (SAST) for Python and JavaScript/TypeScript.
 
-- Static application security testing (SAST)
+The automated workflows do not themselves perform:
+
 - Dynamic application security testing (DAST)
 - Fuzz testing
 - Independent penetration testing
