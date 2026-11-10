@@ -182,6 +182,7 @@ These mechanisms provide application-level role separation. They do not replace 
 | Control | Detail |
 |---|---|
 | **Request-size validation** | Middleware rejects request bodies larger than 1 MiB, including chunked bodies, before passing the buffered body to application handlers |
+| **HTTP response security headers** | Responses include `X-Content-Type-Options: nosniff` and `Cross-Origin-Resource-Policy: same-origin`, including middleware-generated error responses |
 | **General API limit** | API routes under `/api/v1/` are limited to 300 requests per 60-second window by client connection address, excluding the health endpoint and the separately limited authentication endpoint |
 | **Authentication endpoint limit** | `/api/v1/auth/me` is limited to 20 requests per 60-second window by client connection address |
 | **Event-ingestion limits** | `POST /api/v1/events` is limited to 120 requests per 60-second window per bearer-token fingerprint and 240 requests per 60-second window per client connection address |

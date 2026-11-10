@@ -130,3 +130,33 @@ def test_authentication_fails_closed_when_roles_share_a_token(
 
     assert response.status_code == 503
     assert "different" in response.json()["detail"].lower()
+
+
+
+def assert_security_headers(response):
+    assert response.headers.get("x-content-type-options") == "nosniff"
+    assert response.headers.get("cross-origin-resource-policy") == "same-origin"
+
+
+def test_security_headers_are_present_on_api_responses(client):
+    response = client.get("/api/v1/health")
+
+    assert response.status_code == 200
+    assert_security_headers(response)
+
+
+def test_security_headers_are_present_on_not_found_responses(client):
+    response = client.get("/api/v1/route-that-does-not-exist")
+
+    assert response.status_code == 404
+    assert_security_headers(response)
+
+
+def test_security_headers_are_present_on_request_limit_errors(client):
+    response = client.post(
+        "/api/v1/events",
+        content=b"x" * 1_048_577,
+    )
+
+    assert response.status_code == 413
+    assert_security_headers(response)
