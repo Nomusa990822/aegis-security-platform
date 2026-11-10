@@ -124,7 +124,7 @@ flowchart LR
     A(["<b>Vulnerability<br/>found</b>"]) --> B["<b>Private report</b><br/>GitHub private reporting<br/>or private maintainer contact"]
     B --> C["<b>Investigation</b>"]
     C --> D["<b>Remediation</b><br/>best effort"]
-    D --> E(["<b>Public disclosure</b><br/>after reasonable time"])
+    D --> E(["<b>Coordinated disclosure</b><br/>by mutual agreement"])
     A -. "never" .-> X["<b>Public GitHub issue</b>"]
 
     classDef start  fill:#0f1b2e,stroke:#0f1b2e,color:#ffffff;
@@ -138,7 +138,7 @@ flowchart LR
     linkStyle default stroke:#5b6b85,stroke-width:1.6px
 ```
 
-Please allow reasonable time for investigation and remediation before publicly disclosing an unresolved vulnerability.
+Please coordinate public disclosure with the maintainer. The timing and approach should be agreed between the researcher and maintainer; no fixed disclosure or remediation timeline is guaranteed.
 
 > [!NOTE]
 > There is currently no guaranteed response or remediation service-level agreement.
