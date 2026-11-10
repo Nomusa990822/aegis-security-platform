@@ -18,7 +18,10 @@ WORKDIR /app/backend
 
 COPY --chown=aegis:aegis backend/requirements.lock ./requirements.lock
 RUN python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir -r requirements.lock
+    && python -m pip install --no-cache-dir -r requirements.lock \
+    && rm -rf /usr/local/lib/python3.14/site-packages/setuptools* \
+        /usr/local/lib/python3.14/site-packages/_distutils_hack \
+        /usr/local/lib/python3.14/site-packages/distutils-precedence.pth
 
 COPY --chown=aegis:aegis backend/ ./
 
