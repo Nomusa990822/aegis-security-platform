@@ -347,8 +347,9 @@ The backend suite runs through GitHub Actions on:
 - Pull requests
 - Manual workflow dispatches
 
-The workflow uses an Ubuntu runner and Python 3.14, installs the
-dependencies listed in `backend/requirements.txt`, and executes:
+The workflow uses an Ubuntu runner and Python 3.14, installs the pinned
+dependency snapshot in `backend/requirements.lock`, runs `pip-audit`
+against the installed environment, and executes:
 
 ```bash
 python -m pytest -q
@@ -387,22 +388,26 @@ or a dependency vulnerability scan. GitHub Dependabot alerts and security
 updates depend on repository security settings and should be enabled and
 reviewed separately.
 
-The current `backend/requirements.txt` does not fully pin dependency
-versions, and the repository does not currently include a generated
-Python lockfile. Consequently, dependency resolution may change between
-installations. Updates must be reviewed and tested before merging; do not
-treat an automatically opened update pull request as approved for release.
+`backend/requirements.txt` remains the human-maintained direct dependency
+input. `backend/requirements.lock` records exact versions for the resolved
+Python dependency set and is used by CI and the Docker build. The current
+lock snapshot pins versions but does not include package hashes, so it does
+not provide hash-verified installation. When changing dependencies, update
+the input and regenerate/review the complete lock snapshot in a clean
+Python 3.14 environment. Updates must be reviewed and tested before
+merging; do not treat an automatically opened update pull request as
+approved for release.
 
 ### Python dependency vulnerability auditing
 
 The backend CI workflow installs `pip-audit` and runs it against the
-installed Python environment after installing `backend/requirements.txt`.
+installed Python environment after installing `backend/requirements.lock`.
 The audit checks installed distributions against known vulnerability
 advisories available to the tool. A reported vulnerability causes the
 workflow step to fail and should be investigated before merging or
 releasing.
 
-This check is not a substitute for a fully pinned dependency lockfile,
+This check is not a substitute for hash-verified dependency installation,
 software composition analysis across every artifact, container image
 scanning, or review of vulnerabilities that have not yet been disclosed
 or added to the advisory data sources. The auditor itself is installed
@@ -415,7 +420,6 @@ itself perform:
 
 - Static application security testing (SAST)
 - Dynamic application security testing (DAST)
-- Dependency vulnerability or software composition analysis
 - Fuzz testing
 - Independent penetration testing
 - Formal threat modelling or security certification
