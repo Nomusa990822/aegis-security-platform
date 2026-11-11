@@ -478,7 +478,7 @@ def test_password_spraying_uses_chronological_order_for_mixed_offsets(
             username="too_old_user",
             outcome="failure",
             occurred_at=(cutoff - timedelta(minutes=1)).astimezone(
-                timezone(timedelta(hours=-5))
+                timezone(timedelta(hours=2))
             ),
         )
     ]
