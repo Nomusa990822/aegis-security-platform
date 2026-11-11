@@ -1,3 +1,24 @@
+## 10–11 November 2026 operational hardening and verification checkpoint
+
+This checkpoint consolidates the final runtime checks reported by the project owner and the latest GitHub Actions evidence. Full context and limitations are recorded in [the engineering session report](docs/ENGINEERING-SESSION-2026-11-11.md).
+
+Owner-reported runtime checks:
+
+- Container ran as non-root `aegis`, with a read-only root filesystem, dropped Linux capabilities, and privilege escalation disabled.
+- Persistent SQLite file `/data/aegis.db` survived a container restart; observed size approximately 176 KB and owner `aegis:aegis`.
+- Docker Compose reported the container healthy after restart.
+- SQLite `PRAGMA integrity_check` returned `ok`.
+- SQLite `PRAGMA foreign_key_check` returned an empty list (`[]`).
+- `python -m pip check` returned `No broken requirements found.`.
+- Selected API checks returned HTTP 401 for a missing bearer token, HTTP 200 for authenticated analyst and approver requests on the endpoint tested, and HTTP 403 for a role-restricted operation.
+- A response record was inspected with status `rejected`, `simulated=false`, and `executed=false`.
+
+The exact endpoint-by-endpoint authorization matrix and full local pytest result counts were not retained in the session record. Do not generalise the observed HTTP statuses to every route. One local pytest invocation from the repository root failed to import `app`; rerun from `backend/` to ensure the package import path is correct.
+
+At commit `8fb3972b255c96cda479b270d164adf3ce21f455`, the latest GitHub Actions runs were all successful: Backend tests #195, Container image security #63, API security baseline #22, Secret scanning #30, and CodeQL #38 (Python and JavaScript/TypeScript). The backend job included lockfile validation, dependency consistency/audit, and the complete backend test suite. The container job built the image, generated/validated a CycloneDX SBOM, and completed Trivy HIGH/CRITICAL reporting and its fixable-vulnerability gate. The API security job ran OWASP ZAP baseline scans with analyst and approver credentials. These are workflow results, not proof of production readiness or absence of all vulnerabilities.
+
+Outstanding: review Codespaces port-8000 visibility before remote-device access; rerun route-specific analyst/approver authorization checks; record exact local full-suite counts from the current working tree; inspect uncommitted local changes before further work; and perform a separate backup/restore exercise before claiming recoverability.
+
 ## MITRE ATT&CK dashboard coverage visibility — PASSED (owner-confirmed 2026-11-09)
 
 This batch extends the existing dashboard only; it does not change detection rules, MITRE catalogue data, or API contracts.
