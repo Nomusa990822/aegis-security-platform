@@ -15,9 +15,7 @@ def detect(connection, event, rule):
 
     now = datetime.now(timezone.utc)
 
-    cutoff = (
-        now - timedelta(minutes=rule["window_minutes"])
-    ).isoformat()
+    cutoff = now - timedelta(minutes=rule["window_minutes"])
 
     rows = connection.execute(
         """
@@ -26,11 +24,8 @@ def detect(connection, event, rule):
         WHERE LOWER(event_type) = 'network_connection'
         AND source_ip = ?
         AND destination_ip = ?
-        AND julianday(occurred_at) IS NOT NULL
-        AND julianday(occurred_at) >= julianday(?)
-        ORDER BY julianday(occurred_at) ASC
         """,
-        (source_ip, destination_ip, cutoff)
+        (source_ip, destination_ip)
     ).fetchall()
 
     timestamps = []
@@ -39,13 +34,18 @@ def detect(connection, event, rule):
         try:
             timestamp = datetime.fromisoformat(row["occurred_at"])
 
-            if timestamp.tzinfo is None:
+            if timestamp.tzinfo is None or timestamp.utcoffset() is None:
                 timestamp = timestamp.replace(tzinfo=timezone.utc)
+            else:
+                timestamp = timestamp.astimezone(timezone.utc)
 
-            timestamps.append(timestamp)
+            if timestamp >= cutoff:
+                timestamps.append(timestamp)
 
         except (TypeError, ValueError):
             continue
+
+    timestamps.sort()
 
     if len(timestamps) < rule["threshold"]:
         return None
