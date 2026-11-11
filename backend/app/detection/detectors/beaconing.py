@@ -26,8 +26,9 @@ def detect(connection, event, rule):
         WHERE LOWER(event_type) = 'network_connection'
         AND source_ip = ?
         AND destination_ip = ?
-        AND occurred_at >= ?
-        ORDER BY occurred_at ASC
+        AND julianday(occurred_at) IS NOT NULL
+        AND julianday(occurred_at) >= julianday(?)
+        ORDER BY julianday(occurred_at) ASC
         """,
         (source_ip, destination_ip, cutoff)
     ).fetchall()
