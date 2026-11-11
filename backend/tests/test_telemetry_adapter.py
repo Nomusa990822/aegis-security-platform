@@ -134,3 +134,40 @@ def test_cli_requires_analyst_token_for_submission(tmp_path, monkeypatch, capsys
 
     assert result == 2
     assert "AEGIS_ANALYST_TOKEN is required" in capsys.readouterr().err
+
+
+
+def test_ingestion_normalises_offset_timestamp_to_utc(client):
+    event = {
+        "event_type": "web_request",
+        "source_system": "timestamp-test",
+        "external_event_id": "offset-normalisation-1",
+        "occurred_at": "2026-11-09T10:15:30+02:00",
+    }
+    response = client.post("/api/v1/events", json=event)
+    assert response.status_code == 201
+
+    stored = client.get("/api/v1/events?limit=10").json()["events"]
+    saved = next(
+        item for item in stored
+        if item["external_event_id"] == "offset-normalisation-1"
+    )
+    assert saved["occurred_at"] == "2026-11-09T08:15:30+00:00"
+
+
+def test_ingestion_interprets_naive_timestamp_as_utc(client):
+    event = {
+        "event_type": "web_request",
+        "source_system": "timestamp-test",
+        "external_event_id": "naive-utc-1",
+        "occurred_at": "2026-11-09T10:15:30",
+    }
+    response = client.post("/api/v1/events", json=event)
+    assert response.status_code == 201
+
+    stored = client.get("/api/v1/events?limit=10").json()["events"]
+    saved = next(
+        item for item in stored
+        if item["external_event_id"] == "naive-utc-1"
+    )
+    assert saved["occurred_at"] == "2026-11-09T10:15:30+00:00"
