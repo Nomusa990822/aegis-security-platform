@@ -466,3 +466,94 @@ def test_beaconing_excludes_connection_before_window_boundary(
         events,
         monkeypatch,
     ) is None
+
+
+def test_password_spraying_uses_chronological_order_for_mixed_offsets(
+    monkeypatch,
+):
+    cutoff = FIXED_NOW - timedelta(minutes=5)
+    events = [
+        make_event(
+            event_type="authentication",
+            username="too_old_user",
+            outcome="failure",
+            occurred_at=(cutoff - timedelta(minutes=1)).astimezone(
+                timezone(timedelta(hours=-5))
+            ),
+        )
+    ]
+    events.extend(
+        make_event(
+            event_type="authentication",
+            username=f"user_{index}",
+            outcome="failure",
+            occurred_at=cutoff.astimezone(
+                timezone(timedelta(hours=2))
+            ),
+        )
+        for index in range(4)
+    )
+
+    assert run_frozen_detection(
+        "AEGIS-AUTH-002",
+        events,
+        monkeypatch,
+    ) is None
+
+
+def test_password_spraying_includes_in_window_mixed_offset_timestamp(
+    monkeypatch,
+):
+    cutoff = FIXED_NOW - timedelta(minutes=5)
+    events = [
+        make_event(
+            event_type="authentication",
+            username="offset_user",
+            outcome="failure",
+            occurred_at=(cutoff + timedelta(seconds=1)).astimezone(
+                timezone(timedelta(hours=-5))
+            ),
+        )
+    ]
+    events.extend(
+        make_event(
+            event_type="authentication",
+            username=f"user_{index}",
+            outcome="failure",
+            occurred_at=cutoff,
+        )
+        for index in range(4)
+    )
+
+    result = run_frozen_detection(
+        "AEGIS-AUTH-002",
+        events,
+        monkeypatch,
+    )
+    assert result is not None
+    assert result["targeted_account_count"] == 5
+
+
+def test_beaconing_orders_mixed_offsets_chronologically(monkeypatch):
+    offsets = (2, -5, 5, -2, 3, -4)
+    events = []
+    for index, offset in enumerate(offsets):
+        occurred_at = (
+            FIXED_NOW - timedelta(minutes=9) + timedelta(seconds=90 * index)
+        ).astimezone(timezone(timedelta(hours=offset)))
+        events.append(
+            make_event(
+                event_type="network_connection",
+                destination_ip="198.51.100.160",
+                destination_port=443,
+                occurred_at=occurred_at,
+            )
+        )
+
+    result = run_frozen_detection(
+        "AEGIS-NET-004",
+        events,
+        monkeypatch,
+    )
+    assert result is not None
+    assert result["connection_count"] == 6
