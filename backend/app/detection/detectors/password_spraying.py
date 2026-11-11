@@ -42,7 +42,7 @@ def detect(connection, event, rule):
         AND source_ip = ?
         AND username IS NOT NULL
         AND julianday(occurred_at) IS NOT NULL
-        AND occurred_at >= ?
+        AND julianday(occurred_at) >= julianday(?)
         """,
         (source_ip, cutoff)
     ).fetchall()
