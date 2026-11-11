@@ -97,6 +97,18 @@ class SecurityEvent(BaseModel):
     description: str = Field(default="", max_length=2000)
     occurred_at: Optional[datetime] = None
 
+    @field_validator("occurred_at")
+    @classmethod
+    def normalise_occurred_at(cls, value):
+        if value is None:
+            return None
+
+        # Naive source timestamps are interpreted as UTC for compatibility.
+        if value.tzinfo is None or value.utcoffset() is None:
+            value = value.replace(tzinfo=timezone.utc)
+
+        return value.astimezone(timezone.utc)
+
     @field_validator("event_type")
     @classmethod
     def validate_event_type(cls, value):

@@ -525,7 +525,7 @@ python -m app.telemetry.cli /path/to/auth.log --format sshd --year 2026
 python -m app.telemetry.cli /var/log/nginx/access.log --format nginx
 ```
 
-The importer uses the existing API URL by default (`http://127.0.0.1:8000/api/v1/events`). Override it with `AEGIS_API_URL` or `--api-url`. Supply `AEGIS_ANALYST_TOKEN` in the environment; never place tokens in command-line arguments or source control. The importer reports unsupported lines as ignored. SSH syslog timestamps have no year or timezone, so the adapter assumes UTC and the current year unless `--year` is supplied.
+The importer uses the existing API URL by default (`http://127.0.0.1:8000/api/v1/events`). Override it with `AEGIS_API_URL` or `--api-url`. Supply `AEGIS_ANALYST_TOKEN` in the environment; never place tokens in command-line arguments or source control. The importer reports unsupported lines as ignored. SSH syslog timestamps have no year or timezone, so the adapter assumes UTC and the current year unless `--year` is supplied. The event API normalises timezone-aware `occurred_at` values to UTC; naive timestamps are interpreted as UTC.
 
 | Service | Local URL |
 |---|---|

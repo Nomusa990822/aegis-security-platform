@@ -29,29 +29,36 @@ def detect(connection, event, rule):
 
     now = datetime.now(timezone.utc)
 
-    cutoff = (
-        now - timedelta(minutes=rule["window_minutes"])
-    ).isoformat()
+    cutoff = now - timedelta(minutes=rule["window_minutes"])
 
     rows = connection.execute(
         """
-        SELECT DISTINCT username
+        SELECT username, occurred_at
         FROM security_events
         WHERE LOWER(event_type) = 'authentication'
         AND LOWER(outcome) IN ('failure', 'failed', 'unsuccessful')
         AND source_ip = ?
         AND username IS NOT NULL
-        AND julianday(occurred_at) IS NOT NULL
-        AND occurred_at >= ?
         """,
-        (source_ip, cutoff)
+        (source_ip,)
     ).fetchall()
 
-    targeted_accounts = {
-        row["username"]
-        for row in rows
-        if row["username"]
-    }
+    targeted_accounts = set()
+
+    for row in rows:
+        try:
+            occurred_at = datetime.fromisoformat(row["occurred_at"])
+
+            if occurred_at.tzinfo is None or occurred_at.utcoffset() is None:
+                occurred_at = occurred_at.replace(tzinfo=timezone.utc)
+            else:
+                occurred_at = occurred_at.astimezone(timezone.utc)
+
+            if occurred_at >= cutoff and row["username"]:
+                targeted_accounts.add(row["username"])
+
+        except (TypeError, ValueError):
+            continue
 
     account_count = len(targeted_accounts)
 
