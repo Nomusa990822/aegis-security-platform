@@ -1,4 +1,4 @@
-"""Transaction-neutral repository for local IAM accounts.
+""""Transaction-neutral repository for local IAM accounts.
 
 Password hashing and account activation are service responsibilities. The
 repository accepts an encoded Argon2id hash only; plaintext passwords are
@@ -48,18 +48,26 @@ def create_account(
         raise ValueError("created_at is required")
 
     normalized = normalize_username(username)
-    connection.execute(
-        """INSERT INTO iam_users
-           (id, username, username_normalized, role, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, 'invited', ?, ?)""",
-        (user_id, username.strip(), normalized, role, created_at, created_at),
-    )
-    connection.execute(
-        """INSERT INTO iam_credentials
-           (user_id, password_hash, password_changed_at, must_change_password)
-           VALUES (?, ?, ?, 1)""",
-        (user_id, password_hash, created_at),
-    )
+    savepoint = "iam_create_account"
+    connection.execute(f"SAVEPOINT {savepoint}")
+    try:
+        connection.execute(
+            """INSERT INTO iam_users
+               (id, username, username_normalized, role, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, 'invited', ?, ?)""",
+            (user_id, username.strip(), normalized, role, created_at, created_at),
+        )
+        connection.execute(
+            """INSERT INTO iam_credentials
+               (user_id, password_hash, password_changed_at, must_change_password)
+               VALUES (?, ?, ?, 1)""",
+            (user_id, password_hash, created_at),
+        )
+        connection.execute(f"RELEASE SAVEPOINT {savepoint}")
+    except Exception:
+        connection.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+        connection.execute(f"RELEASE SAVEPOINT {savepoint}")
+        raise
 
 
 def get_account_by_username(
@@ -100,6 +108,10 @@ def set_account_status(
 ) -> None:
     if status not in _VALID_STATUSES:
         raise ValueError("unsupported account status")
+    if status == "active":
+        raise ValueError(
+            "account activation must use the controlled activation workflow"
+        )
     if not isinstance(updated_at, str) or not updated_at:
         raise ValueError("updated_at is required")
     disabled_at = updated_at if status == "disabled" else None
