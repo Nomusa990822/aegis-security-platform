@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-import hashlib
 import json
 import sqlite3
 
@@ -60,17 +59,19 @@ def test_invitation_stores_only_token_digest_and_creates_invited_account(
 ):
     invitation = invite(connection, passwords)
     row = connection.execute(
-        """SELECT u.status, u.role, c.must_change_password, t.token_hash
+        """SELECT u.status, u.role, c.must_change_password, t.id AS token_id,
+                  t.token_hash
            FROM iam_users u JOIN iam_credentials c ON c.user_id = u.id
            JOIN iam_activation_tokens t ON t.user_id = u.id WHERE u.id = ?""",
         (invitation.user_id,),
     ).fetchone()
+    token_id, token_secret = invitation.activation_token.split(".", 1)
     assert row["status"] == "invited"
     assert row["role"] == "analyst"
     assert row["must_change_password"] == 1
-    assert row["token_hash"] == hashlib.sha256(
-        invitation.activation_token.encode()
-    ).hexdigest()
+    assert row["token_id"] == token_id
+    assert row["token_hash"].startswith("$argon2id$")
+    assert passwords.verify_password(row["token_hash"], token_secret)
     assert invitation.activation_token not in row["token_hash"]
 
 
