@@ -1,4 +1,4 @@
-""""Transaction-neutral repository for local IAM accounts.
+"""Transaction-neutral repository for local IAM accounts.
 
 Password hashing and account activation are service responsibilities. The
 repository accepts an encoded Argon2id hash only; plaintext passwords are
