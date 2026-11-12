@@ -3,6 +3,7 @@ import sqlite3
 from pathlib import Path
 
 from app.response.repository import initialize_response_tables
+from app.iam.migrations import apply_migrations
 
 
 DATABASE_PATH = Path(
@@ -501,5 +502,14 @@ def initialize_database():
         # --------------------------------------------------
 
         initialize_response_tables(connection)
+
+        # IAM schema changes are additive and versioned. This savepoint is
+        # nested in the existing database-initialization transaction.
+        from datetime import datetime, timezone
+
+        apply_migrations(
+            connection,
+            applied_at=datetime.now(timezone.utc).isoformat(),
+        )
 
         connection.commit()
