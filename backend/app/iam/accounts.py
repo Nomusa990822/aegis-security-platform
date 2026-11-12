@@ -7,7 +7,6 @@ milestones.
 """
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-import hashlib
 import secrets
 import sqlite3
 import uuid
@@ -72,8 +71,12 @@ def create_invitation(
     created_at = _iso(created)
     expires_at = _iso(created + timedelta(seconds=expires_in_seconds))
     user_id = str(uuid.uuid4())
-    raw_token = secrets.token_urlsafe(32)
-    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    token_id = str(uuid.uuid4())
+    raw_secret = secrets.token_urlsafe(32)
+    # The public selector permits an indexed lookup; the secret remains
+    # protected by Argon2id, just like a user password.
+    raw_token = f"{token_id}.{raw_secret}"
+    token_hash = password_service.hash_password(raw_secret)
     # Invited accounts cannot authenticate. This undisclosed random value is
     # replaced when the recipient chooses a password during activation.
     placeholder_hash = password_service.hash_password(secrets.token_urlsafe(48))
@@ -89,7 +92,7 @@ def create_invitation(
             """INSERT INTO iam_activation_tokens
                (id, user_id, token_hash, created_at, expires_at)
                VALUES (?, ?, ?, ?, ?)""",
-            (str(uuid.uuid4()), user_id, token_hash, created_at, expires_at),
+            (token_id, user_id, token_hash, created_at, expires_at),
         )
         record_security_event(
             connection, event_type="account_invited", user_id=user_id,
@@ -111,21 +114,30 @@ def activate_account(
     password_service: PasswordService = DEFAULT_PASSWORD_SERVICE,
 ) -> dict[str, str | None]:
     """Consume a valid invitation once and set the recipient's password."""
-    if not isinstance(activation_token, str) or not 32 <= len(activation_token) <= 256:
+    if not isinstance(activation_token, str) or not 70 <= len(activation_token) <= 300:
         raise InvalidActivationToken("activation token is invalid or expired")
-    token_hash = hashlib.sha256(activation_token.encode("utf-8")).hexdigest()
+    try:
+        token_id, token_secret = activation_token.split(".", 1)
+        if str(uuid.UUID(token_id)) != token_id:
+            raise ValueError("non-canonical token selector")
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise InvalidActivationToken("activation token is invalid or expired") from exc
+    if not 32 <= len(token_secret) <= 256:
+        raise InvalidActivationToken("activation token is invalid or expired")
+
     current_at = _iso(_timestamp(now))
     invitation = connection.execute(
-        """SELECT t.id AS token_id, t.user_id, t.expires_at, t.consumed_at,
-                  u.role, u.status
+        """SELECT t.id AS token_id, t.user_id, t.token_hash, t.expires_at,
+                  t.consumed_at, u.role, u.status
            FROM iam_activation_tokens AS t
            JOIN iam_users AS u ON u.id = t.user_id
-           WHERE t.token_hash = ?""",
-        (token_hash,),
+           WHERE t.id = ?""",
+        (token_id,),
     ).fetchone()
     if (
         invitation is None or invitation["consumed_at"] is not None
         or invitation["expires_at"] <= current_at or invitation["status"] != "invited"
+        or not password_service.verify_password(invitation["token_hash"], token_secret)
     ):
         raise InvalidActivationToken("activation token is invalid or expired")
 
