@@ -221,3 +221,49 @@ def test_explicit_migration_runner_refuses_existing_integrity_violations():
         "SELECT name FROM sqlite_master WHERE name = 'iam_schema_migrations'"
     ).fetchone() is None
     db.close()
+
+
+
+def test_migration_history_rejects_missing_earlier_version(connection):
+    connection.execute("DELETE FROM iam_schema_migrations WHERE version = 1")
+    with pytest.raises(RuntimeError, match="unsupported IAM migration version|version gap"):
+        apply_migrations(connection, applied_at=NOW)
+
+
+def test_migration_cli_refuses_to_create_missing_database(monkeypatch, tmp_path):
+    import app.iam.migrate as migrate
+
+    missing = tmp_path / "must-not-be-created.db"
+    monkeypatch.setattr(migrate, "DATABASE_PATH", missing)
+    with pytest.raises(RuntimeError, match="Refusing to create a new database"):
+        migrate._check_database(missing)
+    assert not missing.exists()
+
+
+def test_migration_cli_requires_explicit_operator_attestations():
+    import app.iam.migrate as migrate
+
+    with pytest.raises(SystemExit) as error:
+        migrate.main(["--apply"])
+    assert error.value.code == 2
+
+
+def test_migration_cli_check_is_read_only(monkeypatch, tmp_path, capsys):
+    import app.iam.migrate as migrate
+
+    database_path = tmp_path / "existing.db"
+    db = sqlite3.connect(database_path)
+    db.execute("CREATE TABLE keep_me (id INTEGER PRIMARY KEY)")
+    db.commit()
+    db.close()
+    monkeypatch.setattr(migrate, "DATABASE_PATH", database_path)
+
+    assert migrate.main(["--check"]) == 0
+    output = capsys.readouterr().out
+    assert "Read-only preflight passed" in output
+
+    db = sqlite3.connect(database_path)
+    assert db.execute(
+        "SELECT name FROM sqlite_master WHERE name = 'iam_schema_migrations'"
+    ).fetchone() is None
+    db.close()
