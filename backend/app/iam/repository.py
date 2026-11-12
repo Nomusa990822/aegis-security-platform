@@ -38,7 +38,7 @@ def create_account(
         parsed_id = uuid.UUID(user_id)
     except (ValueError, TypeError, AttributeError) as exc:
         raise ValueError("user_id must be a UUID string") from exc
-    if str(parsed_id) != user_id.lower():
+    if str(parsed_id) != user_id:
         raise ValueError("user_id must use canonical UUID formatting")
     if role not in _VALID_ROLES:
         raise ValueError("role must be analyst or approver")
