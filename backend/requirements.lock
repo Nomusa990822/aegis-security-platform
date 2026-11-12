@@ -1,9 +1,12 @@
-# Resolved Python dependency snapshot from the successful Python 3.14 CI run.
-# Update backend/requirements.txt first, then regenerate and review this file.
+# Resolved Python dependency snapshot for Python 3.14.
+# Argon2id support added for IAM Phase 2A; pins include its runtime dependencies.
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.16.0
+argon2-cffi==25.1.0
+argon2-cffi-bindings==26.1.0
 certifi==2026.10.23
+cffi==2.1.1
 click==8.5.1
 fastapi==0.162.2
 h11==0.16.0
@@ -19,6 +22,7 @@ packaging==26.3
 pluggy==1.7.0
 pydantic==2.14.3
 pydantic-core==2.50.4
+pycparser==3.12
 Pygments==2.21.0
 pytest==9.2.0
 python-dotenv==1.2.4
