@@ -186,13 +186,18 @@ def test_only_one_active_totp_factor_per_user(connection):
 
 
 def test_application_startup_does_not_automatically_apply_iam_migrations(isolated_database):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
     from app.database import get_connection
 
-    with get_connection() as db:
-        migration_table = db.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'iam_schema_migrations'"
-        ).fetchone()
-        assert migration_table is None
+    with TestClient(app):
+        with get_connection() as db:
+            migration_table = db.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type = 'table' AND name = 'iam_schema_migrations'"
+            ).fetchone()
+    assert migration_table is None
 
 
 def test_explicit_migration_runner_applies_schema_after_integrity_preflight():
@@ -224,10 +229,30 @@ def test_explicit_migration_runner_refuses_existing_integrity_violations():
 
 
 
-def test_migration_history_rejects_missing_earlier_version(connection):
-    connection.execute("DELETE FROM iam_schema_migrations WHERE version = 1")
-    with pytest.raises(RuntimeError, match="unsupported IAM migration version|version gap"):
-        apply_migrations(connection, applied_at=NOW)
+def test_migration_history_rejects_missing_earlier_version(monkeypatch):
+    import app.iam.migrations as migrations
+
+    first = type(MIGRATIONS[0])(1, "first", ("CREATE TABLE first_table (id INTEGER)",))
+    second = type(MIGRATIONS[0])(2, "second", ("CREATE TABLE second_table (id INTEGER)",))
+    monkeypatch.setattr(migrations, "MIGRATIONS", (first, second))
+
+    db = sqlite3.connect(":memory:")
+    db.execute(
+        """CREATE TABLE iam_schema_migrations (
+            version INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,
+            checksum TEXT NOT NULL, applied_at TEXT NOT NULL
+        )"""
+    )
+    db.execute(
+        "INSERT INTO iam_schema_migrations VALUES (?, ?, ?, ?)",
+        (2, second.name, second.checksum, NOW),
+    )
+    with pytest.raises(RuntimeError, match="version gap"):
+        migrations.apply_migrations(db, applied_at=NOW)
+    assert db.execute(
+        "SELECT name FROM sqlite_master WHERE name = 'first_table'"
+    ).fetchone() is None
+    db.close()
 
 
 def test_migration_cli_refuses_to_create_missing_database(monkeypatch, tmp_path):
