@@ -1166,3 +1166,24 @@ The owner-run full suite reported 685 passed and one failure in `test_concurrent
 Updated `decide_response` and `simulate_response` to capture their timestamps only after acquiring the write transaction. This preserves strict lifecycle validation while making timestamp order follow the serialized mutation order.
 
 **Verification state: PASSED (owner-confirmed 2026-11-09).** The response-concurrency regression, remote-service detection batch, and complete backend suite all passed after moving lifecycle timestamps inside the acquired write transaction.
+
+
+---
+
+## Consolidated runtime verification checkpoint — PASSED WITH OPEN GAPS (owner-confirmed 2026-11-11)
+
+This dated checkpoint records the latest owner-confirmed verification evidence without repeating earlier test batches.
+
+- Complete backend suite: **715 passed**.
+- Response-focused tests: **45 passed**; audit-focused tests: **167 passed**. Both are subsets of the complete suite.
+- Docker Compose service observed healthy; container inspected as non-root, read-only root filesystem, dropped capabilities, and `no-new-privileges`.
+- SQLite integrity check returned `ok`; foreign-key check returned an empty list.
+- Selected analyst/approver authorization outcomes were checked. A complete route-by-route authorization matrix remains outstanding.
+- Response record 1 audit chain and signed checkpoint validated. That response was policy-rejected; it was not simulated or executed.
+- A read-only synthetic event-to-alert-to-investigation inspection retrieved five demo events, one high-severity `AEGIS-AUTH-001` alert, five linked evidence records, MITRE `T1110.001`, an analyst note, and its investigation timeline. The source IP was reserved TEST-NET documentation space; this is not real attack evidence or a detection-effectiveness benchmark.
+
+See [the consolidated verification record](docs/VERIFICATION-RECORD.md) for the detailed evidence, CI run identifiers, interpretation, and outstanding gaps.
+
+**Outstanding:** independent database/checkpoint backup and restore test; complete authorization matrix; successful approved dry-run lifecycle demonstration; Codespaces port visibility; remote-device access; representative real-world detection evaluation; independent penetration test.
+
+Do not interpret this checkpoint as production readiness. Do not rerun previously completed checks solely to reproduce this record.
