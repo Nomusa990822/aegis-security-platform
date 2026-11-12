@@ -185,12 +185,39 @@ def test_only_one_active_totp_factor_per_user(connection):
         connection.execute(statement, ("52345678-1234-4234-8234-123456789012", USER_ID, b"cipher2", NOW))
 
 
-def test_application_database_initialization_applies_iam_migrations(isolated_database):
+def test_application_startup_does_not_automatically_apply_iam_migrations(isolated_database):
     from app.database import get_connection
 
     with get_connection() as db:
-        migration = db.execute(
-            "SELECT version, name FROM iam_schema_migrations"
+        migration_table = db.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'iam_schema_migrations'"
         ).fetchone()
-        assert tuple(migration) == (1, "initial_iam_schema")
-        assert db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+        assert migration_table is None
+
+
+def test_explicit_migration_runner_applies_schema_after_integrity_preflight():
+    from app.iam.migrate import run_migrations
+
+    db = sqlite3.connect(":memory:")
+    db.execute("PRAGMA foreign_keys = ON")
+    assert run_migrations(db, applied_at=NOW) == [1]
+    assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+    db.close()
+
+
+def test_explicit_migration_runner_refuses_existing_integrity_violations():
+    from app.iam.migrate import run_migrations
+
+    db = sqlite3.connect(":memory:")
+    db.execute("CREATE TABLE parent (id INTEGER PRIMARY KEY)")
+    db.execute("CREATE TABLE child (parent_id INTEGER REFERENCES parent(id))")
+    db.execute("PRAGMA foreign_keys = OFF")
+    db.execute("INSERT INTO child VALUES (404)")
+    db.execute("PRAGMA foreign_keys = ON")
+    with pytest.raises(RuntimeError, match="foreign-key violations"):
+        run_migrations(db, applied_at=NOW)
+    assert db.execute(
+        "SELECT name FROM sqlite_master WHERE name = 'iam_schema_migrations'"
+    ).fetchone() is None
+    db.close()
