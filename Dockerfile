@@ -32,4 +32,4 @@ USER aegis
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "umask 077 && checkpoint_dir=\"\${AEGIS_AUDIT_CHECKPOINT_DIR:-/data/audit_checkpoints}\" && database_path=\"\${AEGIS_DATABASE_PATH:-/data/aegis.db}\" && mkdir -p \"$checkpoint_dir\" && chmod 700 \"$checkpoint_dir\" && if [ -f \"$database_path\" ]; then chmod 600 \"$database_path\"; fi && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "umask 077 && checkpoint_dir=\"${AEGIS_AUDIT_CHECKPOINT_DIR:-/data/audit_checkpoints}\" && database_path=\"${AEGIS_DATABASE_PATH:-/data/aegis.db}\" && mkdir -p \"$checkpoint_dir\" && chmod 700 \"$checkpoint_dir\" && if [ -f \"$database_path\" ]; then chmod 600 \"$database_path\"; fi && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
