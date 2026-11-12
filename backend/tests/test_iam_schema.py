@@ -292,3 +292,16 @@ def test_migration_cli_check_is_read_only(monkeypatch, tmp_path, capsys):
         "SELECT name FROM sqlite_master WHERE name = 'iam_schema_migrations'"
     ).fetchone() is None
     db.close()
+
+
+
+def test_account_repository_requires_canonical_lowercase_uuid(connection):
+    with pytest.raises(ValueError, match="canonical UUID"):
+        create_account(
+            connection,
+            user_id="12345678-1234-4234-8234-1234567890AB",
+            username="analyst.one",
+            role="analyst",
+            password_hash=ARGON_HASH,
+            created_at=NOW,
+        )
