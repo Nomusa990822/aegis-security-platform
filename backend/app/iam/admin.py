@@ -29,7 +29,9 @@ def _open_existing_database(path: Path) -> sqlite3.Connection:
         raise RuntimeError(
             "IAM schema is not current; apply guarded migrations before account administration"
         )
-    connection = sqlite3.connect(f"{resolved.as_uri()}?mode=rw", uri=True, timeout=30)
+    connection = sqlite3.connect(
+        f"{resolved.as_uri()}?mode=rw", uri=True, timeout=30
+    )
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA busy_timeout = 30000")
@@ -41,15 +43,17 @@ def main(argv: list[str] | None = None) -> int:
         description="Local AEGIS IAM operator commands (no public registration)"
     )
     commands = parser.add_subparsers(dest="command", required=True)
-
     invite = commands.add_parser("invite", help="create an invited local account")
     invite.add_argument("--username", required=True)
     invite.add_argument("--role", required=True, choices=("analyst", "approver"))
     invite.add_argument("--expires-in", type=int, default=86400)
-
-    commands.add_parser("activate", help="activate an account using its one-time invitation")
+    commands.add_parser(
+        "activate", help="activate an account using its one-time invitation"
+    )
     for status in ("disable", "lock"):
-        action = commands.add_parser(status, help=f"{status} an account and revoke sessions")
+        action = commands.add_parser(
+            status, help=f"{status} an account and revoke sessions"
+        )
         action.add_argument("--user-id", required=True)
 
     args = parser.parse_args(argv)
@@ -58,9 +62,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             if args.command == "invite":
                 invitation = create_invitation(
-                    connection,
-                    username=args.username,
-                    role=args.role,
+                    connection, username=args.username, role=args.role,
                     expires_in_seconds=args.expires_in,
                 )
                 connection.commit()
@@ -69,7 +71,10 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Username: {invitation.username}")
                 print(f"Role: {invitation.role}")
                 print(f"Expires at: {invitation.expires_at}")
-                print("One-time activation token (deliver securely; it will not be shown again):")
+                print(
+                    "One-time activation token (deliver securely; "
+                    "it will not be shown again):"
+                )
                 print(invitation.activation_token)
                 return 0
 
@@ -83,7 +88,10 @@ def main(argv: list[str] | None = None) -> int:
                     connection, activation_token=token, new_password=password
                 )
                 connection.commit()
-                print(f"Account activated: {account['username']} ({account['role']}).")
+                print(
+                    f"Account activated: {account['username']} "
+                    f"({account['role']})."
+                )
                 return 0
 
             status = "disabled" if args.command == "disable" else "locked"
@@ -95,7 +103,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         finally:
             connection.close()
-    except (IAMError, ValueError, LookupError, RuntimeError, sqlite3.Error) as exc:
+    except (
+        IAMError, ValueError, LookupError, RuntimeError, OSError, sqlite3.Error
+    ) as exc:
         print(f"IAM operation failed: {exc}", file=sys.stderr)
         return 1
 
