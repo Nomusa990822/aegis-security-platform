@@ -162,6 +162,10 @@ def test_account_lookup_and_status_change(connection):
             connection, user_id="32345678-1234-4234-8234-123456789012",
             status="disabled", updated_at=NOW,
         )
+    with pytest.raises(ValueError, match="controlled activation workflow"):
+        set_account_status(
+            connection, user_id=USER_ID, status="active", updated_at=NOW,
+        )
 
 
 def test_iam_foreign_keys_prevent_orphaned_credentials(connection):
