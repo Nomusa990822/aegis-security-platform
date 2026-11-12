@@ -189,6 +189,10 @@ def apply_migrations(connection: sqlite3.Connection, *, applied_at: str) -> list
                 raise RuntimeError(f"IAM migration history mismatch at version {version}")
             applied_versions.add(version)
 
+        ordered_versions = sorted(applied_versions)
+        if ordered_versions != list(range(1, len(ordered_versions) + 1)):
+            raise RuntimeError("IAM migration history contains a version gap")
+
         highest = max(applied_versions, default=0)
         for migration in MIGRATIONS:
             if migration.version in applied_versions:
