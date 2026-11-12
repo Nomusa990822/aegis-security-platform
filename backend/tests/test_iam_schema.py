@@ -36,16 +36,21 @@ def test_initial_migration_creates_iam_tables(connection):
         "iam_schema_migrations", "iam_users", "iam_credentials",
         "iam_mfa_factors", "iam_recovery_codes", "iam_access_tokens",
         "iam_sessions", "iam_auth_challenges", "iam_activation_tokens",
-        "iam_security_events",
+        "iam_security_events", "iam_auth_rate_limits",
     } <= tables
-    assert tuple(connection.execute(
-        "SELECT version, name FROM iam_schema_migrations"
-    ).fetchone()) == (1, "initial_iam_schema")
+    assert [
+        tuple(row) for row in connection.execute(
+            "SELECT version, name FROM iam_schema_migrations ORDER BY version"
+        )
+    ] == [
+        (1, "initial_iam_schema"),
+        (2, "persistent_iam_auth_throttling"),
+    ]
 
 
 def test_migration_is_idempotent(connection):
     assert apply_migrations(connection, applied_at=NOW) == []
-    assert connection.execute("SELECT COUNT(*) FROM iam_schema_migrations").fetchone()[0] == 1
+    assert connection.execute("SELECT COUNT(*) FROM iam_schema_migrations").fetchone()[0] == 2
 
 
 def test_migration_checksum_detects_modified_history(connection):
@@ -209,7 +214,7 @@ def test_explicit_migration_runner_applies_schema_after_integrity_preflight():
 
     db = sqlite3.connect(":memory:")
     db.execute("PRAGMA foreign_keys = ON")
-    assert run_migrations(db, applied_at=NOW) == [1]
+    assert run_migrations(db, applied_at=NOW) == [1, 2]
     assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     assert db.execute("PRAGMA foreign_key_check").fetchall() == []
     db.close()
