@@ -54,7 +54,7 @@ def active_account(connection, passwords):
     return invitation, account
 
 
-def test_invitation_stores_only_token_digest_and_creates_invited_account(
+def test_invitation_stores_only_argon2id_token_hash_and_creates_invited_account(
     connection, passwords
 ):
     invitation = invite(connection, passwords)
@@ -129,6 +129,21 @@ def test_activation_rejects_unknown_or_tampered_token(connection, passwords):
             connection, activation_token=invitation.activation_token + "tampered",
             new_password=PASSWORD, now=NOW, password_service=passwords,
         )
+    assert connection.execute(
+        "SELECT status FROM iam_users WHERE id = ?", (invitation.user_id,)
+    ).fetchone()["status"] == "invited"
+
+
+def test_activation_rejects_wrong_selector_and_malformed_token(connection, passwords):
+    invitation = invite(connection, passwords)
+    _, token_secret = invitation.activation_token.split(".", 1)
+    wrong_selector = "00000000-0000-4000-8000-000000000000"
+    for supplied in (f"{wrong_selector}.{token_secret}", "not-a-token"):
+        with pytest.raises(InvalidActivationToken):
+            activate_account(
+                connection, activation_token=supplied,
+                new_password=PASSWORD, now=NOW, password_service=passwords,
+            )
     assert connection.execute(
         "SELECT status FROM iam_users WHERE id = ?", (invitation.user_id,)
     ).fetchone()["status"] == "invited"
