@@ -12,8 +12,8 @@ migrations during application startup.
 - Long passphrases: at least 15 characters and at most 1,024 UTF-8 bytes.
   Passwords are not silently trimmed or Unicode-normalized.
 - Controlled local-operator account invitations.
-- Cryptographically random, one-time activation tokens; only SHA-256 token
-  digests are persisted.
+- Cryptographically random, one-time activation tokens with a public UUID
+  selector and an Argon2id hash of the secret; plaintext tokens are never stored.
 - Atomic invitation activation, expiry checks, replay protection, and
   recipient-selected passwords.
 - Active-account password changes with current-password verification.
