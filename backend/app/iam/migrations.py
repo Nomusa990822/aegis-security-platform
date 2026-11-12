@@ -155,9 +155,26 @@ MIGRATIONS = (
                 ON iam_security_events(user_id, occurred_at)""",
         ),
     ),
+    Migration(
+        version=2,
+        name="persistent_iam_auth_throttling",
+        statements=(
+            """CREATE TABLE iam_auth_rate_limits (
+                bucket_hash TEXT PRIMARY KEY,
+                scope TEXT NOT NULL CHECK (length(scope) BETWEEN 1 AND 32),
+                window_started_at TEXT NOT NULL,
+                failures INTEGER NOT NULL CHECK (failures >= 1),
+                blocked_until TEXT,
+                updated_at TEXT NOT NULL,
+                CHECK (length(bucket_hash) = 64)
+            )""",
+            """CREATE INDEX idx_iam_auth_rate_limits_updated
+                ON iam_auth_rate_limits(updated_at)""",
+        ),
+    ),
 )
 
-
+ 
 def apply_migrations(connection: sqlite3.Connection, *, applied_at: str) -> list[int]:
     """Apply pending migrations atomically and verify immutable migration history."""
     if not isinstance(applied_at, str) or not applied_at:
