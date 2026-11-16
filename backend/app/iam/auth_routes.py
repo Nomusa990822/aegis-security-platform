@@ -292,9 +292,12 @@ def complete_mfa_login(
             headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
         )
     with get_connection() as connection:
-        user_id = mfa.verify_login_challenge(
-            connection, challenge_token=challenge_token, code=payload.code
-        )
+        try:
+            user_id = mfa.verify_login_challenge(
+                connection, challenge_token=challenge_token, code=payload.code
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail="MFA encryption is not configured.") from exc
         if user_id is None:
             raise HTTPException(
                 status_code=401, detail="MFA verification failed.",
@@ -435,8 +438,10 @@ def start_mfa_enrollment(
             enrollment = mfa.begin_totp_enrollment(
                 connection, user_id=principal.user_id
             )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail="MFA encryption is not configured.") from exc
         except ValueError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+            raise HTTPException(status_code=409, detail="MFA enrollment is not available.") from exc
     return enrollment
 
 
@@ -457,6 +462,8 @@ def confirm_mfa_enrollment(
                 factor_id=payload.factor_id, code=payload.code,
                 password_service=DEFAULT_PASSWORD_SERVICE,
             )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail="MFA encryption is not configured.") from exc
         except ValueError as exc:
             _record_mfa_failure(
                 connection, scope="mfa-enroll",
