@@ -55,7 +55,15 @@ def test_baseline_upgrade_and_downgrade_in_disposable_schema(monkeypatch):
                 assert len(inspector.get_foreign_keys(table_name)) == len(
                     [item for item in table.foreign_key_constraints]
                 )
-                assert len(inspector.get_indexes(table_name)) == len(table.indexes)
+                # PostgreSQL reports indexes backing UNIQUE constraints as
+                # indexes too; SQLAlchemy models those as constraints, not
+                # entries in Table.indexes. Exclude those duplicates here.
+                actual_indexes = [
+                    index
+                    for index in inspector.get_indexes(table_name)
+                    if index.get("duplicates_constraint") is None
+                ]
+                assert len(actual_indexes) == len(table.indexes)
 
             command.downgrade(config, "base")
             remaining = set(inspect(connection).get_table_names())
