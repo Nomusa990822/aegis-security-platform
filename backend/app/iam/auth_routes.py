@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.database import get_connection
-from app.iam import auth_throttling, repository, sessions
+from app.iam import auth_throttling, mfa, repository, sessions
 from app.iam.browser_security import (
     CSRF_HEADER_NAME,
     SESSION_COOKIE_NAME,
@@ -31,12 +31,18 @@ _DUMMY_PASSWORD_HASH = (
     "gm9KYdMDFzunEZbY1V2fuLRZBLv+rCe2qoX045Ki7rM"
 )
 _GENERIC_LOGIN_ERROR = "Username or password is incorrect."
+_MFA_CHALLENGE_COOKIE = "__Host-aegis_mfa_challenge"
 
 
 class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     username: str = Field(min_length=1, max_length=128)
     password: str = Field(min_length=1, max_length=1024)
+
+
+class MFAChallengeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(min_length=6, max_length=300)
 
     @field_validator("password")
     @classmethod
@@ -185,25 +191,39 @@ def login(payload: LoginRequest, request: Request, response: Response):
             eligible = (
                 account is not None
                 and account["status"] == "active"
-                and account["role"] == "analyst"
+                and account["role"] in {"analyst", "approver"}
                 and not account["must_change_password"]
             )
+            has_factor = (
+                account is not None
+                and mfa.has_active_totp(connection, user_id=account["id"])
+            )
+            eligible = eligible and (account["role"] == "analyst" or has_factor)
             if not (password_valid and eligible):
                 retry_after = _record_login_failure(
                     connection, ip_identifier=ip_identifier,
                     user_identifier=user_identifier, key=throttle_key,
                 )
+                has_factor = False
             else:
                 _clear_login_failures(
                     connection, ip_identifier=ip_identifier,
                     user_identifier=user_identifier, key=throttle_key,
                 )
-                issued = sessions.issue_session(
-                    connection, user_id=account["id"]
-                )
+                if has_factor:
+                    challenge_token = mfa.create_login_challenge(
+                        connection, user_id=account["id"]
+                    )
+                    issued = None
+                else:
+                    issued = sessions.issue_session(
+                        connection, user_id=account["id"]
+                    )
+                from datetime import datetime, timezone
+                login_at = issued.created_at if issued is not None else datetime.now(timezone.utc).isoformat(timespec="microseconds")
                 connection.execute(
                     "UPDATE iam_users SET last_login_at = ? WHERE id = ?",
-                    (issued.created_at, account["id"]),
+                    (login_at, account["id"]),
                 )
 
     if blocked:
@@ -217,8 +237,10 @@ def login(payload: LoginRequest, request: Request, response: Response):
             },
         )
     if not (password_valid and account is not None
-            and account["status"] == "active" and account["role"] == "analyst"
-            and not account["must_change_password"]):
+            and account["status"] == "active"
+            and account["role"] in {"analyst", "approver"}
+            and not account["must_change_password"]
+            and (account["role"] == "analyst" or has_factor)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=_GENERIC_LOGIN_ERROR,
@@ -229,6 +251,20 @@ def login(payload: LoginRequest, request: Request, response: Response):
             },
         )
 
+    if has_factor:
+        response.set_cookie(
+            key=_MFA_CHALLENGE_COOKIE, value=challenge_token,
+            max_age=5 * 60, path="/", secure=True, httponly=True,
+            samesite="strict",
+        )
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        return {
+            "authenticated": False,
+            "mfa_required": True,
+            "user": {"username": account["username"], "role": account["role"]},
+        }
+
     set_session_cookie(
         response, issued.token,
         max_age=DEFAULT_ABSOLUTE_TTL_SECONDS,
@@ -238,6 +274,43 @@ def login(payload: LoginRequest, request: Request, response: Response):
         "user": {"id": account["id"], "username": account["username"], "role": "analyst"},
         "csrf_token": create_csrf_token(issued.token, secret=csrf_key),
         "expires_at": issued.absolute_expires_at,
+    }
+
+
+@router.post("/login/mfa")
+def complete_mfa_login(
+    payload: MFAChallengeRequest, request: Request, response: Response
+):
+    _require_origin(request)
+    _, csrf_key = _throttle_settings()
+    challenge_token = request.cookies.get(_MFA_CHALLENGE_COOKIE)
+    if not challenge_token:
+        raise HTTPException(
+            status_code=401, detail="MFA challenge is invalid or expired.",
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+    with get_connection() as connection:
+        user_id = mfa.verify_login_challenge(
+            connection, challenge_token=challenge_token, code=payload.code
+        )
+        if user_id is None:
+            raise HTTPException(
+                status_code=401, detail="MFA verification failed.",
+                headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+            )
+        issued = mfa.issue_mfa_verified_session(connection, user_id=user_id)
+        account = repository.get_account_by_id(connection, user_id)
+    response.delete_cookie(
+        key=_MFA_CHALLENGE_COOKIE, path="/", secure=True,
+        httponly=True, samesite="strict",
+    )
+    set_session_cookie(response, issued.token, max_age=DEFAULT_ABSOLUTE_TTL_SECONDS)
+    return {
+        "authenticated": True,
+        "user": {"id": account["id"], "username": account["username"], "role": account["role"]},
+        "csrf_token": create_csrf_token(issued.token, secret=csrf_key),
+        "expires_at": issued.absolute_expires_at,
+        "mfa_verified": True,
     }
 
 
@@ -254,14 +327,14 @@ def inspect_session(request: Request, response: Response):
     _, csrf_key = _throttle_settings()
     with get_connection() as connection:
         principal = sessions.validate_session(connection, token=token)
-    if principal is None or principal.role != "analyst":
+    if principal is None or principal.role not in {"analyst", "approver"}:
         raise HTTPException(
             status_code=401, detail="Authentication required.",
             headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
         )
     response = {
         "authenticated": True,
-        "user": {"id": principal.user_id, "username": principal.username, "role": "analyst"},
+        "user": {"id": principal.user_id, "username": principal.username, "role": principal.role},
         "csrf_token": create_csrf_token(token, secret=csrf_key),
         "expires_at": principal.absolute_expires_at,
         "mfa_verified": principal.mfa_verified_at is not None,
