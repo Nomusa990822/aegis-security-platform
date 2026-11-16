@@ -2831,7 +2831,7 @@ async function startDashboardSession() {
             return;
         }
         const session = await response.json();
-        if (!session.authenticated || session.user?.role !== "analyst") {
+        if (!session.authenticated || !["analyst", "approver"].includes(session.user?.role)) {
             aegisCsrfToken = null;
             showAuthenticationGate("An active analyst session is required.");
             return;
@@ -2871,7 +2871,17 @@ $("auth-form")?.addEventListener("submit", async event => {
             body: JSON.stringify({ username, password })
         });
         const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload.authenticated || !payload.csrf_token) {
+        if (!response.ok) {
+            throw new Error("Sign-in failed. Check your credentials or contact the AEGIS operator.");
+        }
+        if (payload.mfa_required) {
+            if ($("auth-form")) $("auth-form").hidden = true;
+            if ($("auth-mfa-form")) $("auth-mfa-form").hidden = false;
+            if ($("auth-mfa-error")) $("auth-mfa-error").textContent = "";
+            if ($("auth-mfa-code")) $("auth-mfa-code").focus();
+            return;
+        }
+        if (!payload.authenticated || !payload.csrf_token) {
             throw new Error("Sign-in failed. Check your credentials or contact the AEGIS operator.");
         }
         aegisCsrfToken = payload.csrf_token;
@@ -2883,6 +2893,46 @@ $("auth-form")?.addEventListener("submit", async event => {
     } finally {
         if (button) button.disabled = false;
     }
+});
+
+$("auth-mfa-form")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const form = $("auth-mfa-form");
+    const button = form?.querySelector('button[type="submit"]');
+    const code = $("auth-mfa-code")?.value.trim();
+    const error = $("auth-mfa-error");
+    if (!code) {
+        if (error) error.textContent = "Enter your authenticator or recovery code.";
+        return;
+    }
+    if (button) button.disabled = true;
+    if (error) error.textContent = "";
+    try {
+        const response = await fetch("/api/v1/iam/login/mfa", {
+            method: "POST",
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: { "Accept": "application/json", "Content-Type": "application/json" },
+            body: JSON.stringify({ code })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.authenticated || !payload.csrf_token) {
+            throw new Error("MFA verification failed. Check the code and try again.");
+        }
+        aegisCsrfToken = payload.csrf_token;
+        if ($("auth-mfa-code")) $("auth-mfa-code").value = "";
+        await startDashboardSession();
+    } catch (requestError) {
+        if (error) error.textContent = requestError.message || "MFA verification failed.";
+    } finally {
+        if (button) button.disabled = false;
+    }
+});
+
+$("auth-mfa-back")?.addEventListener("click", () => {
+    if ($("auth-mfa-form")) $("auth-mfa-form").hidden = true;
+    if ($("auth-form")) $("auth-form").hidden = false;
+    if ($("auth-mfa-code")) $("auth-mfa-code").value = "";
 });
 
 $("logout-button")?.addEventListener("click", async () => {
