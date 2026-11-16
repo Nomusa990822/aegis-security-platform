@@ -16,6 +16,8 @@ from psycopg.rows import dict_row, tuple_row
 from psycopg.pq import TransactionStatus
 
 
+_ENGINE_CACHE = {}
+
 _INSERT_TABLE = re.compile(r"^\s*INSERT\s+(?:OR\s+IGNORE\s+)?INTO\s+[\"]?([a-zA-Z_][\w]*)", re.I)
 _AUTO_ID_TABLES = {
     "security_events", "security_alerts", "incident_notes", "incident_timeline",
