@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import sqlite3
 
-from sqlalchemy import inspect
-
 from app import database
 from app.db_schema import metadata
 from app.iam.migrations import apply_migrations
@@ -80,8 +78,6 @@ def test_sqlite_runtime_foreign_keys_match_domain_relationships(
 ):
     database_path = tmp_path / "schema-foreign-key-parity.db"
     _initialize_reference_sqlite_schema(database_path, monkeypatch)
-    inspector = inspect(database.create_engine) if False else None
-
     with sqlite3.connect(database_path) as connection:
         for table_name, table in metadata.tables.items():
             actual = {
