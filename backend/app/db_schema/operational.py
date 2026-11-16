@@ -1,5 +1,5 @@
 """Operational event, alert, investigation and correlation schema."""
-from sqlalchemy import Column, ForeignKey, Index, Integer, Table, Text, UniqueConstraint
+from sqlalchemy import Column, ForeignKey, Index, Integer, Table, Text, UniqueConstraint, text
 from app.db_schema import metadata
 
 security_events = Table("security_events", metadata,
@@ -11,7 +11,7 @@ security_events = Table("security_events", metadata,
     Column("source_system", Text), Column("external_event_id", Text),
     Index("idx_network_event_correlation", "event_type", "source_ip", "destination_ip", "received_at"),
     Index("idx_security_events_external_identity", "source_system", "external_event_id",
-          unique=True, sqlite_where=__import__("sqlalchemy").text("external_event_id IS NOT NULL"),
+          unique=True, sqlite_where=text("external_event_id IS NOT NULL"),
           postgresql_where=__import__("sqlalchemy").text("external_event_id IS NOT NULL")))
 
 security_alerts = Table("security_alerts", metadata,
