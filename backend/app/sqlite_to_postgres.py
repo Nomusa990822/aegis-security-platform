@@ -283,7 +283,6 @@ def migrate(source_path: Path, backup_path: Path, confirmation: str) -> dict[str
     source_url = URL.create(
         "sqlite+pysqlite",
         database=str(source_path),
-        query={"mode": "ro", "uri": "true"},
     )
     source_engine = create_engine(source_url)
     destination_engine = create_database_engine()
