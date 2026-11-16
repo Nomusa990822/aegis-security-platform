@@ -1,8 +1,8 @@
-"""SQLAlchemy engine factory for the staged PostgreSQL transition.
+"""Pooled SQLAlchemy engine factory for the PostgreSQL application runtime.
 
-The existing application continues to use its SQLite DB-API boundary until
-repositories have been migrated. This module is additive and is not imported
-by the application lifespan yet.
+The application DB-API compatibility boundary borrows psycopg 3 connections
+from this pool. Alembic uses the same factory for explicit schema operations.
+SQLite URLs remain available only to isolated compatibility tests.
 """
 from __future__ import annotations
 
