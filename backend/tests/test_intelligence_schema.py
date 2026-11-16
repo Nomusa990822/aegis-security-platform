@@ -13,15 +13,15 @@ from app.db_schema.intelligence import (
 )
 
 
-def _assert_intelligence_schema(engine):
+def _assert_intelligence_schema(engine, schema=None):
     inspector = inspect(engine)
     assessment_columns = {
         column["name"]
-        for column in inspector.get_columns("ip_intelligence_assessments")
+        for column in inspector.get_columns("ip_intelligence_assessments", schema=schema)
     }
     provider_columns = {
         column["name"]
-        for column in inspector.get_columns("ip_intelligence_provider_results")
+        for column in inspector.get_columns("ip_intelligence_provider_results", schema=schema)
     }
 
     assert assessment_columns == {
@@ -54,7 +54,7 @@ def _assert_intelligence_schema(engine):
     }
 
     provider_foreign_keys = inspector.get_foreign_keys(
-        "ip_intelligence_provider_results"
+        "ip_intelligence_provider_results", schema=schema
     )
     assert any(
         fk["referred_table"] == "ip_intelligence_assessments"
@@ -63,7 +63,7 @@ def _assert_intelligence_schema(engine):
     )
 
     assessment_foreign_keys = inspector.get_foreign_keys(
-        "ip_intelligence_assessments"
+        "ip_intelligence_assessments", schema=schema
     )
     assert any(
         fk["referred_table"] == "security_alerts"
@@ -102,7 +102,7 @@ def test_intelligence_schema_creates_in_isolated_postgresql_schema():
             schema_translate_map={None: schema_name}
         )
         metadata.create_all(isolated_engine)
-        _assert_intelligence_schema(isolated_engine)
+        _assert_intelligence_schema(engine, schema=schema_name)
     finally:
         with engine.begin() as connection:
             connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
