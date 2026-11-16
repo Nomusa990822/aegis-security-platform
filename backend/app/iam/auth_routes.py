@@ -431,15 +431,9 @@ def _check_mfa_throttle(connection, *, scope: str, identifier: str):
 
 
 def _record_mfa_failure(connection, *, scope: str, identifier: str, key: str):
-    decision = auth_throttling.record_authentication_failure(
+    return auth_throttling.record_authentication_failure(
         connection, scope=scope, identifier=identifier, secret=key,
     )
-    if not decision.allowed:
-        raise HTTPException(
-            status_code=429, detail="Too many MFA attempts. Try again later.",
-            headers={"Retry-After": str(max(1, decision.retry_after_seconds)),
-                     "Cache-Control": "no-store", "Pragma": "no-cache"},
-        )
 
 
 def _require_browser_principal(request: Request):
