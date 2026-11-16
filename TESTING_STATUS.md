@@ -1,43 +1,52 @@
-## MITRE ATT&CK dashboard coverage visibility — PASSED (owner-confirmed 2026-11-09)
+# AEGIS Test Status Register
 
-This batch extends the existing dashboard only; it does not change detection rules, MITRE catalogue data, or API contracts.
+Last updated: 2026-11-09
+
+---
+
+## MITRE ATT&CK dashboard coverage visibility — PASSED (confirmed 2026-11-09)
+
+This batch extends the existing dashboard only. Detection rules, MITRE catalogue data, and API contracts are unchanged.
 
 Changes:
-- Adds registry-wide coverage reporting based on the existing detection-rules API response and MITRE mappings.
-- Lists every registered detection rule, showing mapped/unmapped status and linked techniques.
-- Adds total registered-rule and unmapped-rule metrics.
-- Adds mapping rationale and evidence considerations to the existing mapping table.
-- Refreshes coverage metrics when the detection-rule API response loads, avoiding a dashboard initial-load race.
+- Registry-wide coverage reporting was added, based on the existing detection-rules API response and MITRE mappings.
+- Every registered detection rule is listed, showing mapped/unmapped status and linked techniques.
+- Total registered-rule and unmapped-rule metrics were added.
+- Mapping rationale and evidence considerations were added to the existing mapping table.
+- Coverage metrics now refresh when the detection-rule API response loads, avoiding a dashboard initial-load race.
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed:
+**Verification state: PASSED (confirmed 2026-11-09).** The following were confirmed:
 - `node --check backend/app/static/app.js` completed without syntax errors.
 - The complete backend regression suite, `./.venv/bin/python -m pytest -q`, passed.
-- Manual dashboard review confirmed all ten registered rules appear and show **Mapped**, with an unmapped-rule count of zero.
+- Manual dashboard review showed all ten registered rules as **Mapped**, with an unmapped-rule count of zero.
 
-Exact pytest pass counts were not supplied and are not inferred. The manual review confirms the current ten-rule registry; future rules without mappings should appear as unmapped rather than being assumed covered.
+Exact pytest pass counts were not recorded and are not inferred. The manual review confirms the current ten-rule registry; future rules without mappings should appear as unmapped rather than being assumed covered.
 
-## Linux SSH and Nginx telemetry adapter — PASSED (owner-confirmed 2026-11-09)
+---
+
+## Linux SSH and Nginx telemetry adapter — PASSED (confirmed 2026-11-09)
 
 The dependency-free telemetry adapter parses supported OpenSSH authentication logs and Nginx combined access logs, normalises them into the existing AEGIS event schema, and submits them through the authenticated event-ingestion API. Normal validation, persistence, deduplication, detection, and enrichment remain in the existing pipeline.
 
 Coverage includes SSH success/failure parsing, IPv4/IPv6 source addresses, Nginx status mapping, malformed/unsupported lines, deterministic event identity, API compatibility, duplicate replay, dry-run behaviour, and token requirements.
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that `tests/test_telemetry_adapter.py` and the complete backend regression suite both passed. Exact test counts were not supplied and are not inferred.
+**Verification state: PASSED (confirmed 2026-11-09).** `tests/test_telemetry_adapter.py` and the complete backend regression suite both passed. Exact test counts were not recorded and are not inferred.
 
 Manual CLI note: the example paths `/path/to/auth.log` and `/var/log/nginx/access.log` were not present in the Codespaces environment, so those invocations correctly returned “Log file does not exist”. This is an environment/input-path issue, not a parser failure. A manual end-to-end import against real host logs remains unverified; the automated parser and API integration tests passed.
 
-A separate synthetic-file dry-run was also completed successfully: two representative SSH records (one failed and one successful authentication) and two Nginx records (HTTP 401 and HTTP 200) were parsed and normalised as expected. Both runs reported `submitted: 0` and `dry_run: true`; this validates the CLI parsing path without claiming ingestion from a live host.
+A separate synthetic-file dry run was also completed successfully: two representative SSH records (one failed and one successful authentication) and two Nginx records (HTTP 401 and HTTP 200) were parsed and normalised as expected. Both runs reported `submitted: 0` and `dry_run: true`, which validates the CLI parsing path without claiming ingestion from a live host.
+
 ---
 
-## End-to-end API workflows and concurrent operations — PASSED (owner-confirmed 2026-11-09)
+## End-to-end API workflows and concurrent operations — PASSED (confirmed 2026-11-09)
 
-This is the consolidated Phase 9 integration/concurrency verification batch. It exercises existing workflows and does not add new runtime features:
+This is the consolidated Phase 9 integration/concurrency verification batch. It exercises existing workflows and adds no new runtime features:
 
 - API integration: health, authenticated event ingestion and reads, alert investigation, evidence linking, correlation management, timelines, and audit history.
-- End-to-end threat-intelligence pipeline: submit a brute-force sequence, verify threshold behaviour, create and enrich the alert, persist provider results, and verify duplicate replay does not repeat detection or enrichment.
-- Concurrent enrichment: ensure simultaneous requests do not create duplicate assessments.
-- Concurrent intelligence persistence and simultaneous history reads/writes: verify records and provider results remain complete and consistently ordered.
-- Mixed concurrent ingestion: verify repeated external event identities are stored once while distinct events remain independent.
+- End-to-end threat-intelligence pipeline: submission of a brute-force sequence, verification of threshold behaviour, alert creation and enrichment, persistence of provider results, and verification that duplicate replay does not repeat detection or enrichment.
+- Concurrent enrichment: simultaneous requests must not create duplicate assessments.
+- Concurrent intelligence persistence and simultaneous history reads/writes: records and provider results must remain complete and consistently ordered.
+- Mixed concurrent ingestion: repeated external event identities are stored once, while distinct events remain independent.
 - Concurrent ingestion regression coverage.
 
 Run from the Codespaces backend directory:
@@ -45,26 +54,26 @@ Run from the Codespaces backend directory:
 ```bash
 git pull --ff-only origin main
 
-printf '\\n========== END-TO-END API AND CONCURRENCY REGRESSIONS ==========\\n'
-./.venv/bin/python -m pytest \\
-    tests/test_api_integration.py \\
-    tests/test_end_to_end_threat_intelligence_pipeline.py \\
-    tests/test_concurrent_enrichment.py \\
-    tests/test_concurrent_intelligence_persistence.py \\
-    tests/test_concurrent_intelligence_reads_and_writes.py \\
-    tests/test_concurrent_ingestion.py \\
-    tests/test_concurrent_read_write_consistency.py \\
+printf '\n========== END-TO-END API AND CONCURRENCY REGRESSIONS ==========\n'
+./.venv/bin/python -m pytest \
+    tests/test_api_integration.py \
+    tests/test_end_to_end_threat_intelligence_pipeline.py \
+    tests/test_concurrent_enrichment.py \
+    tests/test_concurrent_intelligence_persistence.py \
+    tests/test_concurrent_intelligence_reads_and_writes.py \
+    tests/test_concurrent_ingestion.py \
+    tests/test_concurrent_read_write_consistency.py \
     tests/test_mixed_concurrent_ingestion.py -v
 
-printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
+printf '\n========== COMPLETE BACKEND REGRESSION SUITE ==========\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that all eight focused API integration/end-to-end/concurrency modules and the complete backend test suite passed. Exact pass counts were not supplied and are not inferred. This automated batch does not constitute production load testing or a multi-worker deployment test.
- 
+**Verification state: PASSED (confirmed 2026-11-09).** All eight focused API integration, end-to-end, and concurrency modules and the complete backend test suite passed. Exact pass counts were not recorded and are not inferred. This automated batch does not constitute production load testing or a multi-worker deployment test.
+
 ---
 
-## Detection effectiveness and adversarial regression batch — PASSED (owner-confirmed 2026-11-09)
+## Detection effectiveness and adversarial regression batch — PASSED (confirmed 2026-11-09)
 
 This verification batch consolidates the existing detection-quality checks without changing detection thresholds or claiming production effectiveness:
 
@@ -81,7 +90,7 @@ Run from the Codespaces backend directory:
 ```bash
 git pull --ff-only origin main
 
-printf '\\n========== DETECTION EFFECTIVENESS AND ADVERSARIAL REGRESSIONS ==========\\n'
+printf '\n========== DETECTION EFFECTIVENESS AND ADVERSARIAL REGRESSIONS ==========\n'
 ./.venv/bin/python -m pytest \
     tests/test_adversarial_detection.py \
     tests/test_detection_evaluation.py \
@@ -91,15 +100,15 @@ printf '\\n========== DETECTION EFFECTIVENESS AND ADVERSARIAL REGRESSIONS ======
     tests/test_duplicate_telemetry.py \
     tests/test_malformed_detection_timestamps.py -v
 
-printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
+printf '\n========== COMPLETE BACKEND REGRESSION SUITE ==========\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that all seven focused detection/adversarial/evaluation regression modules and the complete backend test suite passed. Exact pass counts were not supplied and are not inferred.
+**Verification state: PASSED (confirmed 2026-11-09).** All seven focused detection, adversarial, and evaluation regression modules and the complete backend test suite passed. Exact pass counts were not recorded and are not inferred.
 
 ---
 
-## Threat-intelligence enrichment authorization boundary — PASSED (owner-confirmed 2026-11-09)
+## Threat-intelligence enrichment authorization boundary — PASSED (confirmed 2026-11-09)
 
 The API-wide authentication dependency remains in place for the threat-intelligence router. The resource-intensive `POST /api/v1/intelligence/ip` operation now additionally requires the analyst role, preventing an approver-only account from initiating provider lookups and persistence.
 
@@ -110,22 +119,22 @@ Run from the Codespaces backend directory:
 ```bash
 git pull --ff-only origin main
 
-printf '\\n========== API AUTHORIZATION REGRESSIONS ==========\\n'
+printf '\n========== API AUTHORIZATION REGRESSIONS ==========\n'
 ./.venv/bin/python -m pytest tests/test_api_authorization.py tests/test_intelligence.py -v
 
-printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
+printf '\n========== COMPLETE BACKEND REGRESSION SUITE ==========\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that the focused API authorization and intelligence tests, plus the complete backend regression suite, all passed.
+**Verification state: PASSED (confirmed 2026-11-09).** The focused API authorization and intelligence tests, together with the complete backend regression suite, all passed.
 
 Implementation commits: `9c4e87b` (require analyst role) and `55bcc98` (add approver-denial regression).
 
 ---
 
-## API rate limiting — PASSED (owner-confirmed 2026-11-09)
+## API rate limiting — PASSED (confirmed 2026-11-09)
 
-The API now uses a process-local sliding-window limiter with these defaults:
+The API uses a process-local sliding-window limiter with these defaults:
 
 - General authenticated API traffic: 300 requests per client IP per 60 seconds.
 - `GET /api/v1/auth/me`: 20 requests per client IP per 60 seconds.
@@ -142,22 +151,22 @@ Run from the Codespaces backend directory:
 ```bash
 git pull --ff-only origin main
 
-printf '\\n========== API RATE-LIMITING REGRESSIONS ==========\\n'
+printf '\n========== API RATE-LIMITING REGRESSIONS ==========\n'
 ./.venv/bin/python -m pytest tests/test_api_rate_limiting.py tests/test_api_authorization.py -v
 
-printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
+printf '\n========== COMPLETE BACKEND REGRESSION SUITE ==========\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that the dedicated rate-limiting and authorization tests, all previously affected ingestion/input regression modules, and the complete backend test suite passed. A shared-application test-fixture issue was corrected by adding an explicit limiter reset and clearing counters between isolated tests; production rate limits were not reduced. Exact pass counts were not provided and are not inferred.
+**Verification state: PASSED (confirmed 2026-11-09).** The dedicated rate-limiting and authorization tests, all previously affected ingestion/input regression modules, and the complete backend test suite passed. A shared-application test-fixture issue was corrected by adding an explicit limiter reset and clearing counters between isolated tests; production rate limits were not reduced. Exact pass counts were not recorded and are not inferred.
 
 Implementation commits: `d30905b` (add explicit limiter reset) and `1eb08f3` (reset limiter state between isolated tests).
 
 ---
 
-## HTTP request-body size limit — PASSED (owner-confirmed 2026-11-09)
+## HTTP request-body size limit — PASSED (confirmed 2026-11-09)
 
-The API now applies a global 1 MiB request-body ceiling before route handlers run. The middleware rejects an oversized declared Content-Length without reading the body, and also enforces the same limit while buffering requests without a declared length (including chunked uploads). Invalid or conflicting Content-Length values receive HTTP 400. Requests at or below the limit continue through normal routing and validation.
+The API applies a global 1 MiB request-body ceiling before route handlers run. The middleware rejects an oversized declared Content-Length without reading the body, and also enforces the same limit while buffering requests without a declared length (including chunked uploads). Invalid or conflicting Content-Length values receive HTTP 400. Requests at or below the limit continue through normal routing and validation.
 
 New regression module: `backend/tests/test_request_body_limits.py`.
 
@@ -173,18 +182,18 @@ printf '\n========== COMPLETE BACKEND REGRESSION SUITE ==========\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that the focused request-body/input-hardening regression modules and the complete backend test suite all passed.
+**Verification state: PASSED (confirmed 2026-11-09).** The focused request-body and input-hardening regression modules and the complete backend test suite all passed.
 
 ---
 
-## SQLite connection lifecycle and health-check hardening — PASSED (owner-confirmed 2026-11-09)
+## SQLite connection lifecycle and health-check hardening — PASSED (confirmed 2026-11-09)
 
 This batch improves the existing SQLite runtime without changing the database engine or schema:
 
-- SQLite connections created by `get_connection()` now close automatically when used as context managers, while retaining normal commit-on-success and rollback-on-exception behaviour.
+- SQLite connections created by `get_connection()` close automatically when used as context managers, while retaining normal commit-on-success and rollback-on-exception behaviour.
 - Connections use an explicit 30-second lock wait (`timeout=30` and `PRAGMA busy_timeout=30000`) to tolerate transient SQLite writer contention.
 - Foreign-key enforcement remains enabled on every connection.
-- The public health endpoint now executes `SELECT 1` and returns HTTP 503 with a generic error when SQLite cannot be reached, rather than always reporting a healthy database.
+- The public health endpoint executes `SELECT 1` and returns HTTP 503 with a generic error when SQLite cannot be reached, rather than always reporting a healthy database.
 
 SQLite still allows only one active writer at a time. A longer bounded lock wait does not turn SQLite into a multi-writer database; PostgreSQL remains the appropriate next step for a multi-worker production deployment.
 
@@ -195,7 +204,7 @@ Run from the Codespaces backend directory:
 ```bash
 git pull --ff-only origin main
 
-printf '\\n========== DATABASE LIFECYCLE AND CONCURRENCY REGRESSIONS ==========\\n'
+printf '\n========== DATABASE LIFECYCLE AND CONCURRENCY REGRESSIONS ==========\n'
 ./.venv/bin/python -m pytest \
     tests/test_database_operational_readiness.py \
     tests/test_concurrent_database_integrity.py \
@@ -204,29 +213,30 @@ printf '\\n========== DATABASE LIFECYCLE AND CONCURRENCY REGRESSIONS ==========\
     tests/test_mixed_concurrent_ingestion.py \
     tests/test_ingestion_transaction_atomicity.py -v
 
-printf '\\n========== COMPLETE BACKEND REGRESSION SUITE ==========\\n'
+printf '\n========== COMPLETE BACKEND REGRESSION SUITE ==========\n'
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** After commit `2c9d3e4` serialized checkpoint and pending-intent verification under the same per-response filesystem lock used by publication, the project owner reran the consolidated database/concurrency regression batch and the complete backend test suite and confirmed that all tests passed. Exact final pass counts were not supplied and are not inferred.
+**Verification state: PASSED (confirmed 2026-11-09).** After commit `2c9d3e4` serialized checkpoint and pending-intent verification under the same per-response filesystem lock used by publication, the consolidated database/concurrency regression batch and the complete backend test suite were rerun, and all tests passed. Exact final pass counts were not recorded and are not inferred.
 
 ---
 
-## Strict API request contracts — PASSED (owner-confirmed 2026-11-09)
+## Strict API request contracts — PASSED (confirmed 2026-11-09)
 
-This batch makes API request models reject unknown JSON properties instead of silently ignoring them. It covers event ingestion, alert mutations, response preview/decision requests, and IP intelligence requests. Correlation request models already enforce this policy. The IP intelligence request also has explicit length boundaries.
+API request models now reject unknown JSON properties instead of silently ignoring them. This covers event ingestion, alert mutations, response preview/decision requests, and IP intelligence requests. Correlation request models already enforced this policy. The IP intelligence request also has explicit length boundaries.
 
 Verification completed:
 - Focused request-hardening and security-input tests: **42 passed**.
-- Updated response identity regression modules: owner-confirmed passed.
-- Complete backend regression suite: owner-confirmed passed after updating the legacy tests to reflect strict request validation.
+- Updated response identity regression modules: passed.
+- Complete backend regression suite: passed after the legacy tests were updated to reflect strict request validation.
 
 The updated response tests verify that request attribution comes from the authenticated analyst or approver identity, and that a client-supplied decision identity is rejected with HTTP 422 without changing the pending response.
 
-**Verification state: PASSED.** Owner-confirmed on 2026-11-09. The final updated-response and full-suite test counts were not provided, so no totals are inferred.
+**Verification state: PASSED.** Confirmed 2026-11-09. The final updated-response and full-suite test counts were not recorded, so no totals are inferred.
+
 ---
 
-## API authentication and authorisation boundary — PASSED (owner-confirmed 2026-11-09)
+## API authentication and authorisation boundary — PASSED (confirmed 2026-11-09)
 
 This consolidated security batch protects operational API routes, enforces analyst/approver role boundaries, removes caller-controlled actor identities from correlation mutations, attributes alert and correlation audit records to authenticated actors, and adds a dashboard bearer-token sign-in flow.
 
@@ -236,7 +246,7 @@ Verification completed:
 - Coverage includes unauthenticated and invalid-token rejection, public health behaviour, authenticated identity, analyst/approver permissions, caller-supplied actor/author rejection, and audit attribution.
 - The dashboard sends the bearer token from browser session storage and supports sign-out.
 
-**Verification state: PASSED.** Owner-confirmed on 2026-11-09. The full-suite run completed with all tests passing after the correlation integration-test compatibility correction.
+**Verification state: PASSED.** Confirmed 2026-11-09. The full-suite run completed with all tests passing after the correlation integration-test compatibility correction.
 
 ---
 
@@ -249,7 +259,7 @@ The verifier now permits this idempotent result only when:
 - A pending checkpoint intent has a valid signature and exactly matches the database audit head.
 - The intent's predecessor checkpoint is valid (or its predecessor is the genesis state).
 
-A deterministic regression leaves a valid signed intent pending after the first simulation, then retries simulation and verifies the second request returns `already_simulated`. Missing, invalid, stale, or mismatched intents are not accepted.
+A deterministic regression leaves a valid signed intent pending after the first simulation, then retries simulation and verifies that the second request returns `already_simulated`. Missing, invalid, stale, or mismatched intents are not accepted.
 
 Run from the Codespaces backend directory:
 
@@ -263,7 +273,7 @@ git pull --ff-only origin main
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED.** Owner-confirmed: the concurrent response test module, response audit-integrity module, and complete backend test suite all passed after the checkpoint-publication race fix.
+**Verification state: PASSED.** The concurrent response test module, the response audit-integrity module, and the complete backend test suite all passed after the checkpoint-publication race fix.
 
 ---
 
@@ -291,13 +301,13 @@ git pull --ff-only origin main
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED.** Owner-confirmed: all four decision-field tampering cases, the complete response audit-integrity module, and the full backend test suite passed after the concurrent checkpoint-publication race fix.
+**Verification state: PASSED.** All four decision-field tampering cases, the complete response audit-integrity module, and the full backend test suite passed after the concurrent checkpoint-publication race fix.
 
 ---
 
 ## Response policy-reasons audit binding — PASSED
 
-New response creation events now include the original policy-reasons list in their signed audit details. Lifecycle validation compares the persisted response reasons with that creation-event copy. Historical creation events that predate this field remain readable and valid.
+New response creation events include the original policy-reasons list in their signed audit details. Lifecycle validation compares the persisted response reasons with that creation-event copy. Historical creation events that predate this field remain readable and valid.
 
 A database-level regression changes a response's reasons to a different, valid list of strings and attempts simulation. The operation must fail closed, preserve the tampered value for inspection, and leave the response approved, unexecuted, and its audit log unchanged.
 
@@ -315,7 +325,7 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The focused valid-reasons tampering regression, complete response audit-integrity module, and full backend test suite all passed. Confirmed that replacing the persisted reasons with a different valid list is detected against the signed creation event and blocks simulation without mutating response state or audit history. Historical creation events without a reasons field remain compatible.
+**Verification state: PASSED (confirmed 2026-11-09).** The focused valid-reasons tampering regression, the complete response audit-integrity module, and the full backend test suite all passed. Replacing the persisted reasons with a different valid list is detected against the signed creation event and blocks simulation without mutating response state or audit history. Historical creation events without a reasons field remain compatible.
 
 ---
 
@@ -326,7 +336,7 @@ The response lifecycle validator cross-checks security-critical response-record 
 - `requested_by` is compared with the creation event actor.
 - `alert_id` is compared with the alert reference in every audit event.
 
-A new database-level regression creates and approves a response, tampers with one persisted response-record field at a time, and attempts simulation. The cases cover a substituted action, target, requester identity, and a different but valid alert foreign key. Simulation must fail closed, leaving the response approved, unexecuted, and its audit log unchanged.
+A database-level regression creates and approves a response, tampers with one persisted response-record field at a time, and attempts simulation. The cases cover a substituted action, target, requester identity, and a different but valid alert foreign key. Simulation must fail closed, leaving the response approved, unexecuted, and its audit log unchanged.
 
 Run from the Codespaces backend directory:
 
@@ -342,13 +352,13 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The focused four-case identity-field regression, complete response audit-integrity module, and full backend test suite all passed after the integrity-check ordering fix. Confirmed that tampering with `action`, `target`, `requested_by`, or `alert_id` blocks simulation without changing the approved response or its audit history.
+**Verification state: PASSED (confirmed 2026-11-09).** The focused four-case identity-field regression, the complete response audit-integrity module, and the full backend test suite all passed after the integrity-check ordering fix. Tampering with `action`, `target`, `requested_by`, or `alert_id` blocks simulation without changing the approved response or its audit history.
 
 ---
 
-## Persisted response-reasons JSON shape validation — PASSED (owner-confirmed 2026-11-09)
+## Persisted response-reasons JSON shape validation — PASSED (confirmed 2026-11-09)
 
-Response records store policy and workflow explanations in a JSON text column. The repository now accepts only a JSON array containing strings. Malformed JSON and valid JSON with an unexpected shape are preserved as their exact raw text for inspection rather than being silently returned as a different data type. Response lifecycle validation rejects records whose reasons field is not a list of strings, so approval/simulation cannot proceed on malformed response metadata.
+Response records store policy and workflow explanations in a JSON text column. The repository now accepts only a JSON array containing strings. Malformed JSON and valid JSON with an unexpected shape are preserved as their exact raw text for inspection rather than being silently returned as a different data type. Response lifecycle validation rejects records whose reasons field is not a list of strings, so approval and simulation cannot proceed on malformed response metadata.
 
 The regression injects an object, a scalar string, and malformed JSON into an approved response record. It verifies that simulation fails closed, the response remains approved and unexecuted, and both individual-record and history retrieval preserve the original stored value for inspection.
 
@@ -366,17 +376,17 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-The project owner confirmed that the focused regression, the complete response audit-integrity module, the lifecycle consistency module (including the corrected valid fixtures), and the full backend test suite all passed.
+The focused regression, the complete response audit-integrity module, the lifecycle consistency module (including the corrected valid fixtures), and the full backend test suite all passed.
 
-**Verification state: OWNER-CONFIRMED PASSED.** The full-suite test count was not supplied in the confirmation and is not inferred.
+**Verification state: CONFIRMED PASSED.** The full-suite test count was not recorded and is not inferred.
 
 ---
 
-## Duplicate JSON keys in persisted audit-event details — PASSED (owner-confirmed 2026-11-09)
+## Duplicate JSON keys in persisted audit-event details — PASSED (confirmed 2026-11-09)
 
-Audit-event details stored in SQLite are now parsed with duplicate-key rejection in the repository reader, audit-chain storage initialisation/backfill, and checkpoint inventory. If details contain duplicate JSON keys, the repository preserves the original raw text for inspection rather than silently choosing the last value. Lifecycle and hash-chain validation then fail closed, preventing approval/simulation from trusting ambiguous evidence.
+Audit-event details stored in SQLite are now parsed with duplicate-key rejection in the repository reader, audit-chain storage initialisation/backfill, and checkpoint inventory. If details contain duplicate JSON keys, the repository preserves the original raw text for inspection rather than silently choosing the last value. Lifecycle and hash-chain validation then fail closed, preventing approval and simulation from trusting ambiguous evidence.
 
-The regression creates and approves a dry-run response, injects a duplicate `action` key into the first audit event while keeping the last value unchanged, and verifies that simulation is refused, the response remains approved and unexecuted, raw evidence remains visible, and integrity inspection reports an invalid chain. This is important because ordinary JSON parsing would otherwise discard the first value and could leave the canonical hash unchanged.
+The regression creates and approves a dry-run response, injects a duplicate `action` key into the first audit event while keeping the last value unchanged, and verifies that simulation is refused, the response remains approved and unexecuted, raw evidence remains visible, and integrity inspection reports an invalid chain. This matters because ordinary JSON parsing would otherwise discard the first value and could leave the canonical hash unchanged.
 
 Run from the Codespaces backend directory:
 
@@ -392,38 +402,44 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-The project owner confirmed that all three verification runs passed:
+All three verification runs passed:
 - Focused duplicate-key audit-details regression: `test_duplicate_json_keys_in_audit_details_block_simulation`.
 - Complete `test_response_audit_checkpoint_integration.py` module.
 - Complete backend test suite.
 
-**Verification state: OWNER-CONFIRMED PASSED.** The exact full-suite test count was not provided and is not inferred.
+**Verification state: CONFIRMED PASSED.** The exact full-suite test count was not recorded and is not inferred.
 
-## Duplicate JSON keys in checkpoint inventory metadata — PASSED (owner-confirmed 2026-11-09)
+---
+
+## Duplicate JSON keys in checkpoint inventory metadata — PASSED (confirmed 2026-11-09)
 
 The read-only checkpoint inventory uses the same duplicate-key-rejecting JSON parser as the signed checkpoint verifier. This prevents ambiguous checkpoint metadata from being treated as readable when the inventory classifies checkpoint schema and signing-key status. The regression injects a duplicate `key_id` into checkpoint metadata and verifies that the inventory marks the document unreadable and does not expose either key ID.
 
-The project owner confirmed that all three verification runs passed:
+All three verification runs passed:
 - Focused checkpoint-inventory duplicate-key regression.
 - Complete `test_response_audit_checkpoint.py` module.
 - Complete backend test suite.
 
-**Verification state: OWNER-CONFIRMED PASSED.** The exact full-suite count was not provided and is not inferred.
+**Verification state: CONFIRMED PASSED.** The exact full-suite count was not recorded and is not inferred.
 
-## Duplicate JSON keys in signed audit checkpoints — PASSED (owner-confirmed 2026-11-09)
+---
+
+## Duplicate JSON keys in signed audit checkpoints — PASSED (confirmed 2026-11-09)
 
 The signed checkpoint verifier rejects duplicate JSON object keys using the same strict parser as checkpoint configuration and pending intents. The regression creates a valid response checkpoint, injects a duplicate `response_id` key into the checkpoint document, and verifies that integrity inspection marks the checkpoint invalid with a duplicate-key error.
 
-The project owner confirmed that all three verification runs passed:
+All three verification runs passed:
 - Focused duplicate-key checkpoint regression.
 - Complete response audit checkpoint integration module.
 - Complete backend test suite.
 
-**Verification state: OWNER-CONFIRMED PASSED.** The exact final full-suite test count was not provided and is not inferred.
+**Verification state: CONFIRMED PASSED.** The exact final full-suite test count was not recorded and is not inferred.
+
+---
 
 ## Duplicate JSON keys in signed checkpoint intents — PASSED
 
-The pending-intent verifier now rejects duplicate JSON object keys instead of accepting Python's default last-key-wins parsing behaviour. The regression creates a correctly signed intent, inserts a duplicate `response_id` key into its JSON payload, and confirms verification fails closed without returning a trusted intent.
+The pending-intent verifier now rejects duplicate JSON object keys instead of accepting Python's default last-key-wins parsing behaviour. The regression creates a correctly signed intent, inserts a duplicate `response_id` key into its JSON payload, and confirms that verification fails closed without returning a trusted intent.
 
 Run from the Codespaces backend directory:
 
@@ -439,15 +455,15 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-The project owner confirmed that the focused duplicate-key regression, complete checkpoint bootstrap test module, and full backend test suite all passed.
+The focused duplicate-key regression, the complete checkpoint bootstrap test module, and the full backend test suite all passed.
 
-**Verification state: OWNER-CONFIRMED PASSED.**
+**Verification state: CONFIRMED PASSED.**
 
-# AEGIS Test Status Register
+---
 
 ## Concurrent checkpoint recovery publication — PASSED
 
-A new race-condition regression creates a valid committed response with a pending signed checkpoint intent, then starts two independent read-only recovery workers at the same time for that response. It verifies that only one worker reports publication, the pending intent is consumed, the resulting checkpoint signature matches the database audit head, and the response audit integrity remains valid. The losing worker may observe that the intent has already been consumed; it must not overwrite or corrupt the published checkpoint.
+A race-condition regression creates a valid committed response with a pending signed checkpoint intent, then starts two independent read-only recovery workers at the same time for that response. It verifies that only one worker reports publication, the pending intent is consumed, the resulting checkpoint signature matches the database audit head, and the response audit integrity remains valid. The losing worker may observe that the intent has already been consumed; it must not overwrite or corrupt the published checkpoint.
 
 Run from the Codespaces backend directory:
 
@@ -463,30 +479,27 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-The project owner confirmed that all three verification runs passed:
+All three verification runs passed:
 - Focused concurrent checkpoint recovery regression.
 - Complete checkpoint bootstrap test module.
 - Complete backend test suite.
 
 The regression confirms that two independent recovery workers racing over the same valid pending signed intent result in exactly one publication, consume the intent, preserve the signed checkpoint, and leave response audit integrity valid.
 
-**Verification state: OWNER-CONFIRMED PASSED.**
+**Verification state: CONFIRMED PASSED.**
 
-
-Last updated: 2026-11-09
-
-## Current rule
+---
 
 ## Concurrent approval and simulation lifecycle integrity — PASSED
 
-The project owner confirmed that all three verification runs passed:
+All three verification runs passed:
 - Focused approval/simulation race-condition regression.
 - Complete response concurrency test module.
 - Complete backend test suite.
 
 The regression confirms that concurrent approval and simulation produce a valid, serialised response lifecycle; invalid intermediate checkpoint states fail closed; the final audit chain and signed checkpoint verify; and no real execution occurs.
 
-A new race-condition regression starts approval and dry-run simulation against the same pending response at the same time. It verifies that SQLite transaction serialization produces only a valid lifecycle: either approval wins before simulation (simulation is refused), simulation encounters the brief checkpoint-publication gap and fails closed, or approval and checkpoint publication complete before simulation (simulation succeeds). In every case, the final audit chain and signed checkpoint must verify, and no real execution may occur.
+The regression starts approval and dry-run simulation against the same pending response at the same time. It verifies that SQLite transaction serialization produces only a valid lifecycle: either approval wins before simulation (simulation is refused), simulation encounters the brief checkpoint-publication gap and fails closed, or approval and checkpoint publication complete before simulation (simulation succeeds). In every case, the final audit chain and signed checkpoint must verify, and no real execution may occur.
 
 Run from the Codespaces backend directory:
 
@@ -502,16 +515,18 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Mark passed only after the focused test, complete concurrency module, and full backend suite pass.
+**Verification state: NOT RUN.** This item is to be marked passed only after the focused test, the complete concurrency module, and the full backend suite pass.
+
+---
 
 ## Database audit-event tampering blocks simulation — PASSED
 
 - The focused regression test passed.
 - The complete response audit-checkpoint integration test module passed.
 - The complete backend test suite passed.
-- Confirmed that database audit-event tampering causes simulation to be rejected with HTTP 409.
-- Confirmed that the response remains approved, is not simulated or executed, and the tampered evidence remains available for inspection.
-- Confirmed the expected distinction: overall integrity is invalid and the hash chain is invalid, while the unchanged signed checkpoint remains cryptographically valid.
+- Database audit-event tampering causes simulation to be rejected with HTTP 409.
+- The response remains approved, is not simulated or executed, and the tampered evidence remains available for inspection.
+- The expected distinction was confirmed: overall integrity is invalid and the hash chain is invalid, while the unchanged signed checkpoint remains cryptographically valid.
 
 A focused API regression test approves a dry-run response, modifies an existing database audit event without updating its cryptographic hash, and attempts simulation. It verifies that AEGIS returns HTTP 409, leaves the response approved and unexecuted, preserves both audit events (including the tampered value for forensic visibility), and reports invalid chain/checkpoint integrity.
 
@@ -529,20 +544,20 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Mark passed only after the focused test, full checkpoint integration module, and full backend suite pass.
+**Verification state: NOT RUN.** This item is to be marked passed only after the focused test, the full checkpoint integration module, and the full backend suite pass.
 
-
+---
 
 ## Tampered signed checkpoint blocks simulation without mutation — PASSED
 
-The project owner confirmed that all three verification runs passed:
+All three verification runs passed:
 - Focused regression test: `test_tampered_checkpoint_blocks_simulation_without_mutation`.
 - Complete `test_response_audit_checkpoint_integration.py` module.
 - Complete backend test suite.
 
 The regression confirms that a tampered checkpoint signature blocks simulation, leaves the response approved and unexecuted, preserves the existing audit events, and does not silently rewrite the tampered checkpoint.
 
-**Status: OWNER-CONFIRMED PASSED.**
+**Status: CONFIRMED PASSED.**
 
 A focused API regression test corrupts the signed checkpoint signature after a response has been approved, then attempts simulation. It verifies that the API fails closed, the response remains approved, neither simulated nor executed becomes true, the two existing audit events remain unchanged, and the tampered checkpoint is not silently rewritten.
 
@@ -562,13 +577,15 @@ cd backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: NOT RUN.** Do not mark this task passed until the focused regression test, complete checkpoint integration module, and full backend suite have all passed.
+**Verification state: NOT RUN.** This task is not to be marked passed until the focused regression test, the complete checkpoint integration module, and the full backend suite have all passed.
 
+---
 
+## Initial Codespace run and corrective history
 
-The initial Codespace run exposed four failures. Those defects were corrected, and the project owner subsequently confirmed that the targeted tests and complete backend suite all passed. See the final verification section below. The original failure results are retained as historical records.
+The initial Codespace run exposed four failures. These defects were corrected, after which the targeted tests and the complete backend suite all passed. See the final verification section below. The original failure results are retained as historical records.
 
-## Deferred test batch supplied by the project owner
+### Deferred test batch
 
 Run from the Codespaces terminal:
 
@@ -593,32 +610,14 @@ printf '\n========== COMPLETE BACKEND TEST SUITE ==========\n'
 
 Status: **PASSED on 2026-11-09 after corrective commits; see final verification below.**
 
-
-## Final Codespace verification — 2026-11-09
-
-<badge>Owner-confirmed passing</badge>
-
-The project owner confirmed that all tests passed after pulling the simulator-identity correction commits.
-
-Confirmed:
-- Targeted audit, concurrency, and integrity batch: **37 passed**.
-- Checkpoint bootstrap/quarantine batch: **10 passed**.
-- Complete backend test suite: **all tests passed**.
-- The earlier failure `test_wrong_simulation_actor_is_detected` was resolved by recording `simulated_by` in signed audit-event details and validating it against the event actor.
-- The new alternate-simulator regression test passed as part of the successful complete suite.
-
-The exact final `pytest -q` pass count was not included in the owner's message; do not infer or fabricate it.
-
-**Status: FULL BACKEND TEST SUITE PASSED.** The automated test verification milestone is complete. The manual read-only operational inspections and any optional key-rotation preflight remain separate operational checks; they are not implied by the pytest result.
-
-## First Codespace verification run — 2026-11-09
+### First Codespace verification run — 2026-11-09
 
 Environment:
 - Python 3.14.2
 - pytest 9.2.0
 - Pulled commit: `36d7c7d` (working tree was clean before pull).
 
-Observed results before corrective commits:
+Results observed before the corrective commits:
 - `test_response_audit_checkpoint_integration.py`: 22 passed.
 - `test_response_concurrency.py`: 2 passed, 1 failed.
 - `test_response_audit_integrity.py`: 12 passed.
@@ -630,18 +629,18 @@ Observed results before corrective commits:
 - Warnings: Starlette TestClient/httpx deprecation; one pytest collection warning for helper class `TestProvider`.
 
 Failure analysis:
-1. `test_concurrent_simulation_runs_only_once` exposed an incorrect lifecycle rule: the validator required the simulation actor to equal the original requester. The simulation actor is the analyst who actually performs the operation; the audit event already records that actor and common validation requires it to be non-empty. The validator rule has been corrected in the audit module. This is a behaviour fix, not a test expectation change.
-2. Three quarantine tests accessed `AEGIS_AUDIT_CHECKPOINT_DIR` without requesting the `isolated_database` fixture. That fixture is responsible for setting the temporary database, test signing key, and per-test checkpoint directory. The three tests now request the fixture. This fixes test isolation; it does not require sourcing the user's real `.env`.
+1. `test_concurrent_simulation_runs_only_once` exposed an incorrect lifecycle rule: the validator required the simulation actor to equal the original requester. The simulation actor is the analyst who actually performs the operation; the audit event already records that actor and common validation requires it to be non-empty. The validator rule was corrected in the audit module. This is a behaviour fix, not a test expectation change.
+2. Three quarantine tests accessed `AEGIS_AUDIT_CHECKPOINT_DIR` without requesting the `isolated_database` fixture. That fixture is responsible for setting the temporary database, test signing key, and per-test checkpoint directory. The three tests now request the fixture. This fixes test isolation; it does not require sourcing the real `.env`.
 
 Corrective commits:
 - Audit lifecycle correction: see the commit immediately preceding the test-fixture correction on `main`.
 - Quarantine test isolation correction: see the latest test-fixture commit on `main`.
 
-Historical status: this was subsequently rerun after the corrective commits and passed; see final verification below.
+Historical status: the run was subsequently repeated after the corrective commits and passed; see final verification below.
 
-## Second Codespace verification run — 2026-11-09
+### Second Codespace verification run — 2026-11-09
 
-After the first corrective commits (`4d76fd5`, `c92f742`, and `f63d7d2`), the project owner reran the tests.
+After the first corrective commits (`4d76fd5`, `c92f742`, and `f63d7d2`), the tests were rerun.
 
 Confirmed results:
 - Targeted audit/concurrency/integrity batch: **37 passed**, 1 Starlette deprecation warning.
@@ -660,11 +659,28 @@ Corrective commits on `main`:
 - `c062c10` — record simulator identity in signed audit details.
 - `6e29c19` — add/update simulator identity regression tests.
 
-Historical status: the project owner subsequently confirmed that the targeted tests and complete backend suite passed after these commits; see final verification below.
+Historical status: the targeted tests and complete backend suite were subsequently confirmed passing after these commits; see final verification below.
 
-## Test module execution status
+### Final Codespace verification — 2026-11-09
 
-The project owner confirmed the following tests were run and passed after the corrective commits:
+<badge>Confirmed passing</badge>
+
+All tests were confirmed passing after the simulator-identity correction commits were pulled.
+
+Confirmed:
+- Targeted audit, concurrency, and integrity batch: **37 passed**.
+- Checkpoint bootstrap/quarantine batch: **10 passed**.
+- Complete backend test suite: **all tests passed**.
+- The earlier failure `test_wrong_simulation_actor_is_detected` was resolved by recording `simulated_by` in signed audit-event details and validating it against the event actor.
+- The new alternate-simulator regression test passed as part of the successful complete suite.
+
+The exact final `pytest -q` pass count was not included in the confirmation and is not inferred or fabricated.
+
+**Status: FULL BACKEND TEST SUITE PASSED.** The automated test verification milestone is complete. The manual read-only operational inspections and any optional key-rotation preflight remain separate operational checks; they are not implied by the pytest result.
+
+### Test module execution status
+
+The following were confirmed run and passing after the corrective commits:
 
 - `tests/test_response_audit_checkpoint_integration.py`
 - `tests/test_response_concurrency.py`
@@ -677,7 +693,9 @@ The project owner confirmed the following tests were run and passed after the co
 
 The individual test counts from the final full-suite run were not included in the confirmation, so this register does not invent a final total.
 
-## Newly added or changed checkpoint-failure and recovery tests — PASSED in targeted/full-suite verification
+---
+
+## Checkpoint-failure and recovery tests — PASSED in targeted/full-suite verification
 
 In `tests/test_response_audit_checkpoint_integration.py`:
 
@@ -689,23 +707,27 @@ In `tests/test_response_audit_checkpoint_integration.py`:
 - `test_recovery_refuses_database_rewrite_after_intent_was_signed` — verifies a rewritten database chain cannot be checkpointed using an earlier signed intent.
 - `tests/test_checkpoint_bootstrap.py::test_bootstrap_does_not_bypass_a_pending_signed_intent` — verifies the legacy bootstrap path refuses to sign a response that has a pending signed intent.
 
-These tests were included in the successful targeted audit batch and subsequent successful full-suite run.
+These tests were included in the successful targeted audit batch and the subsequent successful full-suite run.
+
+---
 
 ## Interrupted checkpoint-publication artifacts — PASSED in targeted/full-suite verification
 
-`checkpoint_recovery.py` now inventories checkpoint and pending-intent temporary files, including symlinked temporary artifacts, but deliberately does not parse, publish, delete, or quarantine them. A final checkpoint is written through a temporary file followed by an atomic replace; a leftover temporary file is therefore an interrupted staging artifact, not authoritative evidence. Preserve it for manual forensic review. A corrupt final checkpoint is also preserved: recovery only publishes through a valid signed intent and refuses when the existing checkpoint is not the expected target or verified predecessor.
+`checkpoint_recovery.py` inventories checkpoint and pending-intent temporary files, including symlinked temporary artifacts, but deliberately does not parse, publish, delete, or quarantine them. A final checkpoint is written through a temporary file followed by an atomic replace; a leftover temporary file is therefore an interrupted staging artifact, not authoritative evidence, and is preserved for manual forensic review. A corrupt final checkpoint is also preserved: recovery only publishes through a valid signed intent and refuses when the existing checkpoint is not the expected target or verified predecessor.
 
-New regression test — authored but NOT RUN:
+New regression test (not yet run in isolation):
 
 - `tests/test_response_audit_checkpoint_integration.py::test_recovery_inventories_and_preserves_interrupted_temporary_files`
 
-The existing targeted audit test batch included this test, and the project owner confirmed that batch passed.
+The existing targeted audit test batch included this test, and that batch was confirmed passing.
 
-## New manual recovery procedure — NOT RUN
+---
 
-Only use this when inventory identifies a pending intent and the database and intent need to be reconciled. Stop the API server first.
+## Manual recovery procedure — NOT RUN
 
-Load the local environment first (do not print or share the secret values):
+This procedure applies only when inventory identifies a pending intent and the database and intent need to be reconciled. The API server must be stopped first.
+
+The local environment is loaded first (secret values are not printed or shared):
 
 ```bash
 cd /workspaces/aegis-security-platform/backend
@@ -720,27 +742,30 @@ Dry run:
 ./.venv/bin/python -m app.response.checkpoint_recovery
 ```
 
-Review the eligible response IDs and the report carefully. Apply only after confirming the selected intent corresponds to the expected committed response:
+The eligible response IDs and the report must be reviewed carefully. Apply only after confirming that the selected intent corresponds to the expected committed response:
 
 ```bash
 ./.venv/bin/python -m app.response.checkpoint_recovery --apply --response-id RESPONSE_ID
 ```
 
-Replace `RESPONSE_ID` with the actual numeric ID. The recovery command uses a read-only SQLite connection and changes checkpoint files only. Invalid signatures, mismatched database heads, invalid lifecycle histories, and predecessor-checkpoint mismatches must be refused.
+`RESPONSE_ID` is replaced with the actual numeric ID. The recovery command uses a read-only SQLite connection and changes checkpoint files only. Invalid signatures, mismatched database heads, invalid lifecycle histories, and predecessor-checkpoint mismatches must be refused.
 
-Do not run `--apply` on an orphan or invalid intent. Stale intents from transactions that never committed require separate investigation; they are not automatically discarded.
+`--apply` must not be run on an orphan or invalid intent. Stale intents from transactions that never committed require separate investigation; they are not automatically discarded.
+
+---
 
 ## Other checks to record when the Codespace is ready
 
 - Confirm the application imports and starts after the latest router/repository changes.
 - Run the targeted audit tests before the full backend suite.
-- Record the exact pytest summary, failures, skips, and errors. Do not mark a module passed if collection or setup failed.
+- Record the exact pytest summary, failures, skips, and errors. A module is not to be marked passed if collection or setup failed.
 - After any fixes, rerun the affected targeted tests and then the full backend suite.
 
-## Historical note
+### Historical note
 
 Earlier checkpoint inventory/bootstrap tests passed before the latest fail-closed and checkpoint-failure-reporting changes. Those earlier results do not verify the current commits, and the full backend suite remains deferred.
 
+---
 
 ## Stale checkpoint-intent quarantine — PASSED in targeted/full-suite verification
 
@@ -754,10 +779,10 @@ Safety conditions for quarantine:
 - No checkpoint file may exist for that response ID.
 - The operator must explicitly pass `--apply` and a non-empty `--reason`.
 - The original signed intent is moved unchanged into `audit_checkpoints/quarantine/`; a separate manifest records its SHA-256, timestamp, reason, signed payload, and database checks.
-- The database connection is read-only. Stop the API server before any apply operation.
+- The database connection is read-only. The API server must be stopped before any apply operation.
 - Corrupt, unverifiable, database-referenced, or checkpoint-associated intents are preserved in place for investigation. This is not a repair or deletion operation.
 
-When Codespaces is ready, inspect first:
+When Codespaces is ready, inspection comes first:
 
 ```bash
 cd /workspaces/aegis-security-platform/backend
@@ -767,7 +792,7 @@ set +a
 ./.venv/bin/python -m app.response.checkpoint_intent_quarantine
 ```
 
-Only after reviewing the dry-run report and confirming the API server is stopped, quarantine one explicitly selected orphan:
+Only after the dry-run report has been reviewed and the API server confirmed stopped is one explicitly selected orphan quarantined:
 
 ```bash
 ./.venv/bin/python -m app.response.checkpoint_intent_quarantine \
@@ -776,7 +801,7 @@ Only after reviewing the dry-run report and confirming the API server is stopped
     --reason "Confirmed abandoned pre-commit intent; no matching database artifacts."
 ```
 
-Regression tests — included in the successful checkpoint bootstrap/quarantine run:
+Regression tests (included in the successful checkpoint bootstrap/quarantine run):
 
 - `tests/test_checkpoint_bootstrap.py::test_stale_orphan_intent_is_dry_run_then_quarantined_with_evidence`
 - `tests/test_checkpoint_bootstrap.py::test_quarantine_refuses_intent_when_database_response_exists`
@@ -785,6 +810,7 @@ Regression tests — included in the successful checkpoint bootstrap/quarantine 
 
 The checkpoint inventory now recognizes the `quarantine/` evidence directory and reports its evidence-file count instead of flagging that directory as unrecognized.
 
+---
 
 ## Checkpoint signing-key rotation inventory — PASSED in targeted/full-suite verification
 
@@ -799,7 +825,7 @@ The read-only inventory:
 - Never prints key material and never edits environment variables or checkpoint files.
 - Treats retirement as review-required even when a key has no local references, because backups and external copies may still depend on it. Any malformed or unverifiable document blocks a clean retirement assessment.
 
-When Codespaces is ready, load the environment and inspect:
+When Codespaces is ready, the environment is loaded and the inventory run:
 
 ```bash
 cd /workspaces/aegis-security-platform/backend
@@ -809,9 +835,9 @@ set +a
 ./.venv/bin/python -m app.response.checkpoint_key_usage
 ```
 
-Rotation rule: add the old key ID and secret to `AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS` when switching the active key. Keep the old key until the inventory shows no references in checkpoints, pending intents, or quarantined evidence, and backup/retention copies have also been checked. A pending intent signed by an old key must remain verifiable so recovery can publish the resulting checkpoint under the new active key.
+Rotation rule: the old key ID and secret are added to `AEGIS_AUDIT_CHECKPOINT_PREVIOUS_KEYS` when switching the active key. The old key is retained until the inventory shows no references in checkpoints, pending intents, or quarantined evidence, and backup/retention copies have also been checked. A pending intent signed by an old key must remain verifiable so that recovery can publish the resulting checkpoint under the new active key.
 
-Regression tests — included in the successful key-usage test run:
+Regression tests (included in the successful key-usage test run):
 
 - `tests/test_checkpoint_key_usage.py::test_key_usage_inventory_tracks_old_checkpoint_and_pending_intent`
 - `tests/test_checkpoint_key_usage.py::test_pending_intent_survives_rotation_and_publishes_with_new_key`
@@ -825,22 +851,22 @@ Standalone command for future regression checks:
 ./.venv/bin/python -m pytest tests/test_checkpoint_key_usage.py -v
 ```
 
-
+---
 
 ## Checkpoint key-rotation preflight — PASSED in targeted/full-suite verification
 
 New module: `backend/app/response/checkpoint_key_rotation.py`.
 
-This read-only preflight validates a proposed signing-key configuration against every recognized local checkpoint, pending intent, and quarantined intent evidence file. It verifies each document with the proposed keyring and proposed legacy key. It does not modify the active environment, rotate keys, rewrite checkpoints, or delete evidence.
+This read-only preflight validates a proposed signing-key configuration against every recognized local checkpoint, pending intent, and quarantined intent evidence file. Each document is verified with the proposed keyring and proposed legacy key. The preflight does not modify the active environment, rotate keys, rewrite checkpoints, or delete evidence.
 
-The proposed configuration is supplied through temporary environment variables (never commit these values):
+The proposed configuration is supplied through temporary environment variables (these values are never committed):
 
 - `AEGIS_AUDIT_CHECKPOINT_NEXT_KEY`
 - `AEGIS_AUDIT_CHECKPOINT_NEXT_KEY_ID`
 - `AEGIS_AUDIT_CHECKPOINT_NEXT_PREVIOUS_KEYS` (JSON object)
 - `AEGIS_AUDIT_CHECKPOINT_NEXT_LEGACY_KEY`
 
-When Codespaces is ready, first configure the proposed values in the local shell or ignored local `.env` file. Retain every old key needed by the inventory. Then run:
+When Codespaces is ready, the proposed values are first configured in the local shell or an ignored local `.env` file. Every old key needed by the inventory is retained. The preflight is then run:
 
 ```bash
 cd /workspaces/aegis-security-platform/backend
@@ -850,9 +876,9 @@ set +a
 ./.venv/bin/python -m app.response.checkpoint_key_rotation
 ```
 
-A successful local preflight means all inspected local signed evidence verifies under the proposed configuration. It does not prove that backups, exported evidence, or external archives are covered. Do not activate the new configuration if the preflight fails.
+A successful local preflight means all inspected local signed evidence verifies under the proposed configuration. It does not prove that backups, exported evidence, or external archives are covered. The new configuration must not be activated if the preflight fails.
 
-Regression tests — included in the successful key-rotation test run:
+Regression tests (included in the successful key-rotation test run):
 
 - `tests/test_checkpoint_key_rotation.py::test_preflight_accepts_rotation_that_retains_all_required_keys`
 - `tests/test_checkpoint_key_rotation.py::test_preflight_rejects_rotation_that_drops_a_required_previous_key`
@@ -866,15 +892,16 @@ Standalone command for future regression checks:
 ./.venv/bin/python -m pytest tests/test_checkpoint_key_rotation.py -v
 ```
 
+---
 
-## Checkpoint quarantine recovery integrity — PASSED (owner-confirmed 2026-11-09)
+## Checkpoint quarantine recovery integrity — PASSED (confirmed 2026-11-09)
 
 New module: `backend/app/response/checkpoint_quarantine_recovery.py`.
 
-The quarantine writer now uses a two-stage manifest protocol:
-1. Atomically persist a schema-v2 manifest with `status="prepared"` before moving the signed intent.
-2. Atomically move the exact signed intent bytes into the quarantine evidence directory and fsync both directories.
-3. Atomically update the manifest to `status="completed"`.
+The quarantine writer uses a two-stage manifest protocol:
+1. A schema-v2 manifest with `status="prepared"` is atomically persisted before the signed intent is moved.
+2. The exact signed intent bytes are atomically moved into the quarantine evidence directory, and both directories are fsynced.
+3. The manifest is atomically updated to `status="completed"`.
 
 This makes both interruption windows detectable:
 - Prepared manifest + original intent still present: recovery can finish the move after revalidating the signed intent and database state.
@@ -883,14 +910,14 @@ This makes both interruption windows detectable:
 Recovery safeguards:
 - Dry-run by default; `--apply` requires at least one explicit `--response-id`.
 - SQLite is opened read-only by the CLI.
-- Rechecks the manifest, source/evidence paths, SHA-256, HMAC signature, database references, and checkpoint absence under the per-response lock.
+- The manifest, source/evidence paths, SHA-256, HMAC signature, database references, and checkpoint absence are rechecked under the per-response lock.
 - Only initial orphan intents are eligible (event count 1, predecessor count 0, genesis predecessor hash).
-- Rejects missing/invalid signing keys, malformed or duplicate-key JSON, mismatched manifest metadata, symlinks, both source and evidence existing, changed database references, and unexpected checkpoints.
-- Does not delete evidence, overwrite evidence, invent a manifest for an orphan evidence file, or process temporary manifest files.
+- Missing/invalid signing keys, malformed or duplicate-key JSON, mismatched manifest metadata, symlinks, both source and evidence existing, changed database references, and unexpected checkpoints are rejected.
+- Evidence is never deleted or overwritten, a manifest is never invented for an orphan evidence file, and temporary manifest files are not processed.
 - Orphan evidence without a manifest and interrupted manifest temp files are inventoried and preserved.
 - Historical schema-v1 completed manifests remain readable.
 
-Read-only dry run (stop the API server first and load the local environment without displaying secrets):
+Read-only dry run (the API server is stopped first and the local environment is loaded without displaying secrets):
 
 ```bash
 cd /workspaces/aegis-security-platform/backend
@@ -908,7 +935,7 @@ Explicit recovery of a reviewed response ID:
     --response-id RESPONSE_ID
 ```
 
-New tests — authored and **PASSED in the owner's test run**:
+New tests (all **PASSED**):
 - `test_quarantine_recovery_finishes_prepared_manifest_before_move`
 - `test_quarantine_recovery_completes_manifest_after_atomic_move`
 - `test_quarantine_recovery_refuses_modified_evidence`
@@ -918,19 +945,19 @@ New tests — authored and **PASSED in the owner's test run**:
 
 The existing `test_stale_orphan_intent_is_dry_run_then_quarantined_with_evidence` was updated to require a schema-v2 completed manifest.
 
-Run the focused tests:
+Focused tests:
 
 ```bash
 ./.venv/bin/python -m pytest tests/test_checkpoint_bootstrap.py -v
 ```
 
-Then run the full backend suite:
+Full backend suite:
 
 ```bash
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED.** The project owner confirmed that all tests passed after pulling the implementation. The exact focused and full-suite counts were not provided, so no totals are inferred. This verifies automated tests only; it does not mean the operational recovery command was run. Do not run the recovery command with `--apply` against real quarantine evidence without first reviewing the dry-run report.
+**Verification state: PASSED.** All tests passed after the implementation was pulled. Exact focused and full-suite counts were not recorded, so no totals are inferred. This verifies automated tests only; it does not mean the operational recovery command has been run. The recovery command must not be run with `--apply` against real quarantine evidence without first reviewing the dry-run report.
 
 Implementation commit trail:
 - `bbe439b` — add quarantine recovery inspection and explicit recovery.
@@ -943,12 +970,11 @@ Implementation commit trail:
 - `64f2ab4` — tighten recovery apply reporting.
 - `b22d969` — register the final interruption test.
 
+---
 
+## Threat-intelligence provider timeout isolation — PASSED (confirmed 2026-11-09)
 
-
-## Threat-intelligence provider timeout isolation — PASSED (owner-confirmed 2026-11-09)
-
-The enrichment service now enforces a finite, positive per-provider timeout (default: 12 seconds) using `asyncio.wait_for`.
+The enrichment service enforces a finite, positive per-provider timeout (default: 12 seconds) using `asyncio.wait_for`.
 
 Expected behaviour:
 - A provider that exceeds its deadline is recorded as `UNAVAILABLE`, not as a successful or malicious result.
@@ -958,110 +984,114 @@ Expected behaviour:
 - Invalid timeout configuration (zero, negative, non-finite values, or booleans) is rejected at service construction.
 - Cancellation of the overall enrichment task is not swallowed by the provider exception handler.
 
-Default timeout is a service-level ceiling. The AbuseIPDB HTTP client retains its own lower-level network timeout as an additional bound.
+The default timeout is a service-level ceiling. The AbuseIPDB HTTP client retains its own lower-level network timeout as an additional bound.
 
-New tests — authored and **PASSED in the owner's test run**:
+New tests (all **PASSED**):
 - `test_provider_timeout_becomes_unavailable_without_crashing_enrichment`
 - `test_timed_out_provider_does_not_discard_successful_provider_result`
 - `test_provider_timeout_configuration_must_be_finite_and_positive` (six cases, including an oversized integer)
 - `test_cancelling_enrichment_propagates_cancellation_to_provider`
 
-Run the focused intelligence tests:
+Focused intelligence tests:
 
 ```bash
 ./.venv/bin/python -m pytest tests/test_intelligence.py -v
 ```
 
-Then run the complete backend suite:
+Complete backend suite:
 
 ```bash
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED.** The project owner confirmed that the focused intelligence tests and complete backend test suite passed after the pytest parameter-ID correction (`8540b98`). The exact pass count was not provided. No live AbuseIPDB requests were needed; the timeout tests use local asynchronous test providers.
+**Verification state: PASSED.** The focused intelligence tests and the complete backend test suite passed after the pytest parameter-ID correction (`8540b98`). The exact pass count was not recorded. No live AbuseIPDB requests were needed; the timeout tests use local asynchronous test providers.
 
 Implementation commits: `c7fdd04` (provider deadline), `3411ee3` (timeout isolation tests), `bab4122` (timeout validation edge cases), `52eb4b9` (cancellation and oversized-value tests), and `8540b98` (explicit pytest parameter IDs for Python 3.14 compatibility).
 
-## Response transaction rollback on audit-event append failure — PASSED (owner-confirmed 2026-11-09)
+---
 
-Two repository-level failure-injection tests now verify that an audit append failure inside a response lifecycle transaction does not leave a partial state change:
+## Response transaction rollback on audit-event append failure — PASSED (confirmed 2026-11-09)
+
+Two repository-level failure-injection tests verify that an audit append failure inside a response lifecycle transaction does not leave a partial state change:
 
 - `test_decision_rolls_back_when_audit_event_append_fails` — a failed approval audit append must leave the response pending, preserve the original audit events, and retain the original chain head.
 - `test_simulation_rolls_back_when_audit_event_append_fails` — a failed simulation audit append must leave the response approved and un-simulated, preserve the original audit events, and retain the original chain head.
 
 These tests inject a local exception at the audit append boundary. They do not contact external services and do not execute firewall, operating-system, or network actions.
 
-Run the focused integrity tests:
+Focused integrity tests:
 
 ```bash
 ./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -v
 ```
 
-Then run the complete backend suite:
+Complete backend suite:
 
 ```bash
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED.** The project owner confirmed that the focused integrity module and complete backend test suite passed after pulling the implementation. Exact test counts were not provided and are not inferred.
+**Verification state: PASSED.** The focused integrity module and the complete backend test suite passed after the implementation was pulled. Exact test counts were not recorded and are not inferred.
 
 Implementation commit: `93e6374`.
 
+---
 
-## Response transaction rollback on checkpoint-intent preparation failure — PASSED (owner-confirmed 2026-11-09)
+## Response transaction rollback on checkpoint-intent preparation failure — PASSED (confirmed 2026-11-09)
 
-Two repository-level failure-injection tests now verify that failure while preparing the signed checkpoint intent rolls back the surrounding response lifecycle transaction:
+Two repository-level failure-injection tests verify that failure while preparing the signed checkpoint intent rolls back the surrounding response lifecycle transaction:
 
 - `test_decision_rolls_back_when_checkpoint_intent_preparation_fails` — a failed intent preparation during approval must leave the response pending, preserve the original audit events, and retain the original chain head.
 - `test_simulation_rolls_back_when_checkpoint_intent_preparation_fails` — a failed intent preparation during simulation must leave the response approved and un-simulated, preserve the original audit events, and retain the original chain head.
 
 These tests inject a local exception before transaction commit. They do not contact external services and do not execute firewall, operating-system, or network actions.
 
-Run the focused integrity tests:
+Focused integrity tests:
 
 ```bash
 ./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -v
 ```
 
-Then run the complete backend suite:
+Complete backend suite:
 
 ```bash
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED.** The project owner confirmed that both the focused response audit-integrity module and the complete backend test suite passed after pulling the implementation. Exact test counts were not provided and are not inferred.
+**Verification state: PASSED.** Both the focused response audit-integrity module and the complete backend test suite passed after the implementation was pulled. Exact test counts were not recorded and are not inferred.
 
 Implementation commit: `796ef5f`.
 
+---
 
-## Response transaction rollback on database state-update failure — PASSED (owner-confirmed 2026-11-09)
+## Response transaction rollback on database state-update failure — PASSED (confirmed 2026-11-09)
 
 Two SQLite-trigger failure-injection tests verify that a database-level rejection of the response state update leaves no partial lifecycle change:
 
 - `test_decision_rolls_back_when_database_state_update_fails` — a rejected approval update must leave the response pending, preserve the audit events, and retain the original chain head.
 - `test_simulation_rolls_back_when_database_state_update_fails` — a rejected simulation update must leave the response approved and un-simulated, preserve the audit events, and retain the original chain head.
 
-The tests use temporary SQLite triggers in the isolated test database. They do not alter the user's working database or execute real response actions.
+The tests use temporary SQLite triggers in the isolated test database. They do not alter the working database or execute real response actions.
 
-Run the focused integrity tests:
+Focused integrity tests:
 
 ```bash
 ./.venv/bin/python -m pytest tests/test_response_audit_integrity.py -v
 ```
 
-Then run the complete backend suite:
+Complete backend suite:
 
 ```bash
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED.** The project owner confirmed that both the focused response audit-integrity module and the complete backend test suite passed after pulling the implementation. Exact test counts were not provided and are not inferred.
+**Verification state: PASSED.** Both the focused response audit-integrity module and the complete backend test suite passed after the implementation was pulled. Exact test counts were not recorded and are not inferred.
 
 Implementation commit: `6335db2`.
 
+---
 
-
-## Authentication detection expansion — PASSED (owner-confirmed 2026-11-09)
+## Authentication detection expansion — PASSED (confirmed 2026-11-09)
 
 Two additional rules reuse the existing event-ingestion and detection pipeline:
 
@@ -1072,9 +1102,9 @@ MITRE ATT&CK associations:
 - `AEGIS-AUTH-003` → T1110.001 (Password Guessing), moderate behavioural association.
 - `AEGIS-AUTH-004` → T1078 (Valid Accounts), low-confidence contextual candidate with an explicit legitimate-user caveat.
 
-The curated catalogue now contains nine entries. The synthetic evaluation dataset has been expanded to eight malicious and six benign scenarios, with one designated expected rule per malicious scenario. Synthetic results are not evidence of production detection performance.
+The curated catalogue now contains nine entries. The synthetic evaluation dataset was expanded to eight malicious and six benign scenarios, with one designated expected rule per malicious scenario. Synthetic results are not evidence of production detection performance.
 
-Run the focused authentication, registry, MITRE, and evaluation regressions:
+Focused authentication, registry, MITRE, and evaluation regressions:
 
 ```bash
 git pull --ff-only origin main
@@ -1090,10 +1120,11 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that all five focused regression modules and the complete backend test suite passed.
+**Verification state: PASSED (confirmed 2026-11-09).** All five focused regression modules and the complete backend test suite passed.
 
+---
 
-## Multi-source successful authentication detection — PASSED (owner-confirmed 2026-11-09)
+## Multi-source successful authentication detection — PASSED (confirmed 2026-11-09)
 
 New rule: `AEGIS-AUTH-005`.
 
@@ -1101,7 +1132,7 @@ New rule: `AEGIS-AUTH-005`.
 - Counts distinct source IPs rather than raw event rows.
 - Requires successful authentication events, the same username, valid source IP values, and valid received timestamps.
 - Maps to MITRE ATT&CK T1078 (Valid Accounts) as a low-confidence contextual candidate. Shared networks, VPNs, proxies, and legitimate account use can produce the same pattern; the alert is not proof of credential abuse.
-- Reuses the existing event pipeline, detector registry, alert persistence, and MITRE mapper. No new service or infrastructure.
+- Reuses the existing event pipeline, detector registry, alert persistence, and MITRE mapper. No new service or infrastructure is introduced.
 
 Focused regressions:
 
@@ -1120,15 +1151,15 @@ cd /workspaces/aegis-security-platform/backend
 ./.venv/bin/python -m pytest -q
 ```
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The project owner confirmed that all six focused detection, registry, MITRE, evaluation, and adversarial regression modules passed, followed by the complete backend regression suite. The first run's two stale rule-count assertions were corrected and the rerun passed.
-
+**Verification state: PASSED (confirmed 2026-11-09).** All six focused detection, registry, MITRE, evaluation, and adversarial regression modules passed, followed by the complete backend regression suite. Two stale rule-count assertions failed in the first run; they were corrected and the rerun passed.
 
 ### Regression follow-up — stale detection-rule counts
 
-The first owner-run verification of this batch reported 81 focused tests passed and 2 failed; the full suite reported 674 passed and 2 failed. Both failures were stale assertions in `tests/test_detection_regression.py` that still expected eight registered rules and an API count of eight. The new detector, its focused tests, MITRE mapping, and synthetic evaluation passed. Updated the registry and API expectations to nine, including `AEGIS-AUTH-005`. **Verification follow-up: PASSED (owner-confirmed 2026-11-09).** The corrected focused batch and complete backend suite both passed.
+The first verification run of this batch reported 81 focused tests passed and 2 failed; the full suite reported 674 passed and 2 failed. Both failures were stale assertions in `tests/test_detection_regression.py` that still expected eight registered rules and an API count of eight. The new detector, its focused tests, MITRE mapping, and synthetic evaluation passed. The registry and API expectations were updated to nine, including `AEGIS-AUTH-005`. **Verification follow-up: PASSED (confirmed 2026-11-09).** The corrected focused batch and complete backend suite both passed.
 
+---
 
-## Remote-service connection fan-out detection — PASSED (owner-confirmed 2026-11-09)
+## Remote-service connection fan-out detection — PASSED (confirmed 2026-11-09)
 
 New rule: `AEGIS-NET-005`.
 
@@ -1156,13 +1187,12 @@ cd /workspaces/aegis-security-platform/backend
 
 The synthetic evaluation dataset now contains ten malicious and seven benign scenarios across ten registered rules. These controlled scenarios are regression fixtures, not evidence of real-world detection effectiveness.
 
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The owner confirmed the focused remote-service detector, registry, MITRE, evaluation, and adversarial modules passed, as did the complete backend suite.
+**Verification state: PASSED (confirmed 2026-11-09).** The focused remote-service detector, registry, MITRE, evaluation, and adversarial modules passed, as did the complete backend suite.
 
+### Response-concurrency regression discovered during verification
 
-### Unrelated response-concurrency regression discovered during verification — NOT RUN
+The full-suite run reported 685 passed and one failure in `test_concurrent_approval_and_simulation_preserve_valid_lifecycle`. The approval and simulation operations could capture their audit timestamps before acquiring SQLite's `BEGIN IMMEDIATE` writer lock. If an operation waited for the competing writer, its timestamp could therefore precede the event committed immediately before it, violating chronological audit validation.
 
-The owner-run full suite reported 685 passed and one failure in `test_concurrent_approval_and_simulation_preserve_valid_lifecycle`. The approval and simulation operations could capture their audit timestamps before acquiring SQLite's `BEGIN IMMEDIATE` writer lock. If an operation waited for the competing writer, its timestamp could therefore precede the event committed immediately before it, violating chronological audit validation.
+`decide_response` and `simulate_response` were updated to capture their timestamps only after acquiring the write transaction. This preserves strict lifecycle validation while making timestamp order follow the serialized mutation order.
 
-Updated `decide_response` and `simulate_response` to capture their timestamps only after acquiring the write transaction. This preserves strict lifecycle validation while making timestamp order follow the serialized mutation order.
-
-**Verification state: PASSED (owner-confirmed 2026-11-09).** The response-concurrency regression, remote-service detection batch, and complete backend suite all passed after moving lifecycle timestamps inside the acquired write transaction.
+**Verification state: PASSED (confirmed 2026-11-09).** The response-concurrency regression, the remote-service detection batch, and the complete backend suite all passed after the lifecycle timestamps were moved inside the acquired write transaction.
