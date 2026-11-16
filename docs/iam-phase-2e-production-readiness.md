@@ -49,7 +49,8 @@ A healthy `/api/v1/health` response is not proof that authentication configurati
 - TOTP secrets are encrypted with AES-256-GCM; the database stores ciphertext, nonce material, and key ID, not plaintext TOTP secrets.
 - Decryption currently requires the configured key ID to match the factor's stored key ID. There is no supported previous-key keyring or in-place re-encryption/rotation utility.
 - Keep the MFA key in an approved secret manager and in a separately protected, recoverable key backup. Do not rotate it casually. If it is lost, affected factors cannot be decrypted; affected users need a controlled recovery/re-enrollment process.
-- The MFA key is separate from the audit-checkpoint signing key, CSRF signing key, authentication-throttle HMAC key, analyst API token, and session tokens.\n- Remove the retired `AEGIS_APPROVER_TOKEN` and `AEGIS_APPROVER_ID` entries from deployment configuration after this release is deployed and no external consumer depends on them. The application ignores both settings in this release.
+- The MFA key is separate from the audit-checkpoint signing key, CSRF signing key, authentication-throttle HMAC key, analyst API token, and session tokens.
+- Remove the retired `AEGIS_APPROVER_TOKEN` and `AEGIS_APPROVER_ID` entries from deployment configuration after this release is deployed and no external consumer depends on them. The application ignores both settings in this release.
 
 ### 2.4 Container and network
 
@@ -67,7 +68,6 @@ Provision each value through the production secret manager or protected deployme
 | Variable | Requirement |
 |---|---|
 | `AEGIS_ANALYST_TOKEN` | Required by legacy API auth; at least 32 characters/bytes as enforced by code. |
-| `AEGIS_APPROVER_TOKEN` | Required by legacy API auth; at least 32 characters/bytes, distinct from analyst token. |
 | `AEGIS_ANALYST_ID` | Optional analyst bearer actor identifier; defaults to `analyst`. Approver identity comes from the IAM user record. |
 | `AEGIS_AUDIT_CHECKPOINT_KEY` | Active audit-checkpoint signing key; preserve the current key and any configured legacy/previous keys needed to verify historical checkpoints. |
 | `AEGIS_AUDIT_CHECKPOINT_KEY_ID` | Active checkpoint key identifier. Preserve key-ID history. |
