@@ -107,8 +107,8 @@ def begin_totp_enrollment(
         raise ValueError("an active TOTP factor already exists")
     connection.execute(
         """UPDATE iam_mfa_factors SET status = 'revoked', revoked_at = ?
-           WHERE user_id = ? AND status = 'pending' AND created_at <= ?""",
-        (current_at, user_id, _iso(current - timedelta(seconds=ENROLLMENT_TTL_SECONDS))),
+           WHERE user_id = ? AND status = 'pending'""",
+        (current_at, user_id),
     )
     factor_id = str(uuid.uuid4())
     secret = totp.generate_secret()
@@ -537,3 +537,22 @@ def reset_user_mfa(
         "invalidated_count": recovery_codes,
         "sessions_revoked": sessions,
     }
+
+
+def get_login_challenge_user_id(
+    connection: sqlite3.Connection, *, challenge_token: str,
+) -> str | None:
+    """Resolve a pending challenge to an internal user ID without exposing it."""
+    if not isinstance(challenge_token, str) or not 40 <= len(challenge_token) <= 128:
+        return None
+    try:
+        digest = hashlib.sha256(challenge_token.encode("ascii")).hexdigest()
+    except UnicodeEncodeError:
+        return None
+    row = connection.execute(
+        """SELECT user_id FROM iam_auth_challenges
+           WHERE challenge_hash = ? AND purpose = 'login_mfa'
+             AND consumed_at IS NULL""",
+        (digest,),
+    ).fetchone()
+    return None if row is None else row["user_id"]
