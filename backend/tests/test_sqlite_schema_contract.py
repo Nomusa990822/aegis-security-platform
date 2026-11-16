@@ -57,6 +57,8 @@ def _normalise_default(value):
     if value is None:
         return None
     value = str(value).strip()
+    if value.upper() == "NULL":
+        return None
     while len(value) >= 2 and value[0] == "(" and value[-1] == ")":
         value = value[1:-1].strip()
     if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
@@ -128,8 +130,8 @@ def test_sqlite_index_columns_uniqueness_and_partial_predicates_match_metadata(
                 sql = sql_row[0] if sql_row else ""
                 predicate = None
                 if partial:
-                    match = re.search(r"\\bWHERE\\b(.*)$", sql, re.IGNORECASE | re.DOTALL)
-                    predicate = re.sub(r"\\s+", " ", match.group(1)).strip().lower() if match else ""
+                    match = re.search(r"\bWHERE\b(.*)$", sql, re.IGNORECASE | re.DOTALL)
+                    predicate = re.sub(r"\s+", " ", match.group(1)).strip().lower() if match else ""
                 actual_indexes[index_name] = (columns, unique, predicate)
 
             expected = {}
