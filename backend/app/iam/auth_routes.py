@@ -284,7 +284,8 @@ def complete_mfa_login(
     payload: MFAChallengeRequest, request: Request, response: Response
 ):
     _require_origin(request)
-    _, csrf_key = _throttle_settings()
+    throttle_key, csrf_key = _throttle_settings()
+    client_ip = _client_ip(request)
     challenge_token = request.cookies.get(_MFA_CHALLENGE_COOKIE)
     if not challenge_token:
         raise HTTPException(
@@ -292,6 +293,25 @@ def complete_mfa_login(
             headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
         )
     with get_connection() as connection:
+        challenge_user_id = mfa.get_login_challenge_user_id(
+            connection, challenge_token=challenge_token
+        )
+        if challenge_user_id is None:
+            raise HTTPException(
+                status_code=401, detail="MFA challenge is invalid or expired.",
+                headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+            )
+        throttle_identifier = f"{challenge_user_id}|{client_ip}"
+        throttle_state = auth_throttling.is_authentication_blocked(
+            connection, scope="mfa-login", identifier=throttle_identifier,
+            secret=throttle_key,
+        )
+        if not throttle_state.allowed:
+            raise HTTPException(
+                status_code=429, detail="Too many MFA attempts. Try again later.",
+                headers={"Retry-After": str(max(1, throttle_state.retry_after_seconds)),
+                         "Cache-Control": "no-store", "Pragma": "no-cache"},
+            )
         try:
             user_id = mfa.verify_login_challenge(
                 connection, challenge_token=challenge_token, code=payload.code
@@ -299,10 +319,24 @@ def complete_mfa_login(
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail="MFA encryption is not configured.") from exc
         if user_id is None:
+            failure = auth_throttling.record_authentication_failure(
+                connection, scope="mfa-login", identifier=throttle_identifier,
+                secret=throttle_key,
+            )
+            if not failure.allowed:
+                raise HTTPException(
+                    status_code=429, detail="Too many MFA attempts. Try again later.",
+                    headers={"Retry-After": str(max(1, failure.retry_after_seconds)),
+                             "Cache-Control": "no-store", "Pragma": "no-cache"},
+                )
             raise HTTPException(
                 status_code=401, detail="MFA verification failed.",
                 headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
             )
+        auth_throttling.authentication_succeeded(
+            connection, scope="mfa-login", identifier=throttle_identifier,
+            secret=throttle_key,
+        )
         issued = mfa.issue_mfa_verified_session(connection, user_id=user_id)
         account = repository.get_account_by_id(connection, user_id)
     response.delete_cookie(
