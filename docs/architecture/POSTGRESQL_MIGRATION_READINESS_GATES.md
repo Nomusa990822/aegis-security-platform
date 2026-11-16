@@ -123,7 +123,7 @@ A future migration can be proposed only when every item below is evidenced and i
 | Transfer | Full synthetic transfer and rollback/mismatch cases pass | 27-table synthetic transfer passes with deterministic reconciliation; canonical audit-chain and chain-head verification now enforced; additional failure modes remain |
 | Audit integrity | Canonical chain verifier passes before and after transfer | Canonical verifier runs on source and destination transfer rows; per-response event counts and chain heads are reconciled in synthetic CI; external checkpoint verification remains outstanding |
 | External checkpoints | Separate secure backup/restore and checksum rehearsal passes | Not started |
-| Backup/restore | Independently restored backup passes all integrity checks | Not started |
+| Backup/restore | Independently restored backup passes all integrity checks | Synthetic in-memory SQLite backup-to-temporary-file and restore rehearsal passes integrity, FK, content-digest and canonical audit-chain checks; durable/non-production operational backup and restore remain outstanding |
 | Rollback | Timed rollback rehearsal and decision criteria approved | Not started |
 | Operational plan | Downtime, freeze, owners, monitoring and acceptance criteria approved | Not started |
 | Authorization | Explicit approval for production backup and migration window | Not granted |
@@ -132,6 +132,6 @@ A future migration can be proposed only when every item below is evidenced and i
 
 ## 7. Decision
 
-Phase 2F.12 adds stronger schema-contract tests, an explicit-path read-only preflight and documented audit/backup/restore/rollback gates. Phase 2F.14 adds the clean-schema Alembic baseline, validated against PostgreSQL 17 in an isolated schema. Phase 2F.15 adds canonical response audit-chain verification to synthetic transfers, including chain-head reconciliation and fail-closed handling of missing or altered evidence.
+Phase 2F.12 adds stronger schema-contract tests, an explicit-path read-only preflight and documented audit/backup/restore/rollback gates. Phase 2F.14 adds the clean-schema Alembic baseline, validated against PostgreSQL 17 in an isolated schema. Phase 2F.15 adds canonical response audit-chain verification to synthetic transfers, including chain-head reconciliation and fail-closed handling of missing or altered evidence. Phase 2F.16 adds an in-memory-only SQLite backup-to-temporary-file and restore rehearsal with integrity, foreign-key, deterministic digest and audit-chain reconciliation.
 
 It does not create or execute the production Alembic baseline. It does not migrate production data or change deployment configuration. Production migration remains a no-go until every outstanding gate above has passed and the owner explicitly authorizes the operation.
