@@ -1,8 +1,21 @@
 
-from app.database import get_connection
+from app.database import get_connection, _postgres_url
 
 
 def initialize_idempotency_schema():
+    # The PostgreSQL idempotency columns and partial unique index are owned
+    # by the reviewed Alembic baseline; never issue SQLite PRAGMA/DDL here.
+    if _postgres_url():
+        with get_connection() as connection:
+            columns = connection.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = current_schema() "
+                "AND table_name = 'security_events'"
+            ).fetchall()
+            names = {row["column_name"] for row in columns}
+            if not {"source_system", "external_event_id"}.issubset(names):
+                raise RuntimeError("PostgreSQL event idempotency schema is incomplete")
+        return
     """
     Add source identifiers to security events.
 
