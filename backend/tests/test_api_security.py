@@ -107,7 +107,7 @@ def test_authentication_fails_closed_when_credentials_are_not_configured(
     monkeypatch,
 ):
     monkeypatch.delenv("AEGIS_ANALYST_TOKEN")
-    monkeypatch.delenv("AEGIS_APPROVER_TOKEN")
+    monkeypatch.delenv("AEGIS_APPROVER_TOKEN", raising=False)
 
     response = client.get(
         "/api/v1/auth/me",
