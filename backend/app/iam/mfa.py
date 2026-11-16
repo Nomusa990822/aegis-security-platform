@@ -534,6 +534,6 @@ def reset_user_mfa(
     )
     return {
         "factors_revoked": factors,
-        "recovery_codes_invalidated": recovery_codes,
+        "invalidated_count": recovery_codes,
         "sessions_revoked": sessions,
     }
