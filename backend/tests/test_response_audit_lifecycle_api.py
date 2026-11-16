@@ -3,15 +3,8 @@ from app import database
 
 
 ANALYST_TOKEN = "a" * 48
-APPROVER_TOKEN = "b" * 48
-
-
 def analyst_headers():
     return {"Authorization": f"Bearer {ANALYST_TOKEN}"}
-
-
-def approver_headers():
-    return {"Authorization": f"Bearer {APPROVER_TOKEN}"}
 
 
 def create_pending_response(client):
@@ -56,10 +49,9 @@ def create_pending_response(client):
     return response.json()["response_id"]
 
 
-def inspect_audit(client, response_id):
-    return client.get(
+def inspect_audit(approver_client, response_id):
+    return approver_client.get(
         f"/api/v1/response/{response_id}/audit-integrity",
-        headers=approver_headers(),
     )
 
 
@@ -78,10 +70,10 @@ def get_audit_events(response_id):
     return [row["event"] for row in rows]
 
 
-def test_pending_approval_lifecycle_has_valid_audit(client):
+def test_pending_approval_lifecycle_has_valid_audit(client, approver_client):
     response_id = create_pending_response(client)
 
-    response = inspect_audit(client, response_id)
+    response = inspect_audit(approver_client, response_id)
 
     assert response.status_code == 200
     assert response.json()["status"] == "pending_approval"
@@ -93,13 +85,12 @@ def test_pending_approval_lifecycle_has_valid_audit(client):
     ]
 
 
-def test_approved_lifecycle_has_valid_audit(client):
+def test_approved_lifecycle_has_valid_audit(client, approver_client):
     response_id = create_pending_response(client)
 
-    decision = client.post(
+    decision = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={"reason": "Approved for lifecycle testing."},
-        headers=approver_headers(),
     )
 
     assert decision.status_code == 200
@@ -117,10 +108,10 @@ def test_approved_lifecycle_has_valid_audit(client):
     ]
 
 
-def test_rejected_lifecycle_has_valid_audit(client):
+def test_rejected_lifecycle_has_valid_audit(client, approver_client):
     response_id = create_pending_response(client)
 
-    decision = client.post(
+    decision = approver_client.post(
         f"/api/v1/response/{response_id}/reject",
         json={"reason": "Rejected for lifecycle testing."},
         headers=approver_headers(),
@@ -141,10 +132,10 @@ def test_rejected_lifecycle_has_valid_audit(client):
     ]
 
 
-def test_simulated_lifecycle_has_valid_audit(client):
+def test_simulated_lifecycle_has_valid_audit(client, approver_client):
     response_id = create_pending_response(client)
 
-    approval = client.post(
+    approval = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={"reason": "Approved for dry-run testing."},
         headers=approver_headers(),
