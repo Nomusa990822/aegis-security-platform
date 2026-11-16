@@ -3,7 +3,8 @@ import hmac
 import os
 from dataclasses import dataclass
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
+from app.iam.browser_auth import authenticate_browser_session
 from fastapi.security import (
     HTTPAuthorizationCredentials,
     HTTPBearer,
@@ -70,6 +71,7 @@ def _load_auth_configuration():
 
 
 def get_current_actor(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(
         bearer_scheme
     ),
@@ -77,9 +79,15 @@ def get_current_actor(
     configured_credentials = _load_auth_configuration()
 
     if credentials is None:
+        browser_session = authenticate_browser_session(request)
+        if browser_session is not None:
+            return AuthenticatedActor(
+                actor_id=browser_session.user_id,
+                role=browser_session.role,
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Bearer authentication is required.",
+            detail="Bearer or analyst session authentication is required.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
