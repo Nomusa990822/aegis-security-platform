@@ -22,7 +22,7 @@ ip_intelligence_assessments = Table(
 ip_intelligence_provider_results = Table(
     "ip_intelligence_provider_results", metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
-    Column("assessment_id", Integer, ForeignKey("ip_intelligence_assessments.id", ondelete="CASCADE"), nullable=False),
+    Column("assessment_id", Integer, ForeignKey("ip_intelligence_assessments.id", ondelete="CASCADE", name="fk_intel_provider_assessment"), nullable=False),
     Column("provider", Text, nullable=False), Column("status", Text, nullable=False),
     Column("reputation", Text), Column("confidence", Float, nullable=False, server_default="0.0"),
     Column("categories", Text, nullable=False, server_default="[]"),

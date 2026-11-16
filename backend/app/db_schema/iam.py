@@ -1,5 +1,27 @@
 """IAM schema: credentials, MFA, recovery, sessions and security telemetry."""
-from sqlalchemy import CheckConstraint, Column, ForeignKey, Index, Integer, LargeBinary, Table, Text, text
+from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Index, Integer, LargeBinary, Table, Text, column, text
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql.functions import FunctionElement
+
+
+class JsonTextIsValid(FunctionElement):
+    """Dialect-aware validity predicate for JSON retained in TEXT columns."""
+
+    type = Boolean()
+    inherit_cache = True
+
+
+@compiles(JsonTextIsValid, "sqlite")
+def _compile_sqlite_json_text_is_valid(element, compiler, **kwargs):
+    argument = compiler.process(list(element.clauses)[0], **kwargs)
+    return f"json_valid({argument})"
+
+
+@compiles(JsonTextIsValid, "postgresql")
+def _compile_postgresql_json_text_is_valid(element, compiler, **kwargs):
+    argument = compiler.process(list(element.clauses)[0], **kwargs)
+    # Invalid JSON text raises a cast error, rejecting the row at the constraint.
+    return f"({argument})::jsonb IS NOT NULL"
 from app.db_schema import metadata
 
 iam_users = Table("iam_users", metadata,
@@ -47,7 +69,9 @@ iam_access_tokens = Table("iam_access_tokens", metadata,
     Column("id", Text, primary_key=True),
     Column("user_id", Text, ForeignKey("iam_users.id", ondelete="RESTRICT"), nullable=False),
     Column("token_hash", Text, nullable=False, unique=True), Column("token_prefix", Text, nullable=False),
-    Column("scopes_json", Text, nullable=False, server_default="[]"), Column("created_at", Text, nullable=False),
+    Column("scopes_json", Text, nullable=False, server_default="[]"),
+    CheckConstraint(JsonTextIsValid(column("scopes_json")), name="scopes_json_valid"),
+    Column("created_at", Text, nullable=False),
     Column("expires_at", Text, nullable=False), Column("last_used_at", Text), Column("revoked_at", Text),
     Column("revocation_reason", Text), CheckConstraint("length(id) = 36", name="id_length"),
     CheckConstraint("length(token_prefix) BETWEEN 4 AND 24", name="token_prefix_length"),
@@ -85,6 +109,7 @@ iam_security_events = Table("iam_security_events", metadata,
     Column("event_type", Text, nullable=False), Column("occurred_at", Text, nullable=False),
     Column("source_ip", Text), Column("success", Integer, nullable=False),
     Column("metadata_json", Text, nullable=False, server_default="{}"),
+    CheckConstraint(JsonTextIsValid(column("metadata_json")), name="metadata_json_valid"),
     CheckConstraint("success IN (0, 1)", name="success_boolean"), CheckConstraint("length(id) = 36", name="id_length"),
     Index("idx_iam_security_events_user_time", "user_id", "occurred_at"))
 
