@@ -370,3 +370,125 @@ def has_recent_mfa(
         return False
     age = (current - verified.astimezone(timezone.utc)).total_seconds()
     return 0 <= age <= max_age_seconds
+
+
+
+def create_login_challenge(
+    connection: sqlite3.Connection, *, user_id: str,
+    now: datetime | None = None, ttl_seconds: int = 5 * 60,
+) -> str:
+    """Create a short-lived, digest-only second-factor login challenge."""
+    if isinstance(ttl_seconds, bool) or not isinstance(ttl_seconds, int) or not 60 <= ttl_seconds <= 10 * 60:
+        raise ValueError("MFA challenge lifetime must be between one and ten minutes")
+    current = _now(now)
+    current_at = _iso(current)
+    user = connection.execute(
+        "SELECT status FROM iam_users WHERE id = ?", (user_id,)
+    ).fetchone()
+    if user is None or user["status"] != "active" or not has_active_totp(connection, user_id=user_id):
+        raise ValueError("an active account with TOTP is required")
+    token = secrets.token_urlsafe(32)
+    challenge_id = str(uuid.uuid4())
+    digest = hashlib.sha256(token.encode("ascii")).hexdigest()
+    connection.execute(
+        """INSERT INTO iam_auth_challenges
+           (id, user_id, challenge_hash, purpose, created_at, expires_at,
+            consumed_at, failed_attempts)
+           VALUES (?, ?, ?, 'login_mfa', ?, ?, NULL, 0)""",
+        (challenge_id, user_id, digest, current_at,
+         _iso(current + timedelta(seconds=ttl_seconds))),
+    )
+    record_security_event(
+        connection, event_type="mfa_login_challenge_created",
+        user_id=user_id, occurred_at=current_at, success=True,
+    )
+    return token
+
+
+def verify_login_challenge(
+    connection: sqlite3.Connection, *, challenge_token: str,
+    code: str, now: datetime | None = None,
+    password_service: PasswordService = DEFAULT_PASSWORD_SERVICE,
+) -> str | None:
+    """Consume a login challenge after one valid TOTP or recovery-code proof."""
+    current = _now(now)
+    current_at = _iso(current)
+    if not isinstance(challenge_token, str) or not 40 <= len(challenge_token) <= 128:
+        return None
+    try:
+        digest = hashlib.sha256(challenge_token.encode("ascii")).hexdigest()
+    except UnicodeEncodeError:
+        return None
+    row = connection.execute(
+        """SELECT id, user_id, expires_at, consumed_at, failed_attempts
+           FROM iam_auth_challenges
+           WHERE challenge_hash = ? AND purpose = 'login_mfa'""",
+        (digest,),
+    ).fetchone()
+    if (
+        row is None or row["consumed_at"] is not None
+        or row["expires_at"] <= current_at or row["failed_attempts"] >= 5
+    ):
+        return None
+
+    valid = verify_totp(connection, user_id=row["user_id"], code=code, now=current)
+    if not valid:
+        valid = consume_recovery_code(
+            connection, user_id=row["user_id"], recovery_code=code,
+            now=current, password_service=password_service,
+        )
+    if not valid:
+        connection.execute(
+            """UPDATE iam_auth_challenges
+               SET failed_attempts = failed_attempts + 1
+               WHERE id = ? AND consumed_at IS NULL AND failed_attempts < 5""",
+            (row["id"],),
+        )
+        record_security_event(
+            connection, event_type="mfa_login_challenge_failed",
+            user_id=row["user_id"], occurred_at=current_at, success=False,
+        )
+        return None
+
+    consumed = connection.execute(
+        """UPDATE iam_auth_challenges SET consumed_at = ?
+           WHERE id = ? AND consumed_at IS NULL AND expires_at > ?
+             AND failed_attempts < 5""",
+        (current_at, row["id"], current_at),
+    )
+    if consumed.rowcount != 1:
+        return None
+    record_security_event(
+        connection, event_type="mfa_login_challenge_succeeded",
+        user_id=row["user_id"], occurred_at=current_at, success=True,
+    )
+    return row["user_id"]
+
+
+def issue_mfa_verified_session(
+    connection: sqlite3.Connection, *, user_id: str,
+    now: datetime | None = None,
+):
+    """Issue a new session whose MFA timestamp is set only by this server helper."""
+    from app.iam.sessions import issue_session
+
+    current_at = _iso(_now(now))
+    savepoint = "iam_issue_mfa_session"
+    connection.execute(f"SAVEPOINT {savepoint}")
+    try:
+        issued = issue_session(connection, user_id=user_id, now=_now(now))
+        digest = hashlib.sha256(issued.token.encode("ascii")).hexdigest()
+        updated = connection.execute(
+            """UPDATE iam_sessions SET mfa_verified_at = ?
+               WHERE session_hash = ? AND mfa_verified_at IS NULL
+                 AND revoked_at IS NULL""",
+            (current_at, digest),
+        )
+        if updated.rowcount != 1:
+            raise RuntimeError("MFA-verified session could not be established")
+        connection.execute(f"RELEASE SAVEPOINT {savepoint}")
+        return issued
+    except Exception:
+        connection.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+        connection.execute(f"RELEASE SAVEPOINT {savepoint}")
+        raise
