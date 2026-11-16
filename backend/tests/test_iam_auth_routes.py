@@ -19,6 +19,12 @@ def iam_client(client, monkeypatch):
     monkeypatch.setenv("AEGIS_AUTH_THROTTLE_HMAC_KEY", "throttle-key-" + "t" * 40)
     monkeypatch.setenv("AEGIS_CSRF_SIGNING_KEY", "csrf-key-" + "c" * 40)
     monkeypatch.setenv("AEGIS_IAM_ALLOWED_ORIGINS", ORIGIN)
+    import base64
+    monkeypatch.setenv(
+        "AEGIS_MFA_ENCRYPTION_KEY",
+        base64.urlsafe_b64encode(b"m" * 32).decode("ascii").rstrip("="),
+    )
+    monkeypatch.setenv("AEGIS_MFA_ENCRYPTION_KEY_ID", "test-key-v1")
     fast_passwords = PasswordService(
         memory_cost=1024, time_cost=1, parallelism=1
     )
@@ -210,3 +216,229 @@ def test_analyst_cookie_session_cannot_access_approver_only_api(iam_client):
             headers={"Cookie": f"__Host-aegis_session={token}"},
         )
     assert response.status_code == 403
+
+
+
+def _enable_totp_for_user(username):
+    from datetime import datetime, timedelta, timezone
+    from app.iam import mfa, repository, totp
+
+    enrollment_time = datetime.now(timezone.utc) - timedelta(seconds=60)
+    with database.get_connection() as connection:
+        account = repository.get_account_by_username(connection, username)
+        enrollment = mfa.begin_totp_enrollment(
+            connection, user_id=account["id"], now=enrollment_time
+        )
+        mfa.confirm_totp_enrollment(
+            connection, user_id=account["id"],
+            factor_id=enrollment["factor_id"],
+            code=totp.code_at(
+                enrollment["secret"], at_time=enrollment_time.timestamp()
+            ),
+            now=enrollment_time,
+            password_service=auth_routes.DEFAULT_PASSWORD_SERVICE,
+        )
+    return enrollment["secret"]
+
+
+def test_mfa_enabled_approver_login_requires_second_factor(iam_client):
+    from app.iam import totp
+
+    secret = _enable_totp_for_user("approver.login")
+    password_login = iam_client.post(
+        "/api/v1/iam/login",
+        json={"username": "approver.login", "password": TEST_PASSWORD},
+        headers={"Origin": ORIGIN},
+    )
+    assert password_login.status_code == 200
+    assert password_login.json()["mfa_required"] is True
+    assert password_login.json()["authenticated"] is False
+    assert "__Host-aegis_mfa_challenge=" in password_login.headers["set-cookie"]
+    assert "__Host-aegis_session=" not in password_login.headers["set-cookie"]
+
+    challenge_cookie = SimpleCookie()
+    challenge_cookie.load(password_login.headers["set-cookie"])
+    challenge_token = challenge_cookie["__Host-aegis_mfa_challenge"].value
+    completed = iam_client.post(
+        "/api/v1/iam/login/mfa",
+        json={"code": totp.code_at(secret)},
+        headers={
+            "Origin": ORIGIN,
+            "Cookie": f"__Host-aegis_mfa_challenge={challenge_token}",
+        },
+    )
+    assert completed.status_code == 200
+    assert completed.json()["authenticated"] is True
+    assert completed.json()["user"]["role"] == "approver"
+    assert completed.json()["mfa_verified"] is True
+    assert "__Host-aegis_session=" in completed.headers["set-cookie"]
+
+    session_cookie = SimpleCookie()
+    for set_cookie in completed.headers.get_list("set-cookie"):
+        session_cookie.load(set_cookie)
+    session_token = session_cookie["__Host-aegis_session"].value
+    session = iam_client.get(
+        "/api/v1/iam/session",
+        headers={"Cookie": f"__Host-aegis_session={session_token}"},
+    )
+    assert session.status_code == 200
+    assert session.json()["user"]["role"] == "approver"
+    assert session.json()["mfa_verified"] is True
+
+
+def test_mfa_challenge_rejects_wrong_code_and_does_not_issue_session(iam_client):
+    _enable_totp_for_user("analyst.login")
+    password_login = iam_client.post(
+        "/api/v1/iam/login",
+        json={"username": "analyst.login", "password": TEST_PASSWORD},
+        headers={"Origin": ORIGIN},
+    )
+    assert password_login.status_code == 200
+    assert password_login.json()["mfa_required"] is True
+    challenge_cookie = SimpleCookie()
+    challenge_cookie.load(password_login.headers["set-cookie"])
+    challenge_token = challenge_cookie["__Host-aegis_mfa_challenge"].value
+    failed = iam_client.post(
+        "/api/v1/iam/login/mfa",
+        json={"code": "000000"},
+        headers={
+            "Origin": ORIGIN,
+            "Cookie": f"__Host-aegis_mfa_challenge={challenge_token}",
+        },
+    )
+    assert failed.status_code == 401
+    assert "__Host-aegis_session=" not in failed.headers.get("set-cookie", "")
+
+
+
+def test_browser_mfa_enrollment_requires_csrf_and_returns_recovery_codes_once(iam_client):
+    from app.iam import totp
+
+    login = iam_client.post(
+        "/api/v1/iam/login",
+        json={"username": "analyst.login", "password": TEST_PASSWORD},
+        headers={"Origin": ORIGIN},
+    )
+    token = _cookie(login)
+    csrf = login.json()["csrf_token"]
+    cookie_header = {"Cookie": f"__Host-aegis_session={token}"}
+
+    blocked = iam_client.post(
+        "/api/v1/iam/mfa/enroll",
+        json={"current_password": TEST_PASSWORD},
+        headers={**cookie_header, "Origin": ORIGIN},
+    )
+    assert blocked.status_code == 403
+
+    started = iam_client.post(
+        "/api/v1/iam/mfa/enroll",
+        json={"current_password": TEST_PASSWORD},
+        headers={
+            **cookie_header,
+            "Origin": ORIGIN,
+            "X-Aegis-CSRF-Token": csrf,
+        },
+    )
+    assert started.status_code == 200
+    assert started.headers["cache-control"] == "no-store"
+    enrollment = started.json()
+    assert enrollment["provisioning_uri"].startswith("otpauth://totp/")
+    assert enrollment["secret"]
+
+    confirmed = iam_client.post(
+        "/api/v1/iam/mfa/confirm",
+        json={
+            "factor_id": enrollment["factor_id"],
+            "code": totp.code_at(enrollment["secret"]),
+        },
+        headers={
+            **cookie_header,
+            "Origin": ORIGIN,
+            "X-Aegis-CSRF-Token": csrf,
+        },
+    )
+    assert confirmed.status_code == 200
+    assert confirmed.headers["cache-control"] == "no-store"
+    recovery_codes = confirmed.json()["recovery_codes"]
+    assert len(recovery_codes) == 10
+    assert "recovery_codes" not in (
+        iam_client.get(
+            "/api/v1/iam/mfa/status",
+            headers=cookie_header,
+        ).json()
+    )
+
+    step_up = iam_client.post(
+        "/api/v1/iam/mfa/step-up",
+        json={"code": recovery_codes[0]},
+        headers={
+            **cookie_header,
+            "Origin": ORIGIN,
+            "X-Aegis-CSRF-Token": csrf,
+        },
+    )
+    assert step_up.status_code == 200
+    assert step_up.json()["mfa_verified"] is True
+
+    rotated = iam_client.post(
+        "/api/v1/iam/mfa/recovery-codes/regenerate",
+        json={},
+        headers={
+            **cookie_header,
+            "Origin": ORIGIN,
+            "X-Aegis-CSRF-Token": csrf,
+        },
+    )
+    assert rotated.status_code == 200
+    assert len(rotated.json()["recovery_codes"]) == 10
+
+
+def test_mfa_enrollment_requires_password_reauthentication(iam_client):
+    login = iam_client.post(
+        "/api/v1/iam/login",
+        json={"username": "analyst.login", "password": TEST_PASSWORD},
+        headers={"Origin": ORIGIN},
+    )
+    token = _cookie(login)
+    response = iam_client.post(
+        "/api/v1/iam/mfa/enroll",
+        json={"current_password": "incorrect long password"},
+        headers={
+            "Cookie": f"__Host-aegis_session={token}",
+            "Origin": ORIGIN,
+            "X-Aegis-CSRF-Token": login.json()["csrf_token"],
+        },
+    )
+    assert response.status_code == 403
+
+
+def test_browser_approver_requires_recent_server_owned_mfa():
+    from datetime import datetime, timedelta, timezone
+    from fastapi import HTTPException
+    from app.auth import AuthenticatedActor, get_approver_actor
+
+    with pytest.raises(HTTPException) as missing:
+        get_approver_actor(AuthenticatedActor(
+            actor_id="approver-id", role="approver",
+            auth_method="browser_session", mfa_verified_at=None,
+        ))
+    assert missing.value.status_code == 403
+
+    stale = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+    with pytest.raises(HTTPException) as expired:
+        get_approver_actor(AuthenticatedActor(
+            actor_id="approver-id", role="approver",
+            auth_method="browser_session", mfa_verified_at=stale,
+        ))
+    assert expired.value.status_code == 403
+
+    fresh = datetime.now(timezone.utc).isoformat()
+    actor = AuthenticatedActor(
+        actor_id="approver-id", role="approver",
+        auth_method="browser_session", mfa_verified_at=fresh,
+    )
+    assert get_approver_actor(actor) is actor
+
+    # Legacy bearer-token authorization semantics remain unchanged.
+    legacy = AuthenticatedActor(actor_id="legacy-approver", role="approver")
+    assert get_approver_actor(legacy) is legacy

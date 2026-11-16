@@ -1,7 +1,6 @@
-"""HTTP integration for analyst password login and browser sessions.
+"""HTTP integration for IAM password login, MFA challenges, and browser sessions.
 
-Approver sessions remain deliberately unavailable until MFA step-up is
-implemented. Legacy bearer authentication is not modified by this router.
+Legacy bearer authentication is not modified by this router.
 """
 from __future__ import annotations
 
@@ -11,7 +10,8 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.database import get_connection
-from app.iam import auth_throttling, repository, sessions
+from app.iam import auth_throttling, mfa, repository, sessions
+from app.iam.browser_auth import authenticate_browser_session
 from app.iam.browser_security import (
     CSRF_HEADER_NAME,
     SESSION_COOKIE_NAME,
@@ -31,6 +31,7 @@ _DUMMY_PASSWORD_HASH = (
     "gm9KYdMDFzunEZbY1V2fuLRZBLv+rCe2qoX045Ki7rM"
 )
 _GENERIC_LOGIN_ERROR = "Username or password is incorrect."
+_MFA_CHALLENGE_COOKIE = "__Host-aegis_mfa_challenge"
 
 
 class LoginRequest(BaseModel):
@@ -48,6 +49,11 @@ class LoginRequest(BaseModel):
         if len(encoded) > 1024:
             raise ValueError("password exceeds the supported UTF-8 byte limit")
         return value
+
+
+class MFAChallengeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(min_length=6, max_length=300)
 
 
 def _required_secret(name: str) -> str:
@@ -169,6 +175,7 @@ def login(payload: LoginRequest, request: Request, response: Response):
             blocked = True
             account = None
             password_valid = False
+            has_factor = False
         else:
             blocked = False
             try:
@@ -185,25 +192,39 @@ def login(payload: LoginRequest, request: Request, response: Response):
             eligible = (
                 account is not None
                 and account["status"] == "active"
-                and account["role"] == "analyst"
+                and account["role"] in {"analyst", "approver"}
                 and not account["must_change_password"]
             )
+            has_factor = (
+                account is not None
+                and mfa.has_active_totp(connection, user_id=account["id"])
+            )
+            eligible = eligible and (account["role"] == "analyst" or has_factor)
             if not (password_valid and eligible):
                 retry_after = _record_login_failure(
                     connection, ip_identifier=ip_identifier,
                     user_identifier=user_identifier, key=throttle_key,
                 )
+                has_factor = False
             else:
                 _clear_login_failures(
                     connection, ip_identifier=ip_identifier,
                     user_identifier=user_identifier, key=throttle_key,
                 )
-                issued = sessions.issue_session(
-                    connection, user_id=account["id"]
-                )
+                if has_factor:
+                    challenge_token = mfa.create_login_challenge(
+                        connection, user_id=account["id"]
+                    )
+                    issued = None
+                else:
+                    issued = sessions.issue_session(
+                        connection, user_id=account["id"]
+                    )
+                from datetime import datetime, timezone
+                login_at = issued.created_at if issued is not None else datetime.now(timezone.utc).isoformat(timespec="microseconds")
                 connection.execute(
                     "UPDATE iam_users SET last_login_at = ? WHERE id = ?",
-                    (issued.created_at, account["id"]),
+                    (login_at, account["id"]),
                 )
 
     if blocked:
@@ -217,8 +238,10 @@ def login(payload: LoginRequest, request: Request, response: Response):
             },
         )
     if not (password_valid and account is not None
-            and account["status"] == "active" and account["role"] == "analyst"
-            and not account["must_change_password"]):
+            and account["status"] == "active"
+            and account["role"] in {"analyst", "approver"}
+            and not account["must_change_password"]
+            and (account["role"] == "analyst" or has_factor)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=_GENERIC_LOGIN_ERROR,
@@ -229,6 +252,20 @@ def login(payload: LoginRequest, request: Request, response: Response):
             },
         )
 
+    if has_factor:
+        response.set_cookie(
+            key=_MFA_CHALLENGE_COOKIE, value=challenge_token,
+            max_age=5 * 60, path="/", secure=True, httponly=True,
+            samesite="strict",
+        )
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        return {
+            "authenticated": False,
+            "mfa_required": True,
+            "user": {"username": account["username"], "role": account["role"]},
+        }
+
     set_session_cookie(
         response, issued.token,
         max_age=DEFAULT_ABSOLUTE_TTL_SECONDS,
@@ -238,6 +275,91 @@ def login(payload: LoginRequest, request: Request, response: Response):
         "user": {"id": account["id"], "username": account["username"], "role": "analyst"},
         "csrf_token": create_csrf_token(issued.token, secret=csrf_key),
         "expires_at": issued.absolute_expires_at,
+    }
+
+
+@router.post("/login/mfa")
+def complete_mfa_login(
+    payload: MFAChallengeRequest, request: Request, response: Response
+):
+    _require_origin(request)
+    throttle_key, csrf_key = _throttle_settings()
+    client_ip = _client_ip(request)
+    challenge_token = request.cookies.get(_MFA_CHALLENGE_COOKIE)
+    if not challenge_token:
+        raise HTTPException(
+            status_code=401, detail="MFA challenge is invalid or expired.",
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+
+    failure_status = None
+    retry_after = None
+    issued = None
+    account = None
+    with get_connection() as connection:
+        challenge_user_id = mfa.get_login_challenge_user_id(
+            connection, challenge_token=challenge_token
+        )
+        if challenge_user_id is None:
+            failure_status = 401
+        else:
+            throttle_identifier = f"{challenge_user_id}|{client_ip}"
+            throttle_state = auth_throttling.is_authentication_blocked(
+                connection, scope="mfa-login", identifier=throttle_identifier,
+                secret=throttle_key,
+            )
+            if not throttle_state.allowed:
+                failure_status = 429
+                retry_after = throttle_state.retry_after_seconds
+            else:
+                try:
+                    user_id = mfa.verify_login_challenge(
+                        connection, challenge_token=challenge_token, code=payload.code
+                    )
+                except RuntimeError as exc:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="MFA encryption is not configured.",
+                    ) from exc
+                if user_id is None:
+                    failure = _record_mfa_failure(
+                        connection, scope="mfa-login",
+                        identifier=throttle_identifier, key=throttle_key,
+                    )
+                    failure_status = 429 if not failure.allowed else 401
+                    retry_after = failure.retry_after_seconds
+                else:
+                    auth_throttling.authentication_succeeded(
+                        connection, scope="mfa-login",
+                        identifier=throttle_identifier, secret=throttle_key,
+                    )
+                    issued = mfa.issue_mfa_verified_session(
+                        connection, user_id=user_id
+                    )
+                    account = repository.get_account_by_id(connection, user_id)
+
+    if failure_status is not None:
+        headers = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+        if failure_status == 429:
+            headers["Retry-After"] = str(max(1, retry_after or 1))
+        raise HTTPException(
+            status_code=failure_status,
+            detail="Too many MFA attempts. Try again later."
+            if failure_status == 429 else "MFA verification failed.",
+            headers=headers,
+        )
+
+    response.delete_cookie(
+        key=_MFA_CHALLENGE_COOKIE, path="/", secure=True,
+        httponly=True, samesite="strict",
+    )
+    set_session_cookie(response, issued.token, max_age=DEFAULT_ABSOLUTE_TTL_SECONDS)
+    return {
+        "authenticated": True,
+        "user": {"id": account["id"], "username": account["username"], "role": account["role"]},
+        "csrf_token": create_csrf_token(issued.token, secret=csrf_key),
+        "expires_at": issued.absolute_expires_at,
+        "mfa_verified": True,
     }
 
 
@@ -254,14 +376,14 @@ def inspect_session(request: Request, response: Response):
     _, csrf_key = _throttle_settings()
     with get_connection() as connection:
         principal = sessions.validate_session(connection, token=token)
-    if principal is None or principal.role != "analyst":
+    if principal is None or principal.role not in {"analyst", "approver"}:
         raise HTTPException(
             status_code=401, detail="Authentication required.",
             headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
         )
     response = {
         "authenticated": True,
-        "user": {"id": principal.user_id, "username": principal.username, "role": "analyst"},
+        "user": {"id": principal.user_id, "username": principal.username, "role": principal.role},
         "csrf_token": create_csrf_token(token, secret=csrf_key),
         "expires_at": principal.absolute_expires_at,
         "mfa_verified": principal.mfa_verified_at is not None,
@@ -286,3 +408,250 @@ def logout(request: Request, response: Response):
             sessions.revoke_session(connection, token=token)
     clear_session_cookie(response)
     return {"authenticated": False}
+
+
+class MFAEnrollmentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    current_password: str = Field(min_length=1, max_length=1024)
+
+
+class MFAConfirmationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    factor_id: str = Field(min_length=36, max_length=36)
+    code: str = Field(min_length=6, max_length=6)
+
+
+class MFAVerificationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(min_length=6, max_length=300)
+
+
+def _check_mfa_throttle(connection, *, scope: str, identifier: str):
+    key = _required_secret("AEGIS_AUTH_THROTTLE_HMAC_KEY")
+    decision = auth_throttling.is_authentication_blocked(
+        connection, scope=scope, identifier=identifier, secret=key
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=429, detail="Too many MFA attempts. Try again later.",
+            headers={"Retry-After": str(max(1, decision.retry_after_seconds)),
+                     "Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+    return key
+
+
+def _record_mfa_failure(connection, *, scope: str, identifier: str, key: str):
+    return auth_throttling.record_authentication_failure(
+        connection, scope=scope, identifier=identifier, secret=key,
+    )
+
+
+def _require_browser_principal(request: Request):
+    principal = authenticate_browser_session(request)
+    if principal is None:
+        raise HTTPException(
+            status_code=401, detail="An authenticated browser session is required.",
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+    return principal
+
+
+@router.post("/mfa/enroll")
+def start_mfa_enrollment(
+    payload: MFAEnrollmentRequest, request: Request, response: Response
+):
+    principal = _require_browser_principal(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    enrollment = None
+    failure_status = None
+    retry_after = None
+    with get_connection() as connection:
+        throttle_key = _check_mfa_throttle(
+            connection, scope="mfa-enroll-start", identifier=principal.user_id
+        )
+        account = repository.get_account_by_id(connection, principal.user_id)
+        if (
+            account is None or account["status"] != "active"
+            or not DEFAULT_PASSWORD_SERVICE.verify_password(
+                account["password_hash"], payload.current_password
+            )
+        ):
+            failure = _record_mfa_failure(
+                connection, scope="mfa-enroll-start",
+                identifier=principal.user_id, key=throttle_key,
+            )
+            failure_status = 429 if not failure.allowed else 403
+            retry_after = failure.retry_after_seconds
+        else:
+            auth_throttling.authentication_succeeded(
+                connection, scope="mfa-enroll-start",
+                identifier=principal.user_id, secret=throttle_key,
+            )
+            try:
+                enrollment = mfa.begin_totp_enrollment(
+                    connection, user_id=principal.user_id
+                )
+            except RuntimeError:
+                failure_status = 503
+            except ValueError:
+                failure_status = 409
+    if failure_status is not None:
+        headers = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+        if failure_status == 429:
+            headers["Retry-After"] = str(max(1, retry_after or 1))
+        detail = {
+            429: "Too many MFA attempts. Try again later.",
+            403: "Recent password verification is required.",
+            409: "MFA enrollment is not available.",
+            503: "MFA encryption is not configured.",
+        }[failure_status]
+        raise HTTPException(status_code=failure_status, detail=detail, headers=headers)
+    response.headers["Pragma"] = "no-cache"
+    return enrollment
+
+
+@router.post("/mfa/confirm")
+def confirm_mfa_enrollment(
+    payload: MFAConfirmationRequest, request: Request, response: Response
+):
+    principal = _require_browser_principal(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    codes = None
+    failure_status = None
+    retry_after = None
+    with get_connection() as connection:
+        throttle_key = _check_mfa_throttle(
+            connection, scope="mfa-enroll", identifier=principal.user_id
+        )
+        try:
+            codes = mfa.confirm_totp_enrollment(
+                connection, user_id=principal.user_id,
+                factor_id=payload.factor_id, code=payload.code,
+                password_service=DEFAULT_PASSWORD_SERVICE,
+            )
+        except RuntimeError:
+            failure_status = 503
+        except ValueError:
+            failure = _record_mfa_failure(
+                connection, scope="mfa-enroll",
+                identifier=principal.user_id, key=throttle_key,
+            )
+            failure_status = 429 if not failure.allowed else 400
+            retry_after = failure.retry_after_seconds
+        if failure_status is None:
+            auth_throttling.authentication_succeeded(
+                connection, scope="mfa-enroll",
+                identifier=principal.user_id, secret=throttle_key,
+            )
+    if failure_status is not None:
+        headers = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+        if failure_status == 429:
+            headers["Retry-After"] = str(max(1, retry_after or 1))
+        detail = "MFA encryption is not configured." if failure_status == 503 else (
+            "Too many MFA attempts. Try again later."
+            if failure_status == 429 else "MFA enrollment could not be confirmed."
+        )
+        raise HTTPException(status_code=failure_status, detail=detail, headers=headers)
+    return {
+        "mfa_enabled": True,
+        "recovery_codes": codes,
+        "message": "Save these recovery codes now. They will not be shown again.",
+    }
+
+
+@router.post("/mfa/step-up")
+def verify_mfa_step_up(
+    payload: MFAVerificationRequest, request: Request, response: Response
+):
+    principal = _require_browser_principal(request)
+    session_token = request.cookies.get(SESSION_COOKIE_NAME)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    failure_status = None
+    retry_after = None
+    with get_connection() as connection:
+        throttle_identifier = f"{principal.user_id}:{principal.session_id}"
+        throttle_key = _check_mfa_throttle(
+            connection, scope="mfa-stepup", identifier=throttle_identifier,
+        )
+        try:
+            valid = mfa.verify_totp(
+                connection, user_id=principal.user_id, code=payload.code
+            )
+        except RuntimeError:
+            valid = False
+            failure_status = 503
+        if not valid and failure_status is None:
+            valid = mfa.consume_recovery_code(
+                connection, user_id=principal.user_id,
+                recovery_code=payload.code,
+                password_service=DEFAULT_PASSWORD_SERVICE,
+            )
+        if not valid and failure_status is None:
+            failure = _record_mfa_failure(
+                connection, scope="mfa-stepup",
+                identifier=throttle_identifier, key=throttle_key,
+            )
+            failure_status = 429 if not failure.allowed else 401
+            retry_after = failure.retry_after_seconds
+        if valid:
+            if not mfa.mark_session_mfa_verified(
+                connection, session_token=session_token
+            ):
+                failure_status = 401
+            else:
+                auth_throttling.authentication_succeeded(
+                    connection, scope="mfa-stepup",
+                    identifier=throttle_identifier, secret=throttle_key,
+                )
+    if failure_status is not None:
+        headers = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+        if failure_status == 429:
+            headers["Retry-After"] = str(max(1, retry_after or 1))
+        detail = {
+            401: "MFA verification failed.",
+            429: "Too many MFA attempts. Try again later.",
+            503: "MFA encryption is not configured.",
+        }[failure_status]
+        raise HTTPException(status_code=failure_status, detail=detail, headers=headers)
+    return {"mfa_verified": True, "fresh_for_seconds": mfa.RECENT_MFA_SECONDS}
+
+
+@router.post("/mfa/recovery-codes/regenerate")
+def regenerate_mfa_recovery_codes(
+    request: Request, response: Response
+):
+    principal = _require_browser_principal(request)
+    if not mfa.has_recent_mfa(principal.mfa_verified_at):
+        raise HTTPException(status_code=403, detail="Recent MFA verification is required.")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    with get_connection() as connection:
+        try:
+            codes = mfa.regenerate_recovery_codes(
+                connection, user_id=principal.user_id,
+                password_service=DEFAULT_PASSWORD_SERVICE,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail="Recovery codes cannot be regenerated.") from exc
+    return {
+        "recovery_codes": codes,
+        "message": "Save these recovery codes now. They will not be shown again.",
+    }
+
+
+
+
+@router.get("/mfa/status")
+def inspect_mfa_status(request: Request, response: Response):
+    principal = _require_browser_principal(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    with get_connection() as connection:
+        enabled = mfa.has_active_totp(connection, user_id=principal.user_id)
+    return {
+        "enabled": enabled,
+        "recently_verified": mfa.has_recent_mfa(principal.mfa_verified_at),
+    }

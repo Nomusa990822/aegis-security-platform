@@ -28,12 +28,19 @@ whose IAM schema is current:
 
 - `python -m app.iam.admin invite --username analyst.one --role analyst`
 - `python -m app.iam.admin activate`
+- `python -m app.iam.admin mfa-enroll --user-id UUID` (local operator only; requires the MFA encryption key)
+- `python -m app.iam.admin mfa-reset --user-id UUID` (explicitly confirmed recovery; revokes factors, codes, and sessions)
 - `python -m app.iam.admin disable --user-id UUID`
 - `python -m app.iam.admin lock --user-id UUID`
 
 The invitation token is printed once for secure out-of-band delivery. The
 activation token and password are requested with hidden prompts, not command
-line arguments. The CLI refuses missing or symlink database paths and checks
+line arguments. The `mfa-enroll` command prints the authenticator provisioning
+material once to the protected operator terminal, requests a current code with
+a hidden prompt, and prints recovery codes once after successful confirmation. The
+`mfa-reset` command requires the exact hidden confirmation phrase `RESET MFA`,
+invalidates every active factor and unused recovery code, and revokes all
+sessions. The CLI refuses missing or symlink database paths and checks
 database integrity and migration history before opening it for writes. It
 does not create a database or apply migrations.
 
@@ -229,3 +236,72 @@ untrusted proxy and do not add permissive CORS rules.
   already-installed IAM v1/v2 schema is required.
 - Tests use isolated temporary SQLite databases. No live database, Docker
   volume, deployment, or audit-checkpoint state is changed by this branch.
+
+
+---
+
+# AEGIS IAM — Phase 2D (MFA integration)
+
+Phase 2D adds RFC 6238 TOTP primitives, encrypted TOTP factor storage,
+one-time recovery codes, login challenges, and server-side MFA step-up.
+
+## Implemented foundations
+
+- TOTP secrets use 160 bits of random entropy and six-digit, 30-second
+  RFC 6238 codes. Verification accepts a narrow ±1-step clock window and
+  advances the accepted step atomically to reject replay.
+- TOTP secrets are encrypted with AES-256-GCM. Each factor has a fresh
+  96-bit nonce; associated data binds ciphertext to the user and factor IDs.
+  Key material is loaded from `AEGIS_MFA_ENCRYPTION_KEY`; the configured
+  `AEGIS_MFA_ENCRYPTION_KEY_ID` must match the factor metadata. Missing,
+  malformed, wrong, or tampered keys fail closed.
+- Enrollment is staged as a pending factor and becomes active only after
+  TOTP confirmation. Pending factors older than 15 minutes are revoked when
+  a new enrollment is started.
+- Ten selector-based recovery codes are generated after confirmation.
+  Only Argon2id hashes are persisted; codes are returned once and consumed
+  atomically. Regeneration invalidates all previously unused codes.
+- MFA-enabled analyst and approver accounts receive a short-lived,
+  HttpOnly login-challenge cookie after password verification. No authenticated
+  session is issued until TOTP or a recovery code succeeds.
+- Successful challenge completion creates a server-side session with
+  `mfa_verified_at` set by server-side code. Browser approver actions require
+  this timestamp to be no older than five minutes. Legacy bearer-token
+  behavior remains unchanged.
+- Browser endpoints support password-reauthenticated enrollment, confirmation,
+  step-up, and recovery-code regeneration. All unsafe cookie requests retain
+  the Phase 2C CSRF and exact-origin checks. Secret-bearing responses are
+  marked `no-store`.
+
+## Required secret
+
+Configure an independent 32-byte URL-safe Base64 key and a key identifier:
+
+- `AEGIS_MFA_ENCRYPTION_KEY`
+- `AEGIS_MFA_ENCRYPTION_KEY_ID`
+
+Do not reuse the audit checkpoint, CSRF, authentication-throttle, API-token,
+session, or password material. Store it only in the deployment secret store.
+Loss of the key makes existing encrypted TOTP factors unusable; plan and test
+key backup/rotation separately before production rollout.
+
+## Operational boundaries
+
+No new database migration or startup migration is introduced. The existing
+IAM v1 schema already includes the TOTP, recovery-code, login-challenge, and
+session MFA columns. This phase does not apply migrations, touch a live
+database, rebuild/restart Docker, or deploy. Approver accounts without an
+active TOTP factor remain unable to use browser login and require a controlled
+operator enrollment/recovery process before access is enabled.
+
+## Completion and deployment readiness
+
+The local-operator `mfa-enroll` and `mfa-reset` workflows are implemented.
+The dashboard enrollment, challenge, step-up, and recovery-code display flows
+are implemented. Automated regression and security workflows have passed,
+including the backend suite and container image scan.
+
+Before production deployment, independently provision and back up the MFA
+encryption key, verify the key identifier and recovery procedure, configure
+HTTPS and trusted ingress, and complete an explicitly approved deployment
+runbook. These operational activities are not performed by this branch.

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Request, status
 from app.iam.browser_auth import authenticate_browser_session
+from app.iam.mfa import has_recent_mfa
 from fastapi.security import (
     HTTPAuthorizationCredentials,
     HTTPBearer,
@@ -21,6 +22,8 @@ APPROVER_ROLE = "approver"
 class AuthenticatedActor:
     actor_id: str
     role: str
+    auth_method: str = "bearer"
+    mfa_verified_at: str | None = None
 
 
 def _load_auth_configuration():
@@ -84,6 +87,8 @@ def get_current_actor(
             return AuthenticatedActor(
                 actor_id=browser_session.user_id,
                 role=browser_session.role,
+                auth_method="browser_session",
+                mfa_verified_at=browser_session.mfa_verified_at,
             )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -131,6 +136,11 @@ def get_approver_actor(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Approver permissions are required.",
+        )
+    if actor.auth_method == "browser_session" and not has_recent_mfa(actor.mfa_verified_at):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Recent MFA verification is required for approver actions.",
         )
 
     return actor

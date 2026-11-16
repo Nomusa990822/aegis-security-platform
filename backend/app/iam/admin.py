@@ -6,6 +6,7 @@ delivery; activation credentials and passwords are read with getpass.
 """
 import argparse
 from getpass import getpass
+import os
 from pathlib import Path
 import sqlite3
 import sys
@@ -15,6 +16,7 @@ from app.iam.accounts import (
     activate_account, change_account_status, create_invitation,
 )
 from app.iam.exceptions import IAMError
+from app.iam import mfa
 from app.iam.migrate import _check_database
 
 
@@ -38,6 +40,20 @@ def _open_existing_database(path: Path) -> sqlite3.Connection:
     return connection
 
 
+def _write_sensitive_terminal_output(*lines: str) -> None:
+    """Display one-time credentials only on an attached operator terminal.
+
+    Never fall back to stdout/stderr: those streams may be captured by CI,
+    service managers, or centralized logs.
+    """
+    descriptor = os.open("/dev/tty", os.O_WRONLY | os.O_NOCTTY)
+    try:
+        payload = "\n".join(lines) + "\n"
+        os.write(descriptor, payload.encode("utf-8"))
+    finally:
+        os.close(descriptor)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Local AEGIS IAM operator commands (no public registration)"
@@ -50,6 +66,14 @@ def main(argv: list[str] | None = None) -> int:
     commands.add_parser(
         "activate", help="activate an account using its one-time invitation"
     )
+    mfa_enroll = commands.add_parser(
+        "mfa-enroll", help="locally provision an account's first TOTP factor"
+    )
+    mfa_enroll.add_argument("--user-id", required=True)
+    mfa_reset = commands.add_parser(
+        "mfa-reset", help="revoke MFA factors and sessions for local recovery"
+    )
+    mfa_reset.add_argument("--user-id", required=True)
     for status in ("disable", "lock"):
         action = commands.add_parser(
             status, help=f"{status} an account and revoke sessions"
@@ -92,6 +116,44 @@ def main(argv: list[str] | None = None) -> int:
                     f"Account activated: {account['username']} "
                     f"({account['role']})."
                 )
+                return 0
+
+            if args.command == "mfa-enroll":
+                enrollment = mfa.begin_totp_enrollment(
+                    connection, user_id=args.user_id
+                )
+                _write_sensitive_terminal_output(
+                    "Add this account to an authenticator app.",
+                    "Provisioning URI (protect this terminal output):",
+                    enrollment["provisioning_uri"],
+                    "Manual setup key:",
+                    enrollment["secret"],
+                )
+                code = getpass("Current six-digit authenticator code: ")
+                recovery_codes = mfa.confirm_totp_enrollment(
+                    connection, user_id=args.user_id,
+                    factor_id=enrollment["factor_id"], code=code,
+                )
+                connection.commit()
+                _write_sensitive_terminal_output(
+                    "TOTP factor enabled.",
+                    "One-time recovery codes (store securely; shown once):",
+                    *recovery_codes,
+                )
+                return 0
+
+            if args.command == "mfa-reset":
+                confirmation = getpass(
+                    "Type RESET MFA to revoke factors, recovery codes, and sessions: "
+                )
+                if confirmation != "RESET MFA":
+                    raise ValueError("MFA reset confirmation did not match")
+                result = mfa.reset_user_mfa(
+                    connection, user_id=args.user_id
+                )
+                connection.commit()
+                print("MFA reset completed. All existing sessions and MFA credentials were invalidated.")
+                print("The account must be enrolled again before approver browser login.")
                 return 0
 
             status = "disabled" if args.command == "disable" else "locked"
