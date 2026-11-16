@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import tempfile
 
 import pytest
 from sqlalchemy import Column, ForeignKey, Integer, MetaData, Table, Text
@@ -126,6 +127,7 @@ def _source(*, tamper_audit: bool = False, orphan_child: bool = False):
             "2026-11-17T10:00:00+00:00",
         ),
     )
+    connection.commit()
     if orphan_child:
         connection.execute("PRAGMA foreign_keys = OFF")
         connection.execute(
@@ -174,8 +176,6 @@ def test_backup_restore_rejects_foreign_key_violation_before_backup():
 
 
 def test_backup_restore_rejects_file_backed_source():
-    with sqlite3.connect(":memory:") as source:
-        pass
     with tempfile.NamedTemporaryFile(suffix=".sqlite3") as file:
         file_source = sqlite3.connect(file.name)
         try:
