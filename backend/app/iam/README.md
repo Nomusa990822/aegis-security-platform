@@ -215,9 +215,16 @@ untrusted proxy and do not add permissive CORS rules.
   response explicitly reports this.
 - No public registration, invitation, activation, admin, password-reset, or
   approver-login route is exposed.
-- Dashboard JavaScript migration is a coordinated follow-up: until its
-  cookie/CSRF client is implemented and tested, the existing dashboard token
-  prompt remains. Do not remove or weaken it in this step.
+- The SOC dashboard now uses the analyst username/password routes and
+  server-managed cookie sessions. It sends same-origin credentials, keeps the
+  derived CSRF token in JavaScript memory only, and sends it on unsafe API
+  requests. The dashboard and response client do not read or write
+  `localStorage` or `sessionStorage`, and do not attach bearer tokens.
+- The dashboard sign-in form is analyst-only. Approver sign-in and approval
+  through a browser session remain unavailable until MFA enrollment,
+  verification, and recent-MFA step-up are integrated. Existing approver
+  bearer API compatibility is retained for legacy clients; it is not exposed
+  by the new dashboard login form.
 - No schema migration or automatic startup migration is introduced. The
   already-installed IAM v1/v2 schema is required.
 - Tests use isolated temporary SQLite databases. No live database, Docker
