@@ -8,18 +8,9 @@ from app.response.audit_chain import calculate_event_hash
 
 
 ANALYST_TOKEN = "a" * 48
-APPROVER_TOKEN = "b" * 48
-
-
 def analyst_headers():
     return {
         "Authorization": f"Bearer {ANALYST_TOKEN}",
-    }
-
-
-def approver_headers():
-    return {
-        "Authorization": f"Bearer {APPROVER_TOKEN}",
     }
 
 
@@ -67,13 +58,12 @@ def create_pending_response(client, expected_status=201):
     return response.json()["response_id"]
 
 
-def approve_response(client, response_id):
-    response = client.post(
+def approve_response(approver_client, response_id):
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={
             "reason": "Checkpoint integration test approval.",
         },
-        headers=approver_headers(),
     )
 
     assert response.status_code == 200
@@ -89,17 +79,16 @@ def get_checkpoint_intent_path(response_id):
     return directory / f"response_{response_id}.pending.json"
 
 
-def inspect_integrity(client, response_id):
-    return client.get(
+def inspect_integrity(approver_client, response_id):
+    return approver_client.get(
         f"/api/v1/response/{response_id}/audit-integrity",
-        headers=approver_headers(),
     )
 
 
-def test_request_creation_writes_signed_checkpoint(client):
+def test_request_creation_writes_signed_checkpoint(client, approver_client):
     response_id = create_pending_response(client)
 
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
 
     assert result.status_code == 200
     assert result.json()["valid"] is True
@@ -111,12 +100,12 @@ def test_request_creation_writes_signed_checkpoint(client):
     assert not get_checkpoint_intent_path(response_id).exists()
 
 
-def test_approval_updates_signed_checkpoint(client):
+def test_approval_updates_signed_checkpoint(client, approver_client):
     response_id = create_pending_response(client)
 
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
 
     assert result.status_code == 200
     assert result.json()["valid"] is True
@@ -131,21 +120,20 @@ def test_approval_updates_signed_checkpoint(client):
     assert document["payload"]["event_count"] == 2
 
 
-def test_rejection_updates_signed_checkpoint(client):
+def test_rejection_updates_signed_checkpoint(client, approver_client):
     response_id = create_pending_response(client)
 
-    rejection = client.post(
+    rejection = approver_client.post(
         f"/api/v1/response/{response_id}/reject",
         json={
             "reason": "Rejected during checkpoint integration testing.",
         },
-        headers=approver_headers(),
     )
 
     assert rejection.status_code == 200
     assert rejection.json()["response"]["status"] == "rejected"
 
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
 
     assert result.status_code == 200
     assert result.json()["valid"] is True
@@ -160,10 +148,10 @@ def test_rejection_updates_signed_checkpoint(client):
     assert document["payload"]["event_count"] == 2
 
 
-def test_simulation_updates_signed_checkpoint(client):
+def test_simulation_updates_signed_checkpoint(client, approver_client):
     response_id = create_pending_response(client)
 
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     simulation = client.post(
         f"/api/v1/response/{response_id}/simulate",
@@ -173,7 +161,7 @@ def test_simulation_updates_signed_checkpoint(client):
     assert simulation.status_code == 200
     assert simulation.json()["response"]["status"] == "simulated"
 
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
 
     assert result.status_code == 200
     assert result.json()["valid"] is True
@@ -188,12 +176,12 @@ def test_simulation_updates_signed_checkpoint(client):
     assert document["payload"]["event_count"] == 3
 
 
-def test_missing_checkpoint_is_detected(client):
+def test_missing_checkpoint_is_detected(client, approver_client):
     response_id = create_pending_response(client)
 
     get_checkpoint_path(response_id).unlink()
 
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
 
     assert result.status_code == 200
     assert result.json()["valid"] is False
@@ -204,7 +192,7 @@ def test_missing_checkpoint_is_detected(client):
     )
 
 
-def test_modified_checkpoint_signature_is_detected(client):
+def test_modified_checkpoint_signature_is_detected(client, approver_client):
     response_id = create_pending_response(client)
 
     checkpoint_path = get_checkpoint_path(response_id)
@@ -214,7 +202,7 @@ def test_modified_checkpoint_signature_is_detected(client):
 
     checkpoint_path.write_text(json.dumps(document))
 
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
 
     assert result.status_code == 200
     assert result.json()["valid"] is False
@@ -227,6 +215,7 @@ def test_modified_checkpoint_signature_is_detected(client):
 
 def test_database_chain_and_head_tampering_is_detected(
     client,
+    approver_client,
 ):
     response_id = create_pending_response(client)
 
@@ -291,7 +280,7 @@ def test_database_chain_and_head_tampering_is_detected(
     current_checkpoint = json.loads(checkpoint_path.read_text())
     assert current_checkpoint == original_checkpoint
 
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
 
     assert result.status_code == 200
 
@@ -310,6 +299,7 @@ def test_database_chain_and_head_tampering_is_detected(
 
 def test_checkpoint_write_failure_does_not_undo_committed_response(
     client,
+    approver_client,
     monkeypatch,
 ):
     from app.response import repository
@@ -339,7 +329,7 @@ def test_checkpoint_write_failure_does_not_undo_committed_response(
     assert len(history.json()["audit_log"]) == 1
 
     # But integrity verification must report the missing checkpoint.
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
 
     assert result.status_code == 200
     assert result.json()["valid"] is False
@@ -357,16 +347,16 @@ def test_checkpoint_write_failure_does_not_undo_committed_response(
 
 def test_missing_checkpoint_blocks_approval_without_mutation(
     client,
+    approver_client,
 ):
     response_id = create_pending_response(client)
     checkpoint_path = get_checkpoint_path(response_id)
 
     checkpoint_path.unlink()
 
-    approval = client.post(
+    approval = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={"reason": "Must fail closed."},
-        headers=approver_headers(),
     )
 
     assert approval.status_code == 409
@@ -384,7 +374,7 @@ def test_missing_checkpoint_blocks_approval_without_mutation(
     assert history.json()["decided_by"] is None
     assert len(history.json()["audit_log"]) == 1
 
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
     assert result.status_code == 200
     assert result.json()["valid"] is False
     assert result.json()["checkpoint_valid"] is False
@@ -392,6 +382,7 @@ def test_missing_checkpoint_blocks_approval_without_mutation(
 
 def test_tampered_checkpoint_blocks_approval_without_mutation(
     client,
+    approver_client,
 ):
     response_id = create_pending_response(client)
     checkpoint_path = get_checkpoint_path(response_id)
@@ -402,10 +393,9 @@ def test_tampered_checkpoint_blocks_approval_without_mutation(
 
     checkpoint_path.write_text(json.dumps(tampered_document))
 
-    approval = client.post(
+    approval = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={"reason": "Must fail closed."},
-        headers=approver_headers(),
     )
 
     assert approval.status_code == 409
@@ -420,7 +410,7 @@ def test_tampered_checkpoint_blocks_approval_without_mutation(
     assert history.json()["decided_by"] is None
     assert len(history.json()["audit_log"]) == 1
 
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
     assert result.status_code == 200
     assert result.json()["valid"] is False
     assert result.json()["checkpoint_valid"] is False
@@ -429,6 +419,7 @@ def test_tampered_checkpoint_blocks_approval_without_mutation(
 
 def test_database_tampering_before_checkpoint_advancement_is_detected(
     client,
+    approver_client,
 ):
     response_id = create_pending_response(client)
     checkpoint_path = get_checkpoint_path(response_id)
@@ -493,10 +484,9 @@ def test_database_tampering_before_checkpoint_advancement_is_detected(
 
     # The database has been rewritten, but the external checkpoint
     # still contains the original trusted hash.
-    approval = client.post(
+    approval = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={"reason": "Must fail closed."},
-        headers=approver_headers(),
     )
     assert approval.status_code == 409
 
@@ -515,7 +505,7 @@ def test_database_tampering_before_checkpoint_advancement_is_detected(
     assert history.json()["decided_by"] is None
     assert len(history.json()["audit_log"]) == 1
 
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
 
     assert result.status_code == 200
     assert result.json()["valid"] is False
@@ -530,6 +520,7 @@ def test_database_tampering_before_checkpoint_advancement_is_detected(
 
 def test_api_verifies_old_checkpoint_and_advances_with_new_key(
     client,
+    approver_client,
     monkeypatch,
 ):
     old_secret = os.environ["AEGIS_AUDIT_CHECKPOINT_KEY"]
@@ -561,20 +552,20 @@ def test_api_verifies_old_checkpoint_and_advances_with_new_key(
         json.dumps({"key-v1": old_secret}),
     )
 
-    old_checkpoint_result = inspect_integrity(client, response_id)
+    old_checkpoint_result = inspect_integrity(approver_client, response_id)
 
     assert old_checkpoint_result.status_code == 200
     assert old_checkpoint_result.json()["valid"] is True
     assert old_checkpoint_result.json()["checkpoint_valid"] is True
 
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     updated_document = json.loads(checkpoint_path.read_text())
 
     assert updated_document["payload"]["key_id"] == "key-v2"
     assert updated_document["payload"]["event_count"] == 2
 
-    updated_result = inspect_integrity(client, response_id)
+    updated_result = inspect_integrity(approver_client, response_id)
 
     assert updated_result.status_code == 200
     assert updated_result.json()["valid"] is True
@@ -584,6 +575,7 @@ def test_api_verifies_old_checkpoint_and_advances_with_new_key(
 
 def test_api_rejects_old_checkpoint_when_previous_key_is_unavailable(
     client,
+    approver_client,
     monkeypatch,
 ):
     monkeypatch.setenv(
@@ -608,7 +600,7 @@ def test_api_rejects_old_checkpoint_when_previous_key_is_unavailable(
         "{}",
     )
 
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
 
     assert result.status_code == 200
     assert result.json()["valid"] is False
@@ -623,6 +615,7 @@ def test_api_rejects_old_checkpoint_when_previous_key_is_unavailable(
 
 def test_api_key_rotation_integrity_inspection_is_read_only(
     client,
+    approver_client,
     monkeypatch,
 ):
     old_secret = os.environ["AEGIS_AUDIT_CHECKPOINT_KEY"]
@@ -677,7 +670,7 @@ def test_api_key_rotation_integrity_inspection_is_read_only(
             ).fetchone()
         )
 
-    result = inspect_integrity(client, response_id)
+    result = inspect_integrity(approver_client, response_id)
 
     assert result.status_code == 200
     assert result.json()["valid"] is True
@@ -715,9 +708,10 @@ def test_api_key_rotation_integrity_inspection_is_read_only(
 
 def test_missing_checkpoint_blocks_simulation_without_mutation(
     client,
+    approver_client,
 ):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     checkpoint_path = get_checkpoint_path(response_id)
     checkpoint_path.unlink()
@@ -747,9 +741,10 @@ def test_missing_checkpoint_blocks_simulation_without_mutation(
 
 def test_hash_chain_tampering_blocks_simulation_without_mutation(
     client,
+    approver_client,
 ):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     with database.get_connection() as connection:
         connection.execute(
@@ -789,7 +784,7 @@ def test_hash_chain_tampering_blocks_simulation_without_mutation(
     assert len(history.json()["audit_log"]) == 2
     assert history.json()["audit_log"][0]["actor"] == "tampered-actor"
 
-    integrity = inspect_integrity(client, response_id)
+    integrity = inspect_integrity(approver_client, response_id)
     assert integrity.status_code == 200
     assert integrity.json()["valid"] is False
     assert integrity.json()["chain_valid"] is False
@@ -798,6 +793,7 @@ def test_hash_chain_tampering_blocks_simulation_without_mutation(
 
 def test_hash_chain_tampering_blocks_approval_without_mutation(
     client,
+    approver_client,
 ):
     response_id = create_pending_response(client)
 
@@ -812,10 +808,9 @@ def test_hash_chain_tampering_blocks_approval_without_mutation(
         )
         connection.commit()
 
-    approval = client.post(
+    approval = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={"reason": "Must fail closed."},
-        headers=approver_headers(),
     )
 
     assert approval.status_code == 409
@@ -834,6 +829,7 @@ def test_hash_chain_tampering_blocks_approval_without_mutation(
 
 def test_approval_reports_committed_checkpoint_failure(
     client,
+    approver_client,
     monkeypatch,
 ):
     from app.response import repository
@@ -849,10 +845,9 @@ def test_approval_reports_committed_checkpoint_failure(
         fail_checkpoint_write,
     )
 
-    approval = client.post(
+    approval = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={"reason": "Checkpoint failure reporting test."},
-        headers=approver_headers(),
     )
 
     assert approval.status_code == 202
@@ -867,7 +862,7 @@ def test_approval_reports_committed_checkpoint_failure(
     assert history.json()["status"] == "approved"
     assert len(history.json()["audit_log"]) == 2
 
-    integrity = inspect_integrity(client, response_id)
+    integrity = inspect_integrity(approver_client, response_id)
     assert integrity.status_code == 200
     assert integrity.json()["valid"] is False
     assert integrity.json()["checkpoint_valid"] is False
@@ -876,12 +871,13 @@ def test_approval_reports_committed_checkpoint_failure(
 
 def test_simulation_reports_committed_checkpoint_failure(
     client,
+    approver_client,
     monkeypatch,
 ):
     from app.response import repository
 
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     def fail_checkpoint_write(**kwargs):
         raise OSError("Simulated simulation checkpoint storage failure.")
@@ -910,7 +906,7 @@ def test_simulation_reports_committed_checkpoint_failure(
     assert history.json()["simulated"] is True
     assert len(history.json()["audit_log"]) == 3
 
-    integrity = inspect_integrity(client, response_id)
+    integrity = inspect_integrity(approver_client, response_id)
     assert integrity.status_code == 200
     assert integrity.json()["valid"] is False
     assert integrity.json()["checkpoint_valid"] is False
@@ -920,6 +916,7 @@ def test_simulation_reports_committed_checkpoint_failure(
 
 def test_signed_checkpoint_intent_supports_safe_recovery(
     client,
+    approver_client,
     monkeypatch,
 ):
     from app.response import repository
@@ -967,7 +964,7 @@ def test_signed_checkpoint_intent_supports_safe_recovery(
     assert not intent_path.exists()
     assert checkpoint_file.exists()
 
-    integrity = inspect_integrity(client, response_id)
+    integrity = inspect_integrity(approver_client, response_id)
     assert integrity.status_code == 200
     assert integrity.json()["valid"] is True
     assert integrity.json()["checkpoint_valid"] is True
@@ -975,6 +972,7 @@ def test_signed_checkpoint_intent_supports_safe_recovery(
 
 def test_recovery_refuses_tampered_checkpoint_intent(
     client,
+    approver_client,
     monkeypatch,
 ):
     from app.response import repository
@@ -1011,7 +1009,7 @@ def test_recovery_refuses_tampered_checkpoint_intent(
     assert intent_path.exists()
     assert not get_checkpoint_path(response_id).exists()
 
-    integrity = inspect_integrity(client, response_id)
+    integrity = inspect_integrity(approver_client, response_id)
     assert integrity.status_code == 200
     assert integrity.json()["valid"] is False
     assert integrity.json()["checkpoint_valid"] is False
@@ -1020,6 +1018,7 @@ def test_recovery_refuses_tampered_checkpoint_intent(
 
 def test_recovery_refuses_database_rewrite_after_intent_was_signed(
     client,
+    approver_client,
     monkeypatch,
 ):
     from app.response import repository
@@ -1104,7 +1103,7 @@ def test_recovery_refuses_database_rewrite_after_intent_was_signed(
     assert get_checkpoint_intent_path(response_id).exists()
     assert not get_checkpoint_path(response_id).exists()
 
-def test_recovery_inventories_and_preserves_interrupted_temporary_files(client):
+def test_recovery_inventories_and_preserves_interrupted_temporary_files(client, approver_client):
     from app.response.checkpoint_recovery import recover_checkpoint_intents
 
     response_id = create_pending_response(client)
@@ -1137,9 +1136,10 @@ def test_recovery_inventories_and_preserves_interrupted_temporary_files(client):
 
 def test_tampered_checkpoint_blocks_simulation_without_mutation(
     client,
+    approver_client,
 ):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     checkpoint_path = get_checkpoint_path(response_id)
     original_document = json.loads(checkpoint_path.read_text())
@@ -1168,7 +1168,7 @@ def test_tampered_checkpoint_blocks_simulation_without_mutation(
     assert history.json()["executed"] is False
     assert len(history.json()["audit_log"]) == 2
 
-    integrity = inspect_integrity(client, response_id)
+    integrity = inspect_integrity(approver_client, response_id)
     assert integrity.status_code == 200
     assert integrity.json()["valid"] is False
     assert integrity.json()["chain_valid"] is True
@@ -1180,7 +1180,7 @@ def test_tampered_checkpoint_blocks_simulation_without_mutation(
 
 
 
-def test_signed_checkpoint_rejects_duplicate_json_keys(client):
+def test_signed_checkpoint_rejects_duplicate_json_keys(client, approver_client):
     response_id = create_pending_response(client)
     checkpoint_path = get_checkpoint_path(response_id)
     original = checkpoint_path.read_text(encoding="utf-8")
@@ -1196,7 +1196,7 @@ def test_signed_checkpoint_rejects_duplicate_json_keys(client):
         encoding="utf-8",
     )
 
-    integrity = inspect_integrity(client, response_id)
+    integrity = inspect_integrity(approver_client, response_id)
 
     assert integrity.status_code == 200
     result = integrity.json()
@@ -1209,9 +1209,10 @@ def test_signed_checkpoint_rejects_duplicate_json_keys(client):
 
 def test_duplicate_json_keys_in_audit_details_block_simulation(
     client,
+    approver_client,
 ):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     with database.get_connection() as connection:
         row = connection.execute(
@@ -1261,7 +1262,7 @@ def test_duplicate_json_keys_in_audit_details_block_simulation(
     assert isinstance(history.json()["audit_log"][0]["details"], str)
     assert '"action":"tampered","action":"block_ip"' in history.json()["audit_log"][0]["details"]
 
-    integrity = inspect_integrity(client, response_id)
+    integrity = inspect_integrity(approver_client, response_id)
     assert integrity.status_code == 200
     assert integrity.json()["valid"] is False
     assert integrity.json()["chain_valid"] is False
