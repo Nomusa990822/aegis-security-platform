@@ -426,6 +426,7 @@ def confirm_mfa_enrollment(
             codes = mfa.confirm_totp_enrollment(
                 connection, user_id=principal.user_id,
                 factor_id=payload.factor_id, code=payload.code,
+                password_service=DEFAULT_PASSWORD_SERVICE,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="MFA enrollment could not be confirmed.") from exc
@@ -472,7 +473,8 @@ def regenerate_mfa_recovery_codes(
     with get_connection() as connection:
         try:
             codes = mfa.regenerate_recovery_codes(
-                connection, user_id=principal.user_id
+                connection, user_id=principal.user_id,
+                password_service=DEFAULT_PASSWORD_SERVICE,
             )
         except ValueError as exc:
             raise HTTPException(status_code=409, detail="Recovery codes cannot be regenerated.") from exc
