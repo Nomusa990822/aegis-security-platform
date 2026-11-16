@@ -62,7 +62,7 @@ def test_analyst_cannot_approve_response(client):
 def test_analyst_cannot_reject_response(client):
     response_id = create_pending_response(client)
 
-    response = approver_client.post(
+    response = client.post(
         f"/api/v1/response/{response_id}/reject",
         json={},
     )
@@ -128,7 +128,7 @@ def test_approver_can_reject_pending_response(client, approver_client, approver_
     decision_event = record["audit_log"][1]
 
     assert decision_event["event"] == "response_rejected"
-    assert decision_event["actor"] == "approver-beta"
+    assert decision_event["actor"] == approver_id
 
 
 def test_requester_cannot_approve_own_response(client, approver_client, approver_id):
