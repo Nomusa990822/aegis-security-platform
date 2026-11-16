@@ -26,6 +26,7 @@ from app.intelligence.alert_enrichment import AlertIntelligenceService
 from app.intelligence.mitre_router import router as mitre_router
 from app.response.router import router as response_router
 from app.response.audit_router import router as response_audit_router
+from app.iam.auth_routes import router as iam_auth_router
 
 
 @asynccontextmanager
@@ -63,6 +64,7 @@ app.include_router(intelligence_router)
 app.include_router(mitre_router)
 app.include_router(response_router)
 app.include_router(response_audit_router)
+app.include_router(iam_auth_router)
 
 alert_intelligence_service = AlertIntelligenceService()
 
