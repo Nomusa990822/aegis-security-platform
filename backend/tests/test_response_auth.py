@@ -1,4 +1,3 @@
-
 import pytest
 
 from fastapi import Depends, FastAPI
@@ -12,15 +11,14 @@ from app.auth import (
 
 
 ANALYST_TOKEN = "a" * 48
-APPROVER_TOKEN = "b" * 48
+RETIRED_APPROVER_TOKEN = "b" * 48
 
 
 @pytest.fixture
 def auth_client(monkeypatch):
     monkeypatch.setenv("AEGIS_ANALYST_TOKEN", ANALYST_TOKEN)
-    monkeypatch.setenv("AEGIS_APPROVER_TOKEN", APPROVER_TOKEN)
+    monkeypatch.setenv("AEGIS_APPROVER_TOKEN", RETIRED_APPROVER_TOKEN)
     monkeypatch.setenv("AEGIS_ANALYST_ID", "analyst-alpha")
-    monkeypatch.setenv("AEGIS_APPROVER_ID", "approver-beta")
 
     app = FastAPI()
 
@@ -58,17 +56,13 @@ def test_analyst_token_authenticates_analyst(auth_client):
     }
 
 
-def test_approver_token_authenticates_approver(auth_client):
+def test_retired_approver_token_is_rejected(auth_client):
     response = auth_client.get(
         "/approver",
-        headers={"Authorization": f"Bearer {APPROVER_TOKEN}"},
+        headers={"Authorization": f"Bearer {RETIRED_APPROVER_TOKEN}"},
     )
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "actor_id": "approver-beta",
-        "role": "approver",
-    }
+    assert response.status_code == 401
 
 
 def test_missing_token_is_rejected(auth_client):
@@ -86,13 +80,13 @@ def test_invalid_token_is_rejected(auth_client):
     assert response.status_code == 401
 
 
-def test_approver_cannot_use_analyst_endpoint(auth_client):
+def test_retired_approver_token_cannot_use_analyst_endpoint(auth_client):
     response = auth_client.get(
         "/analyst",
-        headers={"Authorization": f"Bearer {APPROVER_TOKEN}"},
+        headers={"Authorization": f"Bearer {RETIRED_APPROVER_TOKEN}"},
     )
 
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 def test_analyst_cannot_use_approver_endpoint(auth_client):
@@ -104,27 +98,11 @@ def test_analyst_cannot_use_approver_endpoint(auth_client):
     assert response.status_code == 403
 
 
-def test_identical_role_tokens_are_rejected(
-    auth_client,
-    monkeypatch,
-):
-    monkeypatch.setenv("AEGIS_APPROVER_TOKEN", ANALYST_TOKEN)
-
-    response = auth_client.get(
-        "/analyst",
-        headers={"Authorization": f"Bearer {ANALYST_TOKEN}"},
-    )
-
-    assert response.status_code == 503
-
-
 @pytest.mark.parametrize(
     "variable,value",
     [
         ("AEGIS_ANALYST_TOKEN", "short"),
-        ("AEGIS_APPROVER_TOKEN", "short"),
         ("AEGIS_ANALYST_ID", ""),
-        ("AEGIS_APPROVER_ID", ""),
     ],
 )
 def test_unsafe_auth_configuration_is_rejected(
@@ -143,15 +121,24 @@ def test_unsafe_auth_configuration_is_rejected(
     assert response.status_code == 503
 
 
-def test_identical_actor_ids_are_rejected(
-    auth_client,
-    monkeypatch,
-):
-    monkeypatch.setenv("AEGIS_APPROVER_ID", "analyst-alpha")
-
+def test_retired_approver_configuration_is_not_required(auth_client, monkeypatch):
+    monkeypatch.delenv("AEGIS_APPROVER_TOKEN")
     response = auth_client.get(
-        "/approver",
-        headers={"Authorization": f"Bearer {APPROVER_TOKEN}"},
+        "/analyst",
+        headers={"Authorization": f"Bearer {ANALYST_TOKEN}"},
     )
+    assert response.status_code == 200
 
-    assert response.status_code == 503
+
+def test_bearer_approver_actor_is_rejected_even_if_constructed_directly():
+    from fastapi import HTTPException
+
+    legacy = AuthenticatedActor(
+        actor_id="legacy-approver",
+        role="approver",
+        auth_method="bearer",
+    )
+    with pytest.raises(HTTPException) as rejected:
+        get_approver_actor(legacy)
+
+    assert rejected.value.status_code == 403
