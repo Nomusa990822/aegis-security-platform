@@ -23,6 +23,7 @@ from app.iam.browser_security import (
 )
 from app.iam.passwords import DEFAULT_PASSWORD_SERVICE
 from app.iam.sessions import DEFAULT_ABSOLUTE_TTL_SECONDS
+from app.iam.trusted_proxies import resolve_client_ip
 
 router = APIRouter(prefix="/api/v1/iam", tags=["identity"])
 _DUMMY_PASSWORD_HASH = (
@@ -85,14 +86,22 @@ def _require_origin(request: Request) -> None:
 
 
 def _client_ip(request: Request) -> str:
-    # Do not trust X-Forwarded-For or Forwarded until a trusted-proxy boundary
-    # has been explicitly implemented and configured.
     if request.client is None or not request.client.host:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Client connection information is unavailable.",
         )
-    return request.client.host
+    try:
+        return resolve_client_ip(
+            request.client.host,
+            request.headers.get("x-forwarded-for"),
+            os.getenv("AEGIS_TRUSTED_PROXY_CIDRS", ""),
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is not configured.",
+        ) from exc
 
 
 def _throttle_settings() -> tuple[str, str]:
