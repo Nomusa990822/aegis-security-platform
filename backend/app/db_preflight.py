@@ -48,7 +48,7 @@ def _normalise_default(value: Any) -> str | None:
     value = str(value).strip()
     while len(value) > 1 and value[0] == "(" and value[-1] == ")":
         value = value[1:-1].strip()
-    if len(value) > 1 and value[0] == value[-1] and value[0] in "'\\"":
+    if len(value) > 1 and value[0] in ("'", '"') and value[-1] == value[0]:
         value = value[1:-1]
     return value.lower()
 
