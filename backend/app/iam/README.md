@@ -294,12 +294,14 @@ database, rebuild/restart Docker, or deploy. Approver accounts without an
 active TOTP factor remain unable to use browser login and require a controlled
 operator enrollment/recovery process before access is enabled.
 
-## Remaining review items
+## Completion and deployment readiness
 
-- Add/verify a controlled local-operator TOTP provisioning and recovery
-  workflow for approver accounts that cannot yet sign in.
-- Complete the dashboard MFA enrollment and recovery-code display UX.
-- Validate end-to-end approval freshness, concurrent challenge/code
-  consumption, and the complete regression/security workflow suite.
-- Review production key provisioning, backup, rotation, and operational
-  runbooks before any deployment.
+The local-operator `mfa-enroll` and `mfa-reset` workflows are implemented.
+The dashboard enrollment, challenge, step-up, and recovery-code display flows
+are implemented. Automated regression and security workflows have passed,
+including the backend suite and container image scan.
+
+Before production deployment, independently provision and back up the MFA
+encryption key, verify the key identifier and recovery procedure, configure
+HTTPS and trusted ingress, and complete an explicitly approved deployment
+runbook. These operational activities are not performed by this branch.
