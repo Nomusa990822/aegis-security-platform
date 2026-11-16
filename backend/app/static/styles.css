@@ -1017,6 +1017,10 @@ tbody tr:hover { background: #172235; }
     display: none;
 }
 
+#logout-button[hidden] {
+    display: none;
+}
+
 .auth-gate {
     position: fixed;
     inset: 0;
