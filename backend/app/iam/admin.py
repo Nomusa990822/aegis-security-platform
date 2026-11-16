@@ -137,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(
                     "MFA reset completed. "
                     f"Factors revoked: {result['factors_revoked']}; "
-                    f"codes invalidated: {result['codes_invalidated']}; "
+                    f"codes invalidated: {result['invalidated_count']}; "
                     f"sessions revoked: {result['sessions_revoked']}."
                 )
                 print("The account must be enrolled again before approver browser login.")
