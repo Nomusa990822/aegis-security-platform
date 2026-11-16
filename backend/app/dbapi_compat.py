@@ -11,11 +11,8 @@ import re
 from collections.abc import Sequence
 from typing import Any
 
-import psycopg
-from sqlalchemy.engine import make_url
-
 from app.db_engine import create_database_engine
-from psycopg.rows import dict_row
+from psycopg.rows import dict_row, tuple_row
 from psycopg.pq import TransactionStatus
 
 
@@ -143,6 +140,9 @@ class PostgresConnection:
         self._raw.rollback()
 
     def close(self):
+        driver_connection = getattr(self._raw, "driver_connection", None)
+        if driver_connection is not None:
+            driver_connection.row_factory = tuple_row
         self._raw.close()
 
     def __enter__(self):
@@ -165,7 +165,9 @@ def connect_postgres(database_url: str) -> PostgresConnection:
     if engine is None:
         engine = create_database_engine(database_url)
         _ENGINE_CACHE[database_url] = engine
-    return PostgresConnection(engine.raw_connection())
+    raw_connection = engine.raw_connection()
+    raw_connection.driver_connection.row_factory = dict_row
+    return PostgresConnection(raw_connection)
 
 
 def dispose_postgres_engines() -> None:
