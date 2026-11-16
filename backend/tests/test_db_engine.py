@@ -56,3 +56,42 @@ def test_engine_does_not_connect_until_first_use():
                 pass
     finally:
         engine.dispose()
+
+
+def test_postgresql_engine_transaction_rollback():
+    import os
+    from uuid import uuid4
+
+    database_url = os.getenv("AEGIS_TEST_POSTGRES_URL")
+    if not database_url:
+        pytest.skip("PostgreSQL integration service is not configured")
+
+    engine = create_database_engine(database_url)
+    table_name = f"engine_probe_{uuid4().hex}"
+
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    f"CREATE TABLE {table_name} "
+                    "(value INTEGER NOT NULL)"
+                )
+            )
+
+        with pytest.raises(RuntimeError, match="postgres rollback probe"):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(f"INSERT INTO {table_name} (value) VALUES (1)")
+                )
+                raise RuntimeError("postgres rollback probe")
+
+        with engine.connect() as connection:
+            count = connection.execute(
+                text(f"SELECT COUNT(*) FROM {table_name}")
+            ).scalar_one()
+
+        assert count == 0
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text(f"DROP TABLE IF EXISTS {table_name}"))
+        engine.dispose()
