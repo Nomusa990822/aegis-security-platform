@@ -439,6 +439,38 @@ def test_browser_approver_requires_recent_server_owned_mfa():
     )
     assert get_approver_actor(actor) is actor
 
-    # Legacy bearer-token authorization semantics remain unchanged.
-    legacy = AuthenticatedActor(actor_id="legacy-approver", role="approver")
-    assert get_approver_actor(legacy) is legacy
+    # A bearer actor cannot approve, even if it carries the approver role.
+    legacy = AuthenticatedActor(
+        actor_id="legacy-approver", role="approver", auth_method="bearer"
+    )
+    with pytest.raises(HTTPException) as retired:
+        get_approver_actor(legacy)
+    assert retired.value.status_code == 403
+
+
+
+def test_mfa_authenticated_approver_can_approve_response(
+    client, approver_client, approver_id, seeded_alert
+):
+    preview = client.post(
+        "/api/v1/response/preview",
+        json={
+            "alert_id": seeded_alert,
+            "action": "block_ip",
+            "target": "198.51.100.250",
+        },
+    )
+    assert preview.status_code == 201
+    response_id = preview.json()["response_id"]
+
+    decision = approver_client.post(
+        f"/api/v1/response/{response_id}/approve",
+        json={"reason": "Approved after MFA-authenticated review."},
+    )
+
+    assert decision.status_code == 200
+    record = decision.json()["response"]
+    assert record["status"] == "approved"
+    assert record["decided_by"] == approver_id
+    assert record["executed"] is False
+    assert record["simulated"] is False
