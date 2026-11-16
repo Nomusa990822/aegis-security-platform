@@ -35,8 +35,12 @@ def _verify_response_audit_integrity(connection: Any, tables: Sequence[Table]) -
     by_name = {table.name: table for table in tables}
     audit = by_name.get("response_audit_log")
     heads = by_name.get("response_audit_chain_heads")
-    if audit is None or heads is None:
+    if audit is None and heads is None:
         return
+    if audit is None or heads is None:
+        raise ValueError(
+            "response audit transfer requires both event and chain-head tables"
+        )
 
     events_by_response: dict[int, list[dict[str, Any]]] = {}
     rows = connection.execute(
