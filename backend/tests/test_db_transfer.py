@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import Column, ForeignKey, Integer, MetaData, Table, Text
+from sqlalchemy import Column, ForeignKey, Integer, MetaData, Table
 
 from app.db_schema import metadata
 from app.db_transfer import dependency_order, digest_table_rows, encode_value
