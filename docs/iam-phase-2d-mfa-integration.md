@@ -1,3 +1,5 @@
+> **Superseded note:** Phase 2E retires legacy approver bearer authentication. See [the Phase 2E production-readiness runbook](iam-phase-2e-production-readiness.md) for the current authentication boundary and deployment requirements.
+
 # Phase 2D — MFA integration design
 
 ## Status and dependency
@@ -39,9 +41,10 @@ it must not silently run migrations at application startup.
    verification, and step-up are recorded as privacy-safe security events.
    Secret material, TOTP values, recovery codes, challenge tokens, and
    provisioning URIs must never enter logs or audit metadata.
-10. Existing bearer authentication and response audit actor strings remain
-    compatible. Legacy bearer approver credentials are not silently promoted
-    to MFA-verified browser sessions.
+10. Analyst bearer authentication and response audit actor strings remain
+    compatible. Phase 2E retires the legacy approver bearer token entirely;
+    approver decisions are authorised only through a recent-MFA browser
+    session. A bearer credential is never promoted to MFA-verified status.
 
 ## Browser authentication flow
 
