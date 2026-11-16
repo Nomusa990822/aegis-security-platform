@@ -237,7 +237,6 @@ def test_rejection_rejects_reason_longer_than_limit(client, approver_client):
         json={
             "reason": "R" * 501,
         },
-        headers=approver_headers(),
     )
 
     assert response.status_code == 422
@@ -265,7 +264,6 @@ def test_decision_endpoints_reject_non_positive_ids(
     response = approver_client.post(
         f"/api/v1/response/0/{endpoint}",
         json={},
-        headers=approver_headers(),
     )
 
     assert response.status_code == 400
