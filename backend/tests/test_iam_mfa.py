@@ -168,3 +168,29 @@ def test_wrong_key_or_tampered_ciphertext_is_rejected(connection, monkeypatch):
             bytes(row["secret_ciphertext"]), key_id=row["encryption_key_id"],
             user_id=user_id, factor_id=enrollment["factor_id"],
         )
+
+
+def test_operator_reset_revokes_factors_recovery_codes_and_sessions(connection):
+    db, user_id = connection
+    enrollment = mfa.begin_totp_enrollment(db, user_id=user_id, now=NOW)
+    codes = mfa.confirm_totp_enrollment(
+        db, user_id=user_id, factor_id=enrollment["factor_id"],
+        code=totp.code_at(enrollment["secret"], at_time=NOW.timestamp()),
+        now=NOW, password_service=PASSWORDS,
+    )
+    issued = issue_session(db, user_id=user_id, now=NOW)
+    result = mfa.reset_user_mfa(db, user_id=user_id, now=NOW + timedelta(seconds=1))
+    assert result == {
+        "factors_revoked": 1,
+        "invalidated_count": len(codes),
+        "sessions_revoked": 1,
+    }
+    assert not mfa.has_active_totp(db, user_id=user_id)
+    assert not mfa.consume_recovery_code(
+        db, user_id=user_id, recovery_code=codes[0],
+        now=NOW + timedelta(seconds=2), password_service=PASSWORDS,
+    )
+    from app.iam.sessions import validate_session
+    assert validate_session(
+        db, token=issued.token, now=NOW + timedelta(seconds=2)
+    ) is None
