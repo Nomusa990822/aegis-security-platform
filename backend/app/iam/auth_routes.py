@@ -178,12 +178,12 @@ def login(payload: LoginRequest, request: Request, response: Response):
                     connection, ip_identifier=ip_identifier,
                     user_identifier=user_identifier, key=throttle_key,
                 )
-                connection.execute(
-                    "UPDATE iam_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (account["id"],),
-                )
                 issued = sessions.issue_session(
                     connection, user_id=account["id"]
+                )
+                connection.execute(
+                    "UPDATE iam_users SET last_login_at = ? WHERE id = ?",
+                    (issued.created_at, account["id"]),
                 )
 
     if blocked:
