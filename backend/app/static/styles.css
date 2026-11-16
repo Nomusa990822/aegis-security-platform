@@ -1017,7 +1017,8 @@ tbody tr:hover { background: #172235; }
     display: none;
 }
 
-#logout-button[hidden] {
+#logout-button[hidden],
+#mfa-settings-button[hidden] {
     display: none;
 }
 
@@ -1063,6 +1064,18 @@ tbody tr:hover { background: #172235; }
     border-radius: 9px;
     color: inherit;
     background: rgba(255, 255, 255, 0.04);
+}
+
+.auth-panel textarea {
+    width: 100%;
+    min-height: 74px;
+    padding: 12px 14px;
+    border: 1px solid var(--border, #263247);
+    border-radius: 9px;
+    color: inherit;
+    background: rgba(255, 255, 255, 0.04);
+    resize: vertical;
+    overflow-wrap: anywhere;
 }
 
 .auth-panel .primary-button {
