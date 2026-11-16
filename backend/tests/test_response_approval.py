@@ -62,7 +62,7 @@ def test_analyst_cannot_approve_response(client):
 def test_analyst_cannot_reject_response(client):
     response_id = create_pending_response(client)
 
-    response = approver_client.post(
+    response = client.post(
         f"/api/v1/response/{response_id}/reject",
         json={},
     )
@@ -176,7 +176,7 @@ def test_requester_cannot_reject_own_response(client, approver_client, approver_
         )
         connection.commit()
 
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/reject",
         json={},
     )
