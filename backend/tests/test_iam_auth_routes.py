@@ -19,6 +19,12 @@ def iam_client(client, monkeypatch):
     monkeypatch.setenv("AEGIS_AUTH_THROTTLE_HMAC_KEY", "throttle-key-" + "t" * 40)
     monkeypatch.setenv("AEGIS_CSRF_SIGNING_KEY", "csrf-key-" + "c" * 40)
     monkeypatch.setenv("AEGIS_IAM_ALLOWED_ORIGINS", ORIGIN)
+    import base64
+    monkeypatch.setenv(
+        "AEGIS_MFA_ENCRYPTION_KEY",
+        base64.urlsafe_b64encode(b"m" * 32).decode("ascii").rstrip("="),
+    )
+    monkeypatch.setenv("AEGIS_MFA_ENCRYPTION_KEY_ID", "test-key-v1")
     fast_passwords = PasswordService(
         memory_cost=1024, time_cost=1, parallelism=1
     )
@@ -210,3 +216,76 @@ def test_analyst_cookie_session_cannot_access_approver_only_api(iam_client):
             headers={"Cookie": f"__Host-aegis_session={token}"},
         )
     assert response.status_code == 403
+
+
+
+def _enable_totp_for_user(username):
+    from datetime import datetime, timedelta, timezone
+    from app.iam import mfa, repository, totp
+
+    enrollment_time = datetime.now(timezone.utc) - timedelta(seconds=60)
+    with database.get_connection() as connection:
+        account = repository.get_account_by_username(connection, username)
+        enrollment = mfa.begin_totp_enrollment(
+            connection, user_id=account["id"], now=enrollment_time
+        )
+        mfa.confirm_totp_enrollment(
+            connection, user_id=account["id"],
+            factor_id=enrollment["factor_id"],
+            code=totp.code_at(
+                enrollment["secret"], at_time=enrollment_time.timestamp()
+            ),
+            now=enrollment_time,
+            password_service=auth_routes.DEFAULT_PASSWORD_SERVICE,
+        )
+    return enrollment["secret"]
+
+
+def test_mfa_enabled_approver_login_requires_second_factor(iam_client):
+    from app.iam import totp
+
+    secret = _enable_totp_for_user("approver.login")
+    password_login = iam_client.post(
+        "/api/v1/iam/login",
+        json={"username": "approver.login", "password": TEST_PASSWORD},
+        headers={"Origin": ORIGIN},
+    )
+    assert password_login.status_code == 200
+    assert password_login.json()["mfa_required"] is True
+    assert password_login.json()["authenticated"] is False
+    assert "__Host-aegis_mfa_challenge=" in password_login.headers["set-cookie"]
+    assert "__Host-aegis_session=" not in password_login.headers["set-cookie"]
+
+    completed = iam_client.post(
+        "/api/v1/iam/login/mfa",
+        json={"code": totp.code_at(secret)},
+        headers={"Origin": ORIGIN},
+    )
+    assert completed.status_code == 200
+    assert completed.json()["authenticated"] is True
+    assert completed.json()["user"]["role"] == "approver"
+    assert completed.json()["mfa_verified"] is True
+    assert "__Host-aegis_session=" in completed.headers["set-cookie"]
+
+    session = iam_client.get("/api/v1/iam/session")
+    assert session.status_code == 200
+    assert session.json()["user"]["role"] == "approver"
+    assert session.json()["mfa_verified"] is True
+
+
+def test_mfa_challenge_rejects_wrong_code_and_does_not_issue_session(iam_client):
+    _enable_totp_for_user("analyst.login")
+    password_login = iam_client.post(
+        "/api/v1/iam/login",
+        json={"username": "analyst.login", "password": TEST_PASSWORD},
+        headers={"Origin": ORIGIN},
+    )
+    assert password_login.status_code == 200
+    assert password_login.json()["mfa_required"] is True
+    failed = iam_client.post(
+        "/api/v1/iam/login/mfa",
+        json={"code": "000000"},
+        headers={"Origin": ORIGIN},
+    )
+    assert failed.status_code == 401
+    assert "__Host-aegis_session=" not in failed.headers.get("set-cookie", "")
