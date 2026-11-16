@@ -1,5 +1,5 @@
 """IAM schema: credentials, MFA, recovery, sessions and security telemetry."""
-from sqlalchemy import CheckConstraint, Column, ForeignKey, Index, Integer, LargeBinary, Table, Text
+from sqlalchemy import CheckConstraint, Column, ForeignKey, Index, Integer, LargeBinary, Table, Text, text
 from app.db_schema import metadata
 
 iam_users = Table("iam_users", metadata,
@@ -30,14 +30,18 @@ iam_mfa_factors = Table("iam_mfa_factors", metadata,
     CheckConstraint("factor_type = 'totp'", name="factor_type"),
     CheckConstraint("status IN ('pending', 'active', 'revoked')", name="status"),
     CheckConstraint("last_accepted_step IS NULL OR last_accepted_step >= 0", name="accepted_step"),
-    CheckConstraint("length(id) = 36", name="id_length"), Index("idx_iam_mfa_factors_user", "user_id"))
+    CheckConstraint("length(id) = 36", name="id_length"),
+    Index("idx_iam_mfa_factors_user_status", "user_id", "status"),
+    Index("idx_iam_one_active_totp_per_user", "user_id", unique=True,
+          sqlite_where=text("status = 'active' AND factor_type = 'totp'"),
+          postgresql_where=text("status = 'active' AND factor_type = 'totp'")))
 
 iam_recovery_codes = Table("iam_recovery_codes", metadata,
     Column("id", Text, primary_key=True),
     Column("user_id", Text, ForeignKey("iam_users.id", ondelete="RESTRICT"), nullable=False),
     Column("code_hash", Text, nullable=False, unique=True), Column("created_at", Text, nullable=False),
     Column("used_at", Text), CheckConstraint("length(id) = 36", name="id_length"),
-    Index("idx_iam_recovery_codes_user", "user_id"))
+    Index("idx_iam_recovery_codes_user_unused", "user_id", "used_at"))
 
 iam_access_tokens = Table("iam_access_tokens", metadata,
     Column("id", Text, primary_key=True),
@@ -47,7 +51,7 @@ iam_access_tokens = Table("iam_access_tokens", metadata,
     Column("expires_at", Text, nullable=False), Column("last_used_at", Text), Column("revoked_at", Text),
     Column("revocation_reason", Text), CheckConstraint("length(id) = 36", name="id_length"),
     CheckConstraint("length(token_prefix) BETWEEN 4 AND 24", name="token_prefix_length"),
-    Index("idx_iam_access_tokens_user", "user_id"))
+    Index("idx_iam_access_tokens_user_active", "user_id", "revoked_at", "expires_at"))
 
 iam_sessions = Table("iam_sessions", metadata,
     Column("id", Text, primary_key=True),
@@ -58,7 +62,7 @@ iam_sessions = Table("iam_sessions", metadata,
     CheckConstraint("length(id) = 36", name="id_length"),
     CheckConstraint("absolute_expires_at >= created_at", name="absolute_expiry"),
     CheckConstraint("idle_expires_at <= absolute_expires_at", name="idle_expiry"),
-    Index("idx_iam_sessions_user", "user_id"))
+    Index("idx_iam_sessions_user_active", "user_id", "revoked_at", "idle_expires_at", "absolute_expires_at"))
 
 iam_auth_challenges = Table("iam_auth_challenges", metadata,
     Column("id", Text, primary_key=True),
@@ -89,7 +93,8 @@ iam_auth_rate_limits = Table("iam_auth_rate_limits", metadata,
     Column("window_started_at", Text, nullable=False), Column("failures", Integer, nullable=False),
     Column("blocked_until", Text), Column("updated_at", Text, nullable=False),
     CheckConstraint("length(scope) BETWEEN 1 AND 32", name="scope_length"),
-    CheckConstraint("failures >= 1", name="failures"), CheckConstraint("length(bucket_hash) = 64", name="bucket_hash_length"))
+    CheckConstraint("failures >= 1", name="failures"), CheckConstraint("length(bucket_hash) = 64", name="bucket_hash_length"),
+    Index("idx_iam_auth_rate_limits_updated", "updated_at"))
 
 iam_schema_migrations = Table("iam_schema_migrations", metadata,
     Column("version", Integer, primary_key=True), Column("name", Text, nullable=False, unique=True),
