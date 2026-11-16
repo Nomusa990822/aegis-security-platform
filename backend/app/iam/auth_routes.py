@@ -494,9 +494,12 @@ def verify_mfa_step_up(
             connection, scope="mfa-stepup",
             identifier=f"{principal.user_id}:{principal.session_id}",
         )
-        valid = mfa.verify_totp(
-            connection, user_id=principal.user_id, code=payload.code
-        )
+        try:
+            valid = mfa.verify_totp(
+                connection, user_id=principal.user_id, code=payload.code
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail="MFA encryption is not configured.") from exc
         if not valid:
             valid = mfa.consume_recovery_code(
                 connection, user_id=principal.user_id,
