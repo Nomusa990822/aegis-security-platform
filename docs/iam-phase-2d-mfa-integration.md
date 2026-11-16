@@ -2,10 +2,14 @@
 
 ## Status and dependency
 
-This is a stacked change based on `security/iam-phase-2c-authentication-integration`.
-Phase 2C must be reviewed and merged before this branch can be merged. This phase
-does not deploy, apply migrations to a live database, alter Docker volumes, or
-change production secrets.
+Phase 2C was merged into `main` in pull request #18. This implementation is
+now based on `main` and can be reviewed independently. CI validates the
+implementation; this phase does not deploy, apply migrations to a live
+database, alter Docker volumes, or change production secrets.
+
+Implementation and automated validation are complete. Production deployment
+remains a separate, explicitly approved activity requiring independent key
+provisioning and operational readiness checks.
 
 The IAM v1 schema already contains the foundational tables and columns:
 `iam_mfa_factors`, `iam_recovery_codes`, `iam_auth_challenges`, and
