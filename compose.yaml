@@ -1,4 +1,25 @@
 services:
+  postgres:
+    image: postgres:17.6-alpine3.22
+    container_name: aegis-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${AEGIS_POSTGRES_DB:?Set AEGIS_POSTGRES_DB in .env}
+      POSTGRES_USER: ${AEGIS_POSTGRES_USER:?Set AEGIS_POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${AEGIS_POSTGRES_PASSWORD:?Set AEGIS_POSTGRES_PASSWORD in .env}
+    volumes:
+      - aegis-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
   aegis:
     build:
       context: .
@@ -10,8 +31,11 @@ services:
     env_file:
       - .env
     environment:
-      AEGIS_DATABASE_PATH: /data/aegis.db
+      AEGIS_DATABASE_URL: ${AEGIS_DATABASE_URL:?Set AEGIS_DATABASE_URL in .env}
       AEGIS_AUDIT_CHECKPOINT_DIR: /data/audit_checkpoints
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8000:8000"
     volumes:
@@ -34,5 +58,29 @@ services:
       retries: 3
       start_period: 15s
 
+  migrate:
+    image: aegis-security-platform:local
+    profiles:
+      - migration
+    env_file:
+      - .env
+    environment:
+      AEGIS_DATABASE_URL: ${AEGIS_DATABASE_URL:?Set AEGIS_DATABASE_URL in .env}
+      AEGIS_ALEMBIC_ALLOW_MIGRATIONS: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - aegis-data:/data
+    command: ["alembic", "upgrade", "head"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
 volumes:
+  aegis-postgres-data:
   aegis-data:
