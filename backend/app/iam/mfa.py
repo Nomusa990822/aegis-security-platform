@@ -141,7 +141,7 @@ def _new_recovery_codes(
     values: list[str] = []
     for _ in range(RECOVERY_CODE_COUNT):
         code_id = str(uuid.uuid4())
-        secret = secrets.token_urlsafe(24)
+        secret = secrets.token_urlsafe(32)
         raw_code = f"{code_id}.{secret}"
         code_hash = password_service.hash_password(secret)
         connection.execute(
