@@ -114,7 +114,6 @@ def test_rejected_lifecycle_has_valid_audit(client, approver_client):
     decision = approver_client.post(
         f"/api/v1/response/{response_id}/reject",
         json={"reason": "Rejected for lifecycle testing."},
-        headers=approver_headers(),
     )
 
     assert decision.status_code == 200
@@ -138,7 +137,6 @@ def test_simulated_lifecycle_has_valid_audit(client, approver_client):
     approval = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={"reason": "Approved for dry-run testing."},
-        headers=approver_headers(),
     )
 
     assert approval.status_code == 200
