@@ -11,7 +11,7 @@ Phase 2C and Phase 2D are merged. The merged code has browser password authentic
 
 The repository is **not yet cleared for production deployment**. The following are deployment gates, not optional polish:
 
-1. The legacy bearer-token approver path remains enabled and does not enforce MFA. An approver using `AEGIS_APPROVER_TOKEN` can still authenticate through the legacy API path without an interactive MFA step-up. Browser-session approver actions do enforce recent MFA. Production must either explicitly accept and document the legacy bearer risk for a tightly controlled transition, or complete a separately reviewed change that retires/restricts that path before claiming MFA is mandatory for all approvals.
+1. The legacy approver bearer-token path is retired by this Phase 2E change. `AEGIS_APPROVER_TOKEN` is no longer loaded or accepted; a token previously configured under that name receives HTTP 401. `get_approver_actor` accepts only an IAM browser session with a server-owned MFA verification timestamp no older than five minutes. Analyst bearer authentication remains available. Production must deploy this change before claiming that all approver decisions require MFA.
 2. The Compose file publishes host port `8000` without a loopback bind restriction and does not terminate TLS. Production must put the service behind maintained HTTPS ingress and prevent direct public access to the application port.
 3. MFA encryption key custody and recovery must be established before enrolling production accounts. Losing the configured key makes existing encrypted TOTP factors unusable. The current implementation does not provide a multi-key decryption keyring or automated TOTP-key rotation.
 4. A production-grade, tested backup/restore procedure must preserve a consistent set of SQLite data, audit checkpoint files, and the corresponding cryptographic keys.
@@ -28,7 +28,7 @@ A healthy `/api/v1/health` response is not proof that authentication configurati
 - Unsafe cookie-authenticated requests require the session-bound CSRF header and an exact allowlisted HTTPS Origin.
 - MFA-enabled accounts complete a short-lived password-plus-TOTP/recovery-code challenge before a session is issued.
 - Browser approver actions require a server-set MFA timestamp no older than five minutes.
-- The legacy bearer-token path remains available in `backend/app/auth.py`. The configured analyst and approver bearer tokens are accepted independently of browser-session MFA checks. In particular, the legacy approver bearer path is **not MFA-protected**.
+- Analyst bearer authentication remains available for existing integrations. The legacy approver bearer token is retired: `AEGIS_APPROVER_TOKEN` is ignored and cannot authenticate any API request. Approver identities are issued by IAM browser sessions after password plus TOTP/recovery-code login. Approver-only actions require `auth_method=browser_session` and a server-owned MFA timestamp no older than five minutes. A bearer actor with a forged `role=approver` is rejected.
 - Public registration, public invitation, and public administrative provisioning endpoints are not provided. Account invitation, activation, MFA enrollment, reset, disable, and lock operations are local-operator CLI workflows.
 - Passwords use Argon2id. Recovery codes are single-use and stored as Argon2id hashes.
 
@@ -49,7 +49,7 @@ A healthy `/api/v1/health` response is not proof that authentication configurati
 - TOTP secrets are encrypted with AES-256-GCM; the database stores ciphertext, nonce material, and key ID, not plaintext TOTP secrets.
 - Decryption currently requires the configured key ID to match the factor's stored key ID. There is no supported previous-key keyring or in-place re-encryption/rotation utility.
 - Keep the MFA key in an approved secret manager and in a separately protected, recoverable key backup. Do not rotate it casually. If it is lost, affected factors cannot be decrypted; affected users need a controlled recovery/re-enrollment process.
-- The MFA key is separate from the audit-checkpoint signing key, CSRF signing key, authentication-throttle HMAC key, API tokens, and session tokens.
+- The MFA key is separate from the audit-checkpoint signing key, CSRF signing key, authentication-throttle HMAC key, analyst API token, and session tokens.\n- Remove the retired `AEGIS_APPROVER_TOKEN` and `AEGIS_APPROVER_ID` entries from deployment configuration after this release is deployed and no external consumer depends on them. The application ignores both settings in this release.
 
 ### 2.4 Container and network
 
@@ -68,7 +68,7 @@ Provision each value through the production secret manager or protected deployme
 |---|---|
 | `AEGIS_ANALYST_TOKEN` | Required by legacy API auth; at least 32 characters/bytes as enforced by code. |
 | `AEGIS_APPROVER_TOKEN` | Required by legacy API auth; at least 32 characters/bytes, distinct from analyst token. |
-| `AEGIS_ANALYST_ID` / `AEGIS_APPROVER_ID` | Distinct actor identifiers. |
+| `AEGIS_ANALYST_ID` | Optional analyst bearer actor identifier; defaults to `analyst`. Approver identity comes from the IAM user record. |
 | `AEGIS_AUDIT_CHECKPOINT_KEY` | Active audit-checkpoint signing key; preserve the current key and any configured legacy/previous keys needed to verify historical checkpoints. |
 | `AEGIS_AUDIT_CHECKPOINT_KEY_ID` | Active checkpoint key identifier. Preserve key-ID history. |
 | `AEGIS_AUDIT_CHECKPOINT_DIR` | Persistent checkpoint directory; production path should remain `/data/audit_checkpoints`. |
@@ -212,7 +212,7 @@ This is a controlled sequence for a future, separately authorised production dep
 8. Deploy the pinned candidate image with the approved ingress configuration and the original persistent volume.
 9. Verify the running container uses the expected image digest, non-root user, read-only filesystem, dropped capabilities, no-new-privileges, and original `/data` volume.
 10. Verify health, IAM schema, SQLite integrity, foreign keys, audit-checkpoint inventory, browser login, MFA challenge, logout, CSRF rejection, session expiry/revocation, and role boundaries.
-11. Verify the approver browser path requires recent MFA. Separately test and document the legacy bearer approver path until it has been retired or explicitly risk-accepted.
+11. Verify the approver browser path requires recent MFA. Verify that the retired `AEGIS_APPROVER_TOKEN` receives HTTP 401 and cannot read protected API routes or make decisions. Verify analyst bearer integrations still work.
 12. Confirm no secrets or one-time credentials were written to logs. Record outcome and image digest, then close the maintenance window only after all gates pass.
 
 ## 9. Post-deployment smoke tests
@@ -233,7 +233,7 @@ Use dedicated test accounts and controlled test events. Do not use a production 
 - IAM migration check reports no pending migration.
 - SQLite integrity and foreign-key checks pass.
 - Audit checkpoint inventory reports valid signatures, database matching, hash chain, and lifecycle.
-- The legacy bearer approver path is tested as a known exception and is not misrepresented as MFA-protected.
+- The retired legacy approver bearer token is rejected with HTTP 401; analyst bearer compatibility remains intact.
 
 ## 10. Rollback and failure handling
 
@@ -297,7 +297,7 @@ Phase 2E documentation is ready for review when the following are confirmed by t
 - [ ] Trusted proxy CIDRs and X-Forwarded-For sanitisation are verified.
 - [ ] All required independent secrets are provisioned and recoverable.
 - [ ] MFA encryption key backup and recovery have been tested.
-- [ ] Legacy bearer approver MFA gap is retired or explicitly risk-accepted with compensating controls.
+- [ ] The retired approver bearer token is rejected with HTTP 401, and approver decisions require a browser session with recent MFA.
 - [ ] Production accounts and approver MFA bootstrap are planned.
 - [ ] Database plus checkpoint backup/restore is tested as a coordinated recovery point.
 - [ ] IAM schema and audit inventory preflight pass on staging.
