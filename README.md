@@ -562,6 +562,7 @@ The Compose deployment runs AEGIS against PostgreSQL 17. PostgreSQL data and sig
 From the repository root, generate a private environment file once:
 
 ```bash
+PG_PASSWORD=$(openssl rand -hex 32)
 cat > .env <<EOF
 AEGIS_ANALYST_TOKEN=$(openssl rand -hex 32)
 AEGIS_ANALYST_ID=analyst-local
@@ -570,8 +571,8 @@ AEGIS_AUDIT_CHECKPOINT_KEY_ID=local-v1
 AEGIS_AUDIT_CHECKPOINT_DIR=/data/audit_checkpoints
 AEGIS_POSTGRES_DB=aegis
 AEGIS_POSTGRES_USER=aegis
-AEGIS_POSTGRES_PASSWORD=$(openssl rand -hex 32)
-AEGIS_DATABASE_URL=postgresql+psycopg://aegis:$AEGIS_POSTGRES_PASSWORD@postgres:5432/aegis
+AEGIS_POSTGRES_PASSWORD=$PG_PASSWORD
+AEGIS_DATABASE_URL=postgresql+psycopg://aegis:$PG_PASSWORD@postgres:5432/aegis
 EOF
 ```
 
