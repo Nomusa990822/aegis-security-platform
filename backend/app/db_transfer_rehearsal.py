@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import Engine, Table, func, insert, inspect, select
+from sqlalchemy import Table, func, insert, inspect, select
 
 
 def _assert_synthetic_connections(source: Any, destination: Any) -> None:
@@ -49,7 +49,7 @@ def transfer_synthetic_tables(
     manifest: dict[str, dict[str, Any]] = {}
 
     # Validate that the caller created the expected destination schema first.
-    destination_inspector = inspect(destination_connection)
+    destination_inspector = inspect(destination_connection.engine)
     for name in ordered_names:
         table = by_name[name]
         if not destination_inspector.has_table(name, schema=table.schema):
