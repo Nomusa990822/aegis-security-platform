@@ -62,7 +62,7 @@ def test_analyst_cannot_approve_response(client):
 def test_analyst_cannot_reject_response(client):
     response_id = create_pending_response(client)
 
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/reject",
         json={},
     )
@@ -117,7 +117,7 @@ def test_approver_can_reject_pending_response(client, approver_client, approver_
     record = response.json()["response"]
 
     assert record["status"] == "rejected"
-    assert record["decided_by"] == "approver-beta"
+    assert record["decided_by"] == approver_id
     assert record["decision_at"] is not None
     assert record["decision_reason"] == "Insufficient justification."
     assert record["executed"] is False
@@ -142,7 +142,7 @@ def test_requester_cannot_approve_own_response(client, approver_client, approver
             SET requested_by = ?
             WHERE id = ?
             """,
-            ("approver-beta", response_id),
+            (approver_id, response_id),
         )
         connection.commit()
 
@@ -172,7 +172,7 @@ def test_requester_cannot_reject_own_response(client, approver_client, approver_
             SET requested_by = ?
             WHERE id = ?
             """,
-            ("approver-beta", response_id),
+            (approver_id, response_id),
         )
         connection.commit()
 
