@@ -359,13 +359,38 @@ def test_browser_mfa_enrollment_requires_csrf_and_returns_recovery_codes_once(ia
     )
     assert confirmed.status_code == 200
     assert confirmed.headers["cache-control"] == "no-store"
-    assert len(confirmed.json()["recovery_codes"]) == 10
+    recovery_codes = confirmed.json()["recovery_codes"]
+    assert len(recovery_codes) == 10
     assert "recovery_codes" not in (
         iam_client.get(
             "/api/v1/iam/mfa/status",
             headers=cookie_header,
         ).json()
     )
+
+    step_up = iam_client.post(
+        "/api/v1/iam/mfa/step-up",
+        json={"code": recovery_codes[0]},
+        headers={
+            **cookie_header,
+            "Origin": ORIGIN,
+            "X-Aegis-CSRF-Token": csrf,
+        },
+    )
+    assert step_up.status_code == 200
+    assert step_up.json()["mfa_verified"] is True
+
+    rotated = iam_client.post(
+        "/api/v1/iam/mfa/recovery-codes/regenerate",
+        json={},
+        headers={
+            **cookie_header,
+            "Origin": ORIGIN,
+            "X-Aegis-CSRF-Token": csrf,
+        },
+    )
+    assert rotated.status_code == 200
+    assert len(rotated.json()["recovery_codes"]) == 10
 
 
 def test_mfa_enrollment_requires_password_reauthentication(iam_client):
