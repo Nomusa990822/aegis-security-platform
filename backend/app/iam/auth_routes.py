@@ -40,14 +40,22 @@ class LoginRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def enforce_password_byte_limit(cls, value: str) -> str:
-        if len(value.encode("utf-8")) > 1024:
+        try:
+            encoded = value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise ValueError("password must be valid UTF-8 text") from exc
+        if len(encoded) > 1024:
             raise ValueError("password exceeds the supported UTF-8 byte limit")
         return value
 
 
 def _required_secret(name: str) -> str:
     value = os.getenv(name, "")
-    if len(value.encode("utf-8")) < 32:
+    try:
+        valid_length = len(value.encode("utf-8")) >= 32
+    except UnicodeEncodeError:
+        valid_length = False
+    if not valid_length:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service is not configured.",
@@ -99,7 +107,10 @@ def _throttle_identifiers(username: str, client_ip: str) -> tuple[str, str]:
         normalized = repository.normalize_username(username)
     except ValueError:
         # Invalid names still consume a bounded, privacy-preserving bucket.
-        normalized = username.strip().casefold()[:128] or "<empty>"
+        normalized = (
+            username.encode("utf-8", errors="replace")
+            .decode("utf-8")[:128].strip().casefold() or "<empty>"
+        )
     return client_ip, f"{normalized}|{client_ip}"
 
 
