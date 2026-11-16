@@ -175,6 +175,7 @@ def login(payload: LoginRequest, request: Request, response: Response):
             blocked = True
             account = None
             password_valid = False
+            has_factor = False
         else:
             blocked = False
             try:
