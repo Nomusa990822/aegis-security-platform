@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import create_engine, event, insert, select
 
 from app.db_schema import metadata
+from app.response.audit_chain import GENESIS_HASH, calculate_event_hash, verify_hash_chain
 from app.db_transfer import dependency_order
 from app.db_transfer_rehearsal import transfer_synthetic_tables
 
@@ -192,19 +193,32 @@ def _synthetic_rows():
         # Server defaults are intentionally materialized as explicit values so
         # the digest compares the exact stored row representation.
         if table.name == "response_audit_log":
+            first = dict(row)
+            first["details"] = __import__("json").loads(first["details"])
+            first["previous_hash"] = GENESIS_HASH
+            first["event_hash"] = calculate_event_hash(first, GENESIS_HASH)
+
             second = dict(row)
             second["id"] = 2
             second["event"] = "response_chain_continued"
-            second["previous_hash"] = AUDIT_HASH_1
-            second["event_hash"] = AUDIT_HASH_2
-            rows_by_table[name] = [row, second]
-            parent_rows[name] = row
+            second["details"] = __import__("json").loads(second["details"])
+            second["previous_hash"] = first["event_hash"]
+            second["event_hash"] = calculate_event_hash(second, second["previous_hash"])
+
+            first["details"] = __import__("json").dumps(
+                first["details"], sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            )
+            second["details"] = __import__("json").dumps(
+                second["details"], sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            )
+            rows_by_table[name] = [first, second]
+            parent_rows[name] = first
         else:
             rows_by_table[name] = [row]
             parent_rows[name] = row
     # Chain-head metadata must describe both synthetic audit events.
     rows_by_table["response_audit_chain_heads"][0]["event_count"] = 2
-    rows_by_table["response_audit_chain_heads"][0]["final_hash"] = AUDIT_HASH_2
+    rows_by_table["response_audit_chain_heads"][0]["final_hash"] = rows_by_table["response_audit_log"][-1]["event_hash"]
     return tables, rows_by_table
 
 
@@ -273,7 +287,14 @@ def test_full_domain_synthetic_transfer_preserves_all_27_tables_and_audit_chain(
                     metadata.tables["response_audit_log"].c.id
                 )
             ).mappings().all()
-            assert [row["event_hash"] for row in audit_rows] == [AUDIT_HASH_1, AUDIT_HASH_2]
+            parsed_audit_rows = [
+                {**dict(row), "details": __import__("json").loads(row["details"])}
+                for row in audit_rows
+            ]
+            audit_verification = verify_hash_chain(parsed_audit_rows)
+            assert audit_verification["valid"] is True
+            assert audit_verification["event_count"] == 2
+            assert audit_rows[0]["previous_hash"] == GENESIS_HASH
             assert audit_rows[1]["previous_hash"] == audit_rows[0]["event_hash"]
 
             chain_head = destination.execute(
