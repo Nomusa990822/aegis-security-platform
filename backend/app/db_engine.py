@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.engine import make_url
+from psycopg.rows import dict_row
 
 
 DATABASE_URL_ENV = "AEGIS_DATABASE_URL"
@@ -55,6 +56,7 @@ def create_database_engine(
             max_overflow=DEFAULT_MAX_OVERFLOW,
             connect_args={
                 "connect_timeout": DEFAULT_CONNECT_TIMEOUT_SECONDS,
+                "row_factory": dict_row,
             },
         )
     if engine_options:
