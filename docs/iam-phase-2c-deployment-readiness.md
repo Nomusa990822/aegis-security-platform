@@ -1,3 +1,5 @@
+> **Superseded:** This is the original Phase 2C deployment note. Its legacy approver bearer-token instructions were retired by Phase 2E. Use [the Phase 2E production-readiness runbook](iam-phase-2e-production-readiness.md) as the current deployment runbook.
+
 # Phase 2C deployment-readiness checklist
 
 ## Status
@@ -84,11 +86,13 @@ integration tests through the actual ingress before production.
 
 ### 3. Existing legacy authentication
 
-Keep the existing analyst and approver bearer-token environment variables
-configured and distinct while legacy API clients and approver operations
-depend on them. Phase 2C does not migrate browser approvals to cookie sessions.
-Do not disable or rotate the legacy tokens as part of this deployment without
-a separate compatibility and operator-access plan.
+Keep the analyst bearer-token environment variable configured for existing
+analyst API integrations. Phase 2E retires `AEGIS_APPROVER_TOKEN` and
+`AEGIS_APPROVER_ID`; they are no longer loaded or accepted. Approver sign-in
+uses the IAM browser login flow with password plus MFA, and approval/rejection
+requires a recent server-owned MFA timestamp. Remove obsolete approver token
+values from the secret store after deploying Phase 2E and confirming no other
+consumer depends on them.
 
 ### 4. Database and application compatibility
 
@@ -109,7 +113,7 @@ Complete and record each item before authorizing rollout:
 - [ ] Exact HTTPS origin confirmed from the production browser address.
 - [ ] TLS ingress configured; direct public access to port 8000 blocked.
 - [ ] Trusted-proxy/client-IP behavior resolved and tested.
-- [ ] Legacy analyst and approver credentials remain available and distinct.
+- [ ] The analyst API token remains available; retired approver bearer credentials are removed from deployment configuration.
 - [ ] Existing database backup and signed audit-checkpoint inventory verified.
 - [ ] IAM schema check reports v1/v2 current with no pending migration.
 - [ ] Rollback image and deployment configuration are available.
@@ -132,10 +136,14 @@ browser-login test.
    is rejected.
 7. Sign out and confirm the session is revoked; refresh the dashboard and
    confirm the sign-in form returns.
-8. Confirm an approver account is rejected by the new password-login route.
-9. Confirm legacy approver bearer authentication still works for the existing
-   approved workflow.
-10. Confirm the health endpoint, SQLite integrity, foreign-key check, IAM
+8. Enrol a provisioned approver account in TOTP and confirm password login
+   cannot issue a session until the MFA challenge succeeds.
+9. Confirm an MFA-authenticated approver can approve/reject within the five-
+   minute freshness window and must step up again after that window expires.
+10. Confirm the retired `AEGIS_APPROVER_TOKEN` receives HTTP 401 and cannot
+    read protected API routes or perform an approval/rejection. Confirm analyst
+    bearer integrations continue to work.
+11. Confirm the health endpoint, SQLite integrity, foreign-key check, IAM
     migration history, and signed audit-checkpoint chain remain healthy.
 
 Never include passwords, cookies, CSRF tokens, or API bearer tokens in test
