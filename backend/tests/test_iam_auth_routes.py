@@ -1,8 +1,10 @@
 from http.cookies import SimpleCookie
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app import database
+from app.main import app
 from app.iam import auth_routes
 from app.iam.accounts import activate_account, create_invitation
 from app.iam.migrations import apply_migrations
@@ -155,3 +157,56 @@ def test_login_fails_closed_when_required_secrets_are_missing(iam_client, monkey
         headers={"Origin": ORIGIN},
     )
     assert response.status_code == 503
+
+
+def test_analyst_cookie_session_authenticates_api_and_enforces_csrf(iam_client, seeded_alert):
+    # Use a client without the legacy bearer header so this exercises the
+    # browser-session authentication path rather than bearer-token fallback.
+    login = iam_client.post(
+        "/api/v1/iam/login",
+        json={"username": "analyst.login", "password": TEST_PASSWORD},
+        headers={"Origin": ORIGIN},
+    )
+    token = _cookie(login)
+    csrf = login.json()["csrf_token"]
+
+    with TestClient(app) as browser_client:
+        cookie_header = {"Cookie": f"__Host-aegis_session={token}"}
+        read_response = browser_client.get(
+            "/api/v1/alerts", headers=cookie_header
+        )
+        assert read_response.status_code == 200
+
+        blocked_write = browser_client.post(
+            f"/api/v1/alerts/{seeded_alert}/notes",
+            json={"content": "This write must require CSRF."},
+            headers={**cookie_header, "Origin": ORIGIN},
+        )
+        assert blocked_write.status_code == 403
+
+        accepted_write = browser_client.post(
+            f"/api/v1/alerts/{seeded_alert}/notes",
+            json={"content": "Cookie-authenticated analyst investigation."},
+            headers={
+                **cookie_header,
+                "Origin": ORIGIN,
+                "X-Aegis-CSRF-Token": csrf,
+            },
+        )
+        assert accepted_write.status_code == 201
+        assert accepted_write.json()["note"]["author"] != "analyst-alpha"
+
+
+def test_analyst_cookie_session_cannot_access_approver_only_api(iam_client):
+    login = iam_client.post(
+        "/api/v1/iam/login",
+        json={"username": "analyst.login", "password": TEST_PASSWORD},
+        headers={"Origin": ORIGIN},
+    )
+    token = _cookie(login)
+    with TestClient(app) as browser_client:
+        response = browser_client.get(
+            "/api/v1/response/1/audit-integrity",
+            headers={"Cookie": f"__Host-aegis_session={token}"},
+        )
+    assert response.status_code == 403
