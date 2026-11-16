@@ -460,6 +460,9 @@ def start_mfa_enrollment(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
     with get_connection() as connection:
+        throttle_key = _check_mfa_throttle(
+            connection, scope="mfa-enroll-start", identifier=principal.user_id
+        )
         account = repository.get_account_by_id(connection, principal.user_id)
         if (
             account is None or account["status"] != "active"
@@ -467,7 +470,15 @@ def start_mfa_enrollment(
                 account["password_hash"], payload.current_password
             )
         ):
+            _record_mfa_failure(
+                connection, scope="mfa-enroll-start",
+                identifier=principal.user_id, key=throttle_key,
+            )
             raise HTTPException(status_code=403, detail="Recent password verification is required.")
+        auth_throttling.authentication_succeeded(
+            connection, scope="mfa-enroll-start",
+            identifier=principal.user_id, secret=throttle_key,
+        )
         try:
             enrollment = mfa.begin_totp_enrollment(
                 connection, user_id=principal.user_id
@@ -488,7 +499,7 @@ def confirm_mfa_enrollment(
     response.headers["Pragma"] = "no-cache"
     with get_connection() as connection:
         throttle_key = _check_mfa_throttle(
-            connection, scope="mfa-enroll", identifier=f"{principal.user_id}:{payload.factor_id}"
+            connection, scope="mfa-enroll", identifier=principal.user_id
         )
         try:
             codes = mfa.confirm_totp_enrollment(
@@ -501,12 +512,12 @@ def confirm_mfa_enrollment(
         except ValueError as exc:
             _record_mfa_failure(
                 connection, scope="mfa-enroll",
-                identifier=f"{principal.user_id}:{payload.factor_id}", key=throttle_key,
+                identifier=principal.user_id, key=throttle_key,
             )
             raise HTTPException(status_code=400, detail="MFA enrollment could not be confirmed.") from exc
         auth_throttling.authentication_succeeded(
             connection, scope="mfa-enroll",
-            identifier=f"{principal.user_id}:{payload.factor_id}", secret=throttle_key,
+            identifier=principal.user_id, secret=throttle_key,
         )
     return {
         "mfa_enabled": True,
