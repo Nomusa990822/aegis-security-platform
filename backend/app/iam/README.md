@@ -305,3 +305,8 @@ Before production deployment, independently provision and back up the MFA
 encryption key, verify the key identifier and recovery procedure, configure
 HTTPS and trusted ingress, and complete an explicitly approved deployment
 runbook. These operational activities are not performed by this branch.
+
+
+## Phase 2E production readiness
+
+The deployment gates, secret inventory, ingress requirements, coordinated backup/restore procedure, read-only preflight, rollout sequence, smoke tests, and rollback criteria are documented in [`docs/iam-phase-2e-production-readiness.md`](../../../docs/iam-phase-2e-production-readiness.md). This is a planning/runbook document only; it does not authorise or perform a production deployment.
