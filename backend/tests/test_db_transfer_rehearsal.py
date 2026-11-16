@@ -76,9 +76,9 @@ def test_synthetic_transfer_rolls_back_all_tables_on_duplicate_destination_key()
         destination_engine.dispose()
 
 
-def test_transfer_rejects_file_backed_sqlite_source():
+def test_transfer_rejects_file_backed_sqlite_source(tmp_path):
     metadata, parents, _ = _tables()
-    file_engine = create_engine("sqlite:///should-not-be-used.db")
+    file_engine = create_engine("sqlite:///" + str(tmp_path / "source.db"))
     destination_engine = create_engine("sqlite:///:memory:")
     try:
         metadata.create_all(destination_engine)
