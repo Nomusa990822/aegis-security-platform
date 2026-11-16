@@ -3,16 +3,16 @@ from __future__ import annotations
 
 import os
 import uuid
+from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.engine import make_url
 
 from app.db_schema import metadata
 
-BACKEND_ROOT = __import__("pathlib").Path(__file__).resolve().parents[1]
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
 POSTGRES_URL_ENV = "AEGIS_TEST_POSTGRES_URL"
 
 
@@ -23,24 +23,25 @@ POSTGRES_URL_ENV = "AEGIS_TEST_POSTGRES_URL"
 def test_baseline_upgrade_and_downgrade_in_disposable_schema(monkeypatch):
     """Run the actual Alembic revision against an isolated PostgreSQL schema."""
     schema = f"aegis_baseline_{uuid.uuid4().hex[:12]}"
-    base_url = make_url(os.environ[POSTGRES_URL_ENV])
-    admin_engine = create_engine(base_url)
+    admin_engine = create_engine(os.environ[POSTGRES_URL_ENV])
 
     try:
         with admin_engine.begin() as connection:
             connection.execute(text(f'CREATE SCHEMA "{schema}"'))
 
-        isolated_url = base_url.update_query_dict(
-            {"options": f"-csearch_path={schema}"}
-        )
-        monkeypatch.setenv("AEGIS_DATABASE_URL", str(isolated_url))
+        monkeypatch.setenv("AEGIS_DATABASE_URL", os.environ[POSTGRES_URL_ENV])
         monkeypatch.setenv("AEGIS_ALEMBIC_ALLOW_MIGRATIONS", "1")
-
         config = Config(str(BACKEND_ROOT / "alembic.ini"))
-        command.upgrade(config, "head")
 
+        # Reuse the known-good CI service connection. The session search_path
+        # isolates every Alembic operation without rewriting URL credentials
+        # or creating a second connection with altered query parameters.
         with admin_engine.connect() as connection:
             connection.execute(text(f'SET search_path TO "{schema}"'))
+            connection.commit()
+            config.attributes["connection"] = connection
+
+            command.upgrade(config, "head")
             inspector = inspect(connection)
             actual_tables = set(inspector.get_table_names()) - {"alembic_version"}
             assert actual_tables == set(metadata.tables)
@@ -56,10 +57,7 @@ def test_baseline_upgrade_and_downgrade_in_disposable_schema(monkeypatch):
                 )
                 assert len(inspector.get_indexes(table_name)) == len(table.indexes)
 
-        command.downgrade(config, "base")
-
-        with admin_engine.connect() as connection:
-            connection.execute(text(f'SET search_path TO "{schema}"'))
+            command.downgrade(config, "base")
             remaining = set(inspect(connection).get_table_names())
             assert remaining <= {"alembic_version"}
     finally:
