@@ -6,6 +6,7 @@ delivery; activation credentials and passwords are read with getpass.
 """
 import argparse
 from getpass import getpass
+import os
 from pathlib import Path
 import sqlite3
 import sys
@@ -37,6 +38,20 @@ def _open_existing_database(path: Path) -> sqlite3.Connection:
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA busy_timeout = 30000")
     return connection
+
+
+def _write_sensitive_terminal_output(*lines: str) -> None:
+    """Display one-time credentials only on an attached operator terminal.
+
+    Never fall back to stdout/stderr: those streams may be captured by CI,
+    service managers, or centralized logs.
+    """
+    descriptor = os.open("/dev/tty", os.O_WRONLY | os.O_NOCTTY)
+    try:
+        payload = "\\n".join(lines) + "\\n"
+        os.write(descriptor, payload.encode("utf-8"))
+    finally:
+        os.close(descriptor)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -107,21 +122,24 @@ def main(argv: list[str] | None = None) -> int:
                 enrollment = mfa.begin_totp_enrollment(
                     connection, user_id=args.user_id
                 )
-                print("Add this account to an authenticator app.")
-                print("Provisioning URI (protect this terminal output):")
-                print(enrollment["provisioning_uri"])
-                print("Manual setup key:")
-                print(enrollment["secret"])
+                _write_sensitive_terminal_output(
+                    "Add this account to an authenticator app.",
+                    "Provisioning URI (protect this terminal output):",
+                    enrollment["provisioning_uri"],
+                    "Manual setup key:",
+                    enrollment["secret"],
+                )
                 code = getpass("Current six-digit authenticator code: ")
                 recovery_codes = mfa.confirm_totp_enrollment(
                     connection, user_id=args.user_id,
                     factor_id=enrollment["factor_id"], code=code,
                 )
                 connection.commit()
-                print("TOTP factor enabled.")
-                print("One-time recovery codes (store securely; shown once):")
-                for recovery_code in recovery_codes:
-                    print(recovery_code)
+                _write_sensitive_terminal_output(
+                    "TOTP factor enabled.",
+                    "One-time recovery codes (store securely; shown once):",
+                    *recovery_codes,
+                )
                 return 0
 
             if args.command == "mfa-reset":
@@ -134,12 +152,7 @@ def main(argv: list[str] | None = None) -> int:
                     connection, user_id=args.user_id
                 )
                 connection.commit()
-                print(
-                    "MFA reset completed. "
-                    f"Factors revoked: {result['factors_revoked']}; "
-                    f"codes invalidated: {result['invalidated_count']}; "
-                    f"sessions revoked: {result['sessions_revoked']}."
-                )
+                print("MFA reset completed. All existing sessions and MFA credentials were invalidated.")
                 print("The account must be enrolled again before approver browser login.")
                 return 0
 
