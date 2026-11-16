@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import psycopg
+from sqlalchemy.engine import make_url
 from psycopg.rows import dict_row
 from psycopg.pq import TransactionStatus
 
@@ -158,4 +159,6 @@ class PostgresConnection:
 
 def connect_postgres(database_url: str) -> PostgresConnection:
     """Open a psycopg 3 connection using mapping rows."""
-    return PostgresConnection(psycopg.connect(database_url, row_factory=dict_row))
+    url = make_url(database_url)
+    dsn = url.set(drivername="postgresql").render_as_string(hide_password=False)
+    return PostgresConnection(psycopg.connect(dsn, row_factory=dict_row))
