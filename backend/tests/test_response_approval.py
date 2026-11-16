@@ -4,15 +4,6 @@ import pytest
 from app import database
 
 
-APPROVER_TOKEN = "b" * 48
-
-
-def approver_headers():
-    return {
-        "Authorization": f"Bearer {APPROVER_TOKEN}",
-    }
-
-
 def create_pending_response(client):
     with database.get_connection() as connection:
         cursor = connection.execute(
@@ -60,7 +51,7 @@ def create_pending_response(client):
 def test_analyst_cannot_approve_response(client):
     response_id = create_pending_response(client)
 
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={},
     )
@@ -71,7 +62,7 @@ def test_analyst_cannot_approve_response(client):
 def test_analyst_cannot_reject_response(client):
     response_id = create_pending_response(client)
 
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/reject",
         json={},
     )
@@ -79,15 +70,14 @@ def test_analyst_cannot_reject_response(client):
     assert response.status_code == 403
 
 
-def test_approver_can_approve_pending_response(client):
+def test_approver_can_approve_pending_response(client, approver_client, approver_id):
     response_id = create_pending_response(client)
 
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={
             "reason": "Reviewed and authorised.",
         },
-        headers=approver_headers(),
     )
 
     assert response.status_code == 200
@@ -95,7 +85,7 @@ def test_approver_can_approve_pending_response(client):
     record = response.json()["response"]
 
     assert record["status"] == "approved"
-    assert record["decided_by"] == "approver-beta"
+    assert record["decided_by"] == approver_id
     assert record["decision_at"] is not None
     assert record["decision_reason"] == "Reviewed and authorised."
     assert record["executed"] is False
@@ -112,7 +102,7 @@ def test_approver_can_approve_pending_response(client):
     assert decision_event["details"]["simulated"] is False
 
 
-def test_approver_can_reject_pending_response(client):
+def test_approver_can_reject_pending_response(client, approver_client, approver_id):
     response_id = create_pending_response(client)
 
     response = client.post(
@@ -142,7 +132,7 @@ def test_approver_can_reject_pending_response(client):
     assert decision_event["actor"] == "approver-beta"
 
 
-def test_requester_cannot_approve_own_response(client):
+def test_requester_cannot_approve_own_response(client, approver_client, approver_id):
     response_id = create_pending_response(client)
 
     # Simulate a record requested by the approver identity.
@@ -157,7 +147,7 @@ def test_requester_cannot_approve_own_response(client):
         )
         connection.commit()
 
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={},
         headers=approver_headers(),
@@ -174,7 +164,7 @@ def test_requester_cannot_approve_own_response(client):
     assert len(detail.json()["audit_log"]) == 1
 
 
-def test_requester_cannot_reject_own_response(client):
+def test_requester_cannot_reject_own_response(client, approver_client, approver_id):
     response_id = create_pending_response(client)
 
     with database.get_connection() as connection:
@@ -197,10 +187,10 @@ def test_requester_cannot_reject_own_response(client):
     assert response.status_code == 403
 
 
-def test_response_cannot_be_approved_twice(client):
+def test_response_cannot_be_approved_twice(client, approver_client):
     response_id = create_pending_response(client)
 
-    first = client.post(
+    first = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={},
         headers=approver_headers(),
@@ -208,7 +198,7 @@ def test_response_cannot_be_approved_twice(client):
 
     assert first.status_code == 200
 
-    second = client.post(
+    second = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={},
         headers=approver_headers(),
@@ -217,10 +207,10 @@ def test_response_cannot_be_approved_twice(client):
     assert second.status_code == 409
 
 
-def test_approved_response_cannot_later_be_rejected(client):
+def test_approved_response_cannot_later_be_rejected(client, approver_client):
     response_id = create_pending_response(client)
 
-    approved = client.post(
+    approved = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={},
         headers=approver_headers(),
@@ -228,7 +218,7 @@ def test_approved_response_cannot_later_be_rejected(client):
 
     assert approved.status_code == 200
 
-    rejected = client.post(
+    rejected = approver_client.post(
         f"/api/v1/response/{response_id}/reject",
         json={},
         headers=approver_headers(),
@@ -237,10 +227,10 @@ def test_approved_response_cannot_later_be_rejected(client):
     assert rejected.status_code == 409
 
 
-def test_rejected_response_cannot_later_be_approved(client):
+def test_rejected_response_cannot_later_be_approved(client, approver_client):
     response_id = create_pending_response(client)
 
-    rejected = client.post(
+    rejected = approver_client.post(
         f"/api/v1/response/{response_id}/reject",
         json={},
         headers=approver_headers(),
@@ -248,7 +238,7 @@ def test_rejected_response_cannot_later_be_approved(client):
 
     assert rejected.status_code == 200
 
-    approved = client.post(
+    approved = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={},
         headers=approver_headers(),
@@ -257,8 +247,8 @@ def test_rejected_response_cannot_later_be_approved(client):
     assert approved.status_code == 409
 
 
-def test_nonexistent_response_cannot_be_approved(client):
-    response = client.post(
+def test_nonexistent_response_cannot_be_approved(approver_client):
+    response = approver_client.post(
         "/api/v1/response/999999/approve",
         json={},
         headers=approver_headers(),
@@ -267,8 +257,8 @@ def test_nonexistent_response_cannot_be_approved(client):
     assert response.status_code == 404
 
 
-def test_nonexistent_response_cannot_be_rejected(client):
-    response = client.post(
+def test_nonexistent_response_cannot_be_rejected(approver_client):
+    response = approver_client.post(
         "/api/v1/response/999999/reject",
         json={},
         headers=approver_headers(),
@@ -277,7 +267,7 @@ def test_nonexistent_response_cannot_be_rejected(client):
     assert response.status_code == 404
 
 
-def test_approval_rejects_client_supplied_decision_identity(client):
+def test_approval_rejects_client_supplied_decision_identity(client, approver_client):
     response_id = create_pending_response(client)
 
     response = client.post(
@@ -302,7 +292,7 @@ def test_approval_rejects_client_supplied_decision_identity(client):
     assert len(detail.json()["audit_log"]) == 1
 
 
-def test_approval_does_not_execute_or_simulate_response(client):
+def test_approval_does_not_execute_or_simulate_response(client, approver_client):
     response_id = create_pending_response(client)
 
     response = client.post(
