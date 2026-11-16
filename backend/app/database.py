@@ -1,6 +1,8 @@
 import os
 import sqlite3
 
+import psycopg
+
 from app.dbapi_compat import connect_postgres
 from pathlib import Path
 
@@ -14,7 +16,7 @@ DATABASE_PATH = Path(
     )
 )
 SQLITE_BUSY_TIMEOUT_MS = 30_000
-DATABASE_ERRORS = (sqlite3.Error,)
+DATABASE_ERRORS = (sqlite3.Error, psycopg.Error)
 
 
 def _postgres_url() -> str | None:
@@ -35,11 +37,8 @@ class _ClosingSQLiteConnection(sqlite3.Connection):
 
 
 def get_connection():
-    global DATABASE_ERRORS
     database_url = _postgres_url()
     if database_url:
-        import psycopg
-        DATABASE_ERRORS = (sqlite3.Error, psycopg.Error)
         return connect_postgres(database_url)
 
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
