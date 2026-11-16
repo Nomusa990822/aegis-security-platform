@@ -39,7 +39,9 @@ def _encryption_configuration() -> tuple[bytes, str]:
         raise RuntimeError("MFA encryption is not configured")
     try:
         encoded = raw.encode("ascii")
-        key = base64.urlsafe_b64decode(encoded + b"=" * (-len(encoded) % 4))
+        key = base64.b64decode(encoded + b"=" * (-len(encoded) % 4), altchars=b"-_", validate=True)
+        if base64.urlsafe_b64encode(key).decode("ascii").rstrip("=") != raw:
+            raise ValueError("non-canonical MFA key encoding")
     except (UnicodeEncodeError, ValueError) as exc:
         raise RuntimeError("MFA encryption is not configured") from exc
     if len(key) != 32:
