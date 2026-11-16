@@ -29,6 +29,16 @@ def _guard_autogenerate() -> None:
         assert_autogenerate_metadata_complete(target_metadata)
 
 
+def _configure_and_run(connection) -> None:
+    context.configure(
+        connection=connection, target_metadata=target_metadata,
+        compare_type=True, compare_server_default=True,
+        transaction_per_migration=True, render_as_batch=False,
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 def run_migrations_offline() -> None:
     _require_explicit_migration_opt_in()
     _guard_autogenerate()
@@ -47,16 +57,18 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     _require_explicit_migration_opt_in()
     _guard_autogenerate()
+
+    # Supplying a connection is useful for callers that must control a
+    # transaction or session-level schema/search_path in isolated tests.
+    supplied_connection = config.attributes.get("connection")
+    if supplied_connection is not None:
+        _configure_and_run(supplied_connection)
+        return
+
     engine = create_database_engine()
     try:
         with engine.connect() as connection:
-            context.configure(
-                connection=connection, target_metadata=target_metadata,
-                compare_type=True, compare_server_default=True,
-                transaction_per_migration=True, render_as_batch=False,
-            )
-            with context.begin_transaction():
-                context.run_migrations()
+            _configure_and_run(connection)
     finally:
         engine.dispose()
 
