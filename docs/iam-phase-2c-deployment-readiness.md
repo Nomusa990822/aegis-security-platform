@@ -59,16 +59,28 @@ The login throttler uses the ASGI connection address and deliberately ignores
 That can make all users share one IP throttle bucket and allow one user's
 failures to block other users.
 
-Before production, either:
-- implement and test a narrowly scoped trusted-proxy configuration that
-  accepts forwarded client addresses only from explicitly trusted proxy IPs
-  and strips client-supplied forwarding headers at the ingress; or
-- use a network architecture where the ASGI connection address is the actual
-  client address without trusting spoofable headers.
+The application supports an explicit `AEGIS_TRUSTED_PROXY_CIDRS` allowlist.
+Set it to comma-separated IP addresses or CIDR networks belonging only to
+your ingress/reverse proxies (for example, `10.20.0.10/32,2001:db8:20::/64`).
+Leave it empty when no trusted proxy is present; in that state all forwarding
+headers are ignored.
+
+Only `X-Forwarded-For` is considered. The immediate TCP peer must match a
+configured trusted network. The application validates the entire bounded
+header (maximum 20 hops and 1024 characters), then walks the chain from
+right to left and selects the first untrusted hop. Invalid or excessive
+headers fall back to the immediate peer. IPv4 and IPv6 are supported.
+Malformed CIDR configuration causes login to fail closed with HTTP 503.
+
+**Ingress requirement:** configure the proxy to remove any inbound
+client-supplied `X-Forwarded-For` header and write a canonical chain itself.
+Restrict direct access to the application port so clients cannot bypass the
+trusted ingress. Do not add broad private networks unless every host in those
+networks is an administratively trusted proxy.
 
 Do not enable Uvicorn proxy-header trust for all addresses (for example,
 `--forwarded-allow-ips='*'`). Verify the effective client address with
-integration tests through the actual ingress.
+integration tests through the actual ingress before production.
 
 ### 3. Existing legacy authentication
 
