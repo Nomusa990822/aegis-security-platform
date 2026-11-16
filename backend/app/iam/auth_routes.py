@@ -201,7 +201,11 @@ def login(payload: LoginRequest, request: Request, response: Response):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many sign-in attempts. Try again later.",
-            headers={"Retry-After": str(max(1, retry_after))},
+            headers={
+                "Retry-After": str(max(1, retry_after)),
+                "Cache-Control": "no-store",
+                "Pragma": "no-cache",
+            },
         )
     if not (password_valid and account is not None
             and account["status"] == "active" and account["role"] == "analyst"
@@ -209,7 +213,11 @@ def login(payload: LoginRequest, request: Request, response: Response):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=_GENERIC_LOGIN_ERROR,
-            headers={"WWW-Authenticate": "Session"},
+            headers={
+                "WWW-Authenticate": "Session",
+                "Cache-Control": "no-store",
+                "Pragma": "no-cache",
+            },
         )
 
     set_session_cookie(
@@ -225,15 +233,23 @@ def login(payload: LoginRequest, request: Request, response: Response):
 
 
 @router.get("/session")
-def inspect_session(request: Request):
+def inspect_session(request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
     token = request.cookies.get(SESSION_COOKIE_NAME)
     if not token:
-        raise HTTPException(status_code=401, detail="Authentication required.")
+        raise HTTPException(
+            status_code=401, detail="Authentication required.",
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
     _, csrf_key = _throttle_settings()
     with get_connection() as connection:
         principal = sessions.validate_session(connection, token=token)
     if principal is None or principal.role != "analyst":
-        raise HTTPException(status_code=401, detail="Authentication required.")
+        raise HTTPException(
+            status_code=401, detail="Authentication required.",
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
     response = {
         "authenticated": True,
         "user": {"id": principal.user_id, "username": principal.username, "role": "analyst"},
@@ -253,7 +269,10 @@ def logout(request: Request, response: Response):
         if not verify_csrf_token(
             token, request.headers.get(CSRF_HEADER_NAME), secret=csrf_key
         ):
-            raise HTTPException(status_code=403, detail="CSRF validation failed.")
+            raise HTTPException(
+                status_code=403, detail="CSRF validation failed.",
+                headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+            )
         with get_connection() as connection:
             sessions.revoke_session(connection, token=token)
     clear_session_cookie(response)
