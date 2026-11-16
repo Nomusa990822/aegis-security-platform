@@ -15,6 +15,7 @@ from app.iam.accounts import (
     activate_account, change_account_status, create_invitation,
 )
 from app.iam.exceptions import IAMError
+from app.iam import mfa
 from app.iam.migrate import _check_database
 
 
@@ -50,6 +51,10 @@ def main(argv: list[str] | None = None) -> int:
     commands.add_parser(
         "activate", help="activate an account using its one-time invitation"
     )
+    mfa_enroll = commands.add_parser(
+        "mfa-enroll", help="locally provision an account's first TOTP factor"
+    )
+    mfa_enroll.add_argument("--user-id", required=True)
     for status in ("disable", "lock"):
         action = commands.add_parser(
             status, help=f"{status} an account and revoke sessions"
@@ -92,6 +97,27 @@ def main(argv: list[str] | None = None) -> int:
                     f"Account activated: {account['username']} "
                     f"({account['role']})."
                 )
+                return 0
+
+            if args.command == "mfa-enroll":
+                enrollment = mfa.begin_totp_enrollment(
+                    connection, user_id=args.user_id
+                )
+                print("Add this account to an authenticator app.")
+                print("Provisioning URI (protect this terminal output):")
+                print(enrollment["provisioning_uri"])
+                print("Manual setup key:")
+                print(enrollment["secret"])
+                code = getpass("Current six-digit authenticator code: ")
+                recovery_codes = mfa.confirm_totp_enrollment(
+                    connection, user_id=args.user_id,
+                    factor_id=enrollment["factor_id"], code=code,
+                )
+                connection.commit()
+                print("TOTP factor enabled.")
+                print("One-time recovery codes (store securely; shown once):")
+                for recovery_code in recovery_codes:
+                    print(recovery_code)
                 return 0
 
             status = "disabled" if args.command == "disable" else "locked"
