@@ -13,6 +13,8 @@ from typing import Any
 
 import psycopg
 from sqlalchemy.engine import make_url
+
+from app.db_engine import create_database_engine
 from psycopg.rows import dict_row
 from psycopg.pq import TransactionStatus
 
@@ -158,7 +160,16 @@ class PostgresConnection:
 
 
 def connect_postgres(database_url: str) -> PostgresConnection:
-    """Open a psycopg 3 connection using mapping rows."""
-    url = make_url(database_url)
-    dsn = url.set(drivername="postgresql").render_as_string(hide_password=False)
-    return PostgresConnection(psycopg.connect(dsn, row_factory=dict_row))
+    """Borrow a pooled psycopg 3 connection using mapping rows."""
+    engine = _ENGINE_CACHE.get(database_url)
+    if engine is None:
+        engine = create_database_engine(database_url)
+        _ENGINE_CACHE[database_url] = engine
+    return PostgresConnection(engine.raw_connection())
+
+
+def dispose_postgres_engines() -> None:
+    """Dispose pooled PostgreSQL connections during application shutdown."""
+    for engine in _ENGINE_CACHE.values():
+        engine.dispose()
+    _ENGINE_CACHE.clear()
