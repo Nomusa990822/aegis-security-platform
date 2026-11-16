@@ -16,7 +16,7 @@ The first executable rehearsal must use newly generated synthetic SQLite and Pos
 4. **Preserve primary keys.** Copy integer IDs and UUID/text IDs verbatim. Do not regenerate IDs or rewrite foreign-key values.
 5. **Preserve stored values.** Do not normalize timestamp strings, JSON text, hashes, token hashes, password hashes, MFA ciphertext, or binary values during transfer.
 6. **Respect relationships.** Transfer parent tables before dependent tables, with all rows inserted in one destination transaction.
-7. **Preserve audit evidence.** Copy response audit events in their original ID order, including `previous_hash` and `event_hash`; copy chain heads exactly. Verify chain continuity and stored hashes independently before and after transfer.
+7. **Preserve audit evidence.** Copy response audit events in their original ID order, including `previous_hash` and `event_hash`; copy chain heads exactly. Verify chain continuity and stored hashes with `app.response.audit_chain.verify_hash_chain` before and after transfer; require matching per-response event counts and final hashes in `response_audit_chain_heads`.
 8. **External checkpoints are separate evidence.** Do not copy, rewrite, regenerate, or access checkpoint files or encryption keys as part of the relational transfer. Their preservation requires a separately approved backup/restore procedure.
 9. **Fail closed.** Any schema mismatch, duplicate key, FK violation, row-count mismatch, checksum mismatch, or audit verification failure aborts the destination transaction.
 10. **No production mutation.** No production migration, deployment change, database write, or live-data extraction is part of this phase.
@@ -66,7 +66,8 @@ The final table order must be generated from and validated against foreign-key d
 - Compare deterministic content digests computed over stable primary-key order and a type-tagged, unambiguous encoding of each stored value.
 - Verify all foreign-key relationships.
 - Compare key security records and IAM state without exposing secret values in logs.
-- Re-run response audit-chain verification and compare event counts, final hashes, and chain-head values with the source.
+- Re-run the canonical `verify_hash_chain` verifier against both source and destination rows, parsing the stored JSON details without rewriting the stored text.
+- Require exact event/chain-head response-ID set equality, per-response event counts, and final-hash equality on both sides; reject missing or orphan chain heads.
 - Emit a manifest containing source/destination identifiers, schema revision, per-table counts and digests, verification outcomes, and tool version. Do not include passwords, tokens, MFA ciphertext, recovery codes, or connection URLs.
 - Commit only if every reconciliation check succeeds.
 
@@ -101,6 +102,8 @@ This digest is a transfer-integrity check, not a replacement for the application
 | Duplicate primary key in destination | Destination transaction rolls back |
 | Modified source audit event | Audit verification rejects transfer |
 | Incorrect source chain head | Audit verification rejects transfer |
+| Missing or orphan chain-head record | Audit verification rejects transfer |
+| Event hash recomputed from modified actor/details | Canonical verifier rejects transfer |
 | Altered destination row during test | Digest reconciliation rejects transfer |
 | Destination interruption before commit | No partial table transfer remains |
 | Source path missing or symlinked | Preflight rejects without creating/opening a new DB |
