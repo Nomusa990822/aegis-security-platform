@@ -29,6 +29,7 @@ whose IAM schema is current:
 - `python -m app.iam.admin invite --username analyst.one --role analyst`
 - `python -m app.iam.admin activate`
 - `python -m app.iam.admin mfa-enroll --user-id UUID` (local operator only; requires the MFA encryption key)
+- `python -m app.iam.admin mfa-reset --user-id UUID` (explicitly confirmed recovery; revokes factors, codes, and sessions)
 - `python -m app.iam.admin disable --user-id UUID`
 - `python -m app.iam.admin lock --user-id UUID`
 
@@ -36,7 +37,10 @@ The invitation token is printed once for secure out-of-band delivery. The
 activation token and password are requested with hidden prompts, not command
 line arguments. The `mfa-enroll` command prints the authenticator provisioning
 material once to the protected operator terminal, requests a current code with
-a hidden prompt, and prints recovery codes once after successful confirmation. The CLI refuses missing or symlink database paths and checks
+a hidden prompt, and prints recovery codes once after successful confirmation. The
+`mfa-reset` command requires the exact hidden confirmation phrase `RESET MFA`,
+invalidates every active factor and unused recovery code, and revokes all
+sessions. The CLI refuses missing or symlink database paths and checks
 database integrity and migration history before opening it for writes. It
 does not create a database or apply migrations.
 
