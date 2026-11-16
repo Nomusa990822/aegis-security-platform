@@ -1,6 +1,7 @@
 """Full-domain synthetic SQLite-to-PostgreSQL integrity rehearsal."""
 from __future__ import annotations
 
+import json
 import os
 from uuid import uuid4
 
@@ -194,21 +195,21 @@ def _synthetic_rows():
         # the digest compares the exact stored row representation.
         if table.name == "response_audit_log":
             first = dict(row)
-            first["details"] = __import__("json").loads(first["details"])
+            first["details"] = json.loads(first["details"])
             first["previous_hash"] = GENESIS_HASH
             first["event_hash"] = calculate_event_hash(first, GENESIS_HASH)
 
             second = dict(row)
             second["id"] = 2
             second["event"] = "response_chain_continued"
-            second["details"] = __import__("json").loads(second["details"])
+            second["details"] = json.loads(second["details"])
             second["previous_hash"] = first["event_hash"]
             second["event_hash"] = calculate_event_hash(second, second["previous_hash"])
 
-            first["details"] = __import__("json").dumps(
+            first["details"] = json.dumps(
                 first["details"], sort_keys=True, separators=(",", ":"), ensure_ascii=False
             )
-            second["details"] = __import__("json").dumps(
+            second["details"] = json.dumps(
                 second["details"], sort_keys=True, separators=(",", ":"), ensure_ascii=False
             )
             rows_by_table[name] = [first, second]
@@ -288,7 +289,7 @@ def test_full_domain_synthetic_transfer_preserves_all_27_tables_and_audit_chain(
                 )
             ).mappings().all()
             parsed_audit_rows = [
-                {**dict(row), "details": __import__("json").loads(row["details"])}
+                {**dict(row), "details": json.loads(row["details"])}
                 for row in audit_rows
             ]
             audit_verification = verify_hash_chain(parsed_audit_rows)
