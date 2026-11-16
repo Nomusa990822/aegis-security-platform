@@ -101,6 +101,7 @@ def test_application_database_boundary_runs_on_migrated_postgresql(monkeypatch):
             assert row["id"] == event_id
             assert row[0] == event_id
             assert row["event_type"] == "authentication_success"
+            connection.commit()
 
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(
