@@ -1,5 +1,4 @@
 import ipaddress
-import sqlite3
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,7 +13,8 @@ from app.auth import AuthenticatedActor, get_analyst_actor, get_current_actor
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.database import get_connection, initialize_database
+from app.database import DATABASE_ERRORS, get_connection, initialize_database
+from app.dbapi_compat import dispose_postgres_engines
 from app.idempotency import initialize_idempotency_schema
 from app.detection.engine import evaluate_event
 from app.detection.registry import get_detection_rules
@@ -33,7 +33,10 @@ from app.iam.auth_routes import router as iam_auth_router
 async def lifespan(app: FastAPI):
     initialize_database()
     initialize_idempotency_schema()
-    yield
+    try:
+        yield
+    finally:
+        dispose_postgres_engines()
 
 
 app = FastAPI(
@@ -195,7 +198,7 @@ def health():
     try:
         with get_connection() as connection:
             connection.execute("SELECT 1").fetchone()
-    except sqlite3.Error as error:
+    except DATABASE_ERRORS as error:
         raise HTTPException(
             status_code=503,
             detail="Database unavailable",
