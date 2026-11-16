@@ -452,12 +452,19 @@ def test_browser_approver_requires_recent_server_owned_mfa():
 def test_mfa_authenticated_approver_can_approve_response(
     client, approver_client, approver_id, seeded_alert
 ):
+    with database.get_connection() as connection:
+        connection.execute(
+            "UPDATE security_alerts SET source_ip = ? WHERE id = ?",
+            ("8.8.8.8", seeded_alert),
+        )
+        connection.commit()
+
     preview = client.post(
         "/api/v1/response/preview",
         json={
             "alert_id": seeded_alert,
             "action": "block_ip",
-            "target": "198.51.100.250",
+            "target": "8.8.8.8",
         },
     )
     assert preview.status_code == 201
