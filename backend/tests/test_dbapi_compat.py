@@ -63,6 +63,7 @@ def test_postgres_adapter_insert_ignore_lastrowid_and_rollback():
         ).fetchone()
         assert row["value"] == "first"
         assert row[0] == row["id"]
+        connection.commit()
 
         connection.execute("BEGIN IMMEDIATE")
         connection.execute(
