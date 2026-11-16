@@ -379,6 +379,32 @@ class MFAVerificationRequest(BaseModel):
     code: str = Field(min_length=6, max_length=300)
 
 
+def _check_mfa_throttle(connection, *, scope: str, identifier: str):
+    key = _required_secret("AEGIS_AUTH_THROTTLE_HMAC_KEY")
+    decision = auth_throttling.is_authentication_blocked(
+        connection, scope=scope, identifier=identifier, secret=key
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=429, detail="Too many MFA attempts. Try again later.",
+            headers={"Retry-After": str(max(1, decision.retry_after_seconds)),
+                     "Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+    return key
+
+
+def _record_mfa_failure(connection, *, scope: str, identifier: str, key: str):
+    decision = auth_throttling.record_authentication_failure(
+        connection, scope=scope, identifier=identifier, secret=key,
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=429, detail="Too many MFA attempts. Try again later.",
+            headers={"Retry-After": str(max(1, decision.retry_after_seconds)),
+                     "Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+
+
 def _require_browser_principal(request: Request):
     principal = authenticate_browser_session(request)
     if principal is None:
@@ -422,6 +448,9 @@ def confirm_mfa_enrollment(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
     with get_connection() as connection:
+        throttle_key = _check_mfa_throttle(
+            connection, scope="mfa-enroll", identifier=f"{principal.user_id}:{payload.factor_id}"
+        )
         try:
             codes = mfa.confirm_totp_enrollment(
                 connection, user_id=principal.user_id,
@@ -429,7 +458,15 @@ def confirm_mfa_enrollment(
                 password_service=DEFAULT_PASSWORD_SERVICE,
             )
         except ValueError as exc:
+            _record_mfa_failure(
+                connection, scope="mfa-enroll",
+                identifier=f"{principal.user_id}:{payload.factor_id}", key=throttle_key,
+            )
             raise HTTPException(status_code=400, detail="MFA enrollment could not be confirmed.") from exc
+        auth_throttling.authentication_succeeded(
+            connection, scope="mfa-enroll",
+            identifier=f"{principal.user_id}:{payload.factor_id}", secret=throttle_key,
+        )
     return {
         "mfa_enabled": True,
         "recovery_codes": codes,
@@ -446,6 +483,10 @@ def verify_mfa_step_up(
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
     with get_connection() as connection:
+        throttle_key = _check_mfa_throttle(
+            connection, scope="mfa-stepup",
+            identifier=f"{principal.user_id}:{principal.session_id}",
+        )
         valid = mfa.verify_totp(
             connection, user_id=principal.user_id, code=payload.code
         )
@@ -453,11 +494,22 @@ def verify_mfa_step_up(
             valid = mfa.consume_recovery_code(
                 connection, user_id=principal.user_id,
                 recovery_code=payload.code,
+                password_service=DEFAULT_PASSWORD_SERVICE,
             )
-        if not valid or not mfa.mark_session_mfa_verified(
+        if not valid:
+            _record_mfa_failure(
+                connection, scope="mfa-stepup",
+                identifier=f"{principal.user_id}:{principal.session_id}", key=throttle_key,
+            )
+            raise HTTPException(status_code=401, detail="MFA verification failed.")
+        if not mfa.mark_session_mfa_verified(
             connection, session_token=session_token
         ):
             raise HTTPException(status_code=401, detail="MFA verification failed.")
+        auth_throttling.authentication_succeeded(
+            connection, scope="mfa-stepup",
+            identifier=f"{principal.user_id}:{principal.session_id}", secret=throttle_key,
+        )
     return {"mfa_verified": True, "fresh_for_seconds": mfa.RECENT_MFA_SECONDS}
 
 
