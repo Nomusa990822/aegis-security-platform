@@ -205,8 +205,12 @@ untrusted proxy and do not add permissive CORS rules.
 
 ## Compatibility and limitations
 
-- Existing bearer-token dependencies and approver response authorization are
-  unchanged. This router does not accept browser sessions as API authorization.
+- Existing bearer tokens remain valid for API clients and the legacy approver
+  workflow. Analyst cookie sessions are accepted by the shared API
+  authentication dependency. Unsafe cookie-authenticated methods require an
+  exact allowlisted HTTPS Origin and a valid session-bound CSRF header.
+- Analyst cookie sessions cannot satisfy approver dependencies; response
+  approval remains on the legacy approver bearer identity pending MFA step-up.
 - Analyst cookie sessions are not MFA-verified. The session inspection
   response explicitly reports this.
 - No public registration, invitation, activation, admin, password-reset, or
