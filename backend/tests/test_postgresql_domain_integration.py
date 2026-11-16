@@ -11,7 +11,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from sqlalchemy import MetaData, create_engine, inspect, select, text
+from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import IntegrityError
 
 from app.db_engine import create_database_engine
@@ -21,7 +21,7 @@ from app.db_schema.intelligence import (
     ip_intelligence_assessments,
     ip_intelligence_provider_results,
 )
-from app.db_schema.operational import security_alerts
+from app.db_schema.operational import incident_evidence, security_alerts, security_events
 from app.db_schema.response import (
     response_audit_chain_heads,
     response_audit_log,
@@ -100,50 +100,42 @@ def test_postgresql_enforces_foreign_keys_and_unique_relationships(postgres_sche
     with isolated_engine.begin() as connection:
         alert_id = _insert_alert(connection)
         event_id = connection.execute(
-            text(
-                "INSERT INTO security_events "
-                "(event_type, source_ip, occurred_at, received_at) "
-                "VALUES ('authentication_failure', '198.51.100.24', "
-                "'2026-11-16T12:00:00Z', '2026-11-16T12:00:01Z') RETURNING id"
+            security_events.insert()
+            .values(
+                event_type="authentication_failure",
+                source_ip="198.51.100.24",
+                occurred_at="2026-11-16T12:00:00Z",
+                received_at="2026-11-16T12:00:01Z",
             )
+            .returning(security_events.c.id)
         ).scalar_one()
 
         connection.execute(
-            text(
-                "INSERT INTO incident_evidence "
-                "(alert_id, event_id, linked_at) "
-                "VALUES (:alert_id, :event_id, :linked_at)"
-            ),
-            {
-                "alert_id": alert_id,
-                "event_id": event_id,
-                "linked_at": "2026-11-16T12:00:02Z",
-            },
+            incident_evidence.insert().values(
+                alert_id=alert_id,
+                event_id=event_id,
+                linked_at="2026-11-16T12:00:02Z",
+            )
         )
 
     with pytest.raises(IntegrityError):
         with isolated_engine.begin() as connection:
             connection.execute(
-                text(
-                    "INSERT INTO incident_evidence "
-                    "(alert_id, event_id, linked_at) "
-                    "VALUES (:alert_id, :event_id, :linked_at)"
-                ),
-                {
-                    "alert_id": alert_id,
-                    "event_id": event_id,
-                    "linked_at": "2026-11-16T12:00:03Z",
-                },
+                incident_evidence.insert().values(
+                    alert_id=alert_id,
+                    event_id=event_id,
+                    linked_at="2026-11-16T12:00:03Z",
+                )
             )
 
     with pytest.raises(IntegrityError):
         with isolated_engine.begin() as connection:
             connection.execute(
-                text(
-                    "INSERT INTO incident_evidence "
-                    "(alert_id, event_id, linked_at) "
-                    "VALUES (:alert_id, -999, '2026-11-16T12:00:04Z')"
-                ),
+                incident_evidence.insert().values(
+                    alert_id=alert_id,
+                    event_id=-999,
+                    linked_at="2026-11-16T12:00:04Z",
+                )
             )
 
 
