@@ -256,10 +256,16 @@ def test_mfa_enabled_approver_login_requires_second_factor(iam_client):
     assert "__Host-aegis_mfa_challenge=" in password_login.headers["set-cookie"]
     assert "__Host-aegis_session=" not in password_login.headers["set-cookie"]
 
+    challenge_cookie = SimpleCookie()
+    challenge_cookie.load(password_login.headers["set-cookie"])
+    challenge_token = challenge_cookie["__Host-aegis_mfa_challenge"].value
     completed = iam_client.post(
         "/api/v1/iam/login/mfa",
         json={"code": totp.code_at(secret)},
-        headers={"Origin": ORIGIN},
+        headers={
+            "Origin": ORIGIN,
+            "Cookie": f"__Host-aegis_mfa_challenge={challenge_token}",
+        },
     )
     assert completed.status_code == 200
     assert completed.json()["authenticated"] is True
@@ -267,7 +273,14 @@ def test_mfa_enabled_approver_login_requires_second_factor(iam_client):
     assert completed.json()["mfa_verified"] is True
     assert "__Host-aegis_session=" in completed.headers["set-cookie"]
 
-    session = iam_client.get("/api/v1/iam/session")
+    session_cookie = SimpleCookie()
+    for set_cookie in completed.headers.get_list("set-cookie"):
+        session_cookie.load(set_cookie)
+    session_token = session_cookie["__Host-aegis_session"].value
+    session = iam_client.get(
+        "/api/v1/iam/session",
+        headers={"Cookie": f"__Host-aegis_session={session_token}"},
+    )
     assert session.status_code == 200
     assert session.json()["user"]["role"] == "approver"
     assert session.json()["mfa_verified"] is True
@@ -282,10 +295,16 @@ def test_mfa_challenge_rejects_wrong_code_and_does_not_issue_session(iam_client)
     )
     assert password_login.status_code == 200
     assert password_login.json()["mfa_required"] is True
+    challenge_cookie = SimpleCookie()
+    challenge_cookie.load(password_login.headers["set-cookie"])
+    challenge_token = challenge_cookie["__Host-aegis_mfa_challenge"].value
     failed = iam_client.post(
         "/api/v1/iam/login/mfa",
         json={"code": "000000"},
-        headers={"Origin": ORIGIN},
+        headers={
+            "Origin": ORIGIN,
+            "Cookie": f"__Host-aegis_mfa_challenge={challenge_token}",
+        },
     )
     assert failed.status_code == 401
     assert "__Host-aegis_session=" not in failed.headers.get("set-cookie", "")
