@@ -14,7 +14,6 @@ from sqlalchemy import (
     MetaData,
     Table,
     Text,
-    UniqueConstraint,
 )
 
 metadata = MetaData(
@@ -24,6 +23,17 @@ metadata = MetaData(
         "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
         "pk": "pk_%(table_name)s",
     }
+)
+
+# Reference-only stub for a foreign key owned by the alert domain. It is
+# included so this partial metadata can be compiled in isolated schema tests.
+# The complete alert table definition must replace/extend it before a global
+# metadata create_all or Alembic baseline is introduced.
+security_alerts = Table(
+    "security_alerts",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    info={"reference_only": True},
 )
 
 ip_intelligence_assessments = Table(
