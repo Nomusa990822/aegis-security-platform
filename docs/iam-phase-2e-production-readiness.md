@@ -1,8 +1,8 @@
 # AEGIS IAM — Phase 2E Production Readiness and Deployment Runbook
 
-**Status:** Planning and documentation only  
+**Status:** Implementation and deployment runbook; not deployed  
 **Baseline:** `main` at `1a8d73d2774812dd304e3b45a5de5b4764b8faa8`  
-**Scope:** Readiness assessment, deployment gates, backup/restore planning, and operational verification  
+**Scope:** Retire legacy approver bearer authentication, enforce MFA-only approver actions, and document deployment gates, backup/restore planning, and operational verification  
 **Explicit exclusions:** No production secret access, live database operation, Docker/container change, volume operation, migration, or deployment is performed by this phase.
 
 ## 1. Executive assessment
