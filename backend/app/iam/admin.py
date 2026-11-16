@@ -48,7 +48,7 @@ def _write_sensitive_terminal_output(*lines: str) -> None:
     """
     descriptor = os.open("/dev/tty", os.O_WRONLY | os.O_NOCTTY)
     try:
-        payload = "\\n".join(lines) + "\\n"
+        payload = "\n".join(lines) + "\n"
         os.write(descriptor, payload.encode("utf-8"))
     finally:
         os.close(descriptor)
