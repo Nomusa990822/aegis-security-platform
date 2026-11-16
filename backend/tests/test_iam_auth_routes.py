@@ -308,3 +308,80 @@ def test_mfa_challenge_rejects_wrong_code_and_does_not_issue_session(iam_client)
     )
     assert failed.status_code == 401
     assert "__Host-aegis_session=" not in failed.headers.get("set-cookie", "")
+
+
+
+def test_browser_mfa_enrollment_requires_csrf_and_returns_recovery_codes_once(iam_client):
+    from app.iam import totp
+
+    login = iam_client.post(
+        "/api/v1/iam/login",
+        json={"username": "analyst.login", "password": TEST_PASSWORD},
+        headers={"Origin": ORIGIN},
+    )
+    token = _cookie(login)
+    csrf = login.json()["csrf_token"]
+    cookie_header = {"Cookie": f"__Host-aegis_session={token}"}
+
+    blocked = iam_client.post(
+        "/api/v1/iam/mfa/enroll",
+        json={"current_password": TEST_PASSWORD},
+        headers={**cookie_header, "Origin": ORIGIN},
+    )
+    assert blocked.status_code == 403
+
+    started = iam_client.post(
+        "/api/v1/iam/mfa/enroll",
+        json={"current_password": TEST_PASSWORD},
+        headers={
+            **cookie_header,
+            "Origin": ORIGIN,
+            "X-Aegis-CSRF-Token": csrf,
+        },
+    )
+    assert started.status_code == 200
+    assert started.headers["cache-control"] == "no-store"
+    enrollment = started.json()
+    assert enrollment["provisioning_uri"].startswith("otpauth://totp/")
+    assert enrollment["secret"]
+
+    confirmed = iam_client.post(
+        "/api/v1/iam/mfa/confirm",
+        json={
+            "factor_id": enrollment["factor_id"],
+            "code": totp.code_at(enrollment["secret"]),
+        },
+        headers={
+            **cookie_header,
+            "Origin": ORIGIN,
+            "X-Aegis-CSRF-Token": csrf,
+        },
+    )
+    assert confirmed.status_code == 200
+    assert confirmed.headers["cache-control"] == "no-store"
+    assert len(confirmed.json()["recovery_codes"]) == 10
+    assert "recovery_codes" not in (
+        iam_client.get(
+            "/api/v1/iam/mfa/status",
+            headers=cookie_header,
+        ).json()
+    )
+
+
+def test_mfa_enrollment_requires_password_reauthentication(iam_client):
+    login = iam_client.post(
+        "/api/v1/iam/login",
+        json={"username": "analyst.login", "password": TEST_PASSWORD},
+        headers={"Origin": ORIGIN},
+    )
+    token = _cookie(login)
+    response = iam_client.post(
+        "/api/v1/iam/mfa/enroll",
+        json={"current_password": "incorrect long password"},
+        headers={
+            "Cookie": f"__Host-aegis_session={token}",
+            "Origin": ORIGIN,
+            "X-Aegis-CSRF-Token": login.json()["csrf_token"],
+        },
+    )
+    assert response.status_code == 403
