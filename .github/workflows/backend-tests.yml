@@ -41,6 +41,11 @@ jobs:
       - name: Verify installed dependency consistency
         run: python -m pip check
 
+      - name: Validate dashboard JavaScript syntax
+        run: |
+          node --check backend/app/static/app.js
+          node --check backend/app/static/response.js
+
       - name: Install dependency vulnerability auditor
         run: python -m pip install pip-audit
 
