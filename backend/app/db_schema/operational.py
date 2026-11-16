@@ -8,7 +8,11 @@ security_events = Table("security_events", metadata,
     Column("username", Text), Column("outcome", Text), Column("description", Text),
     Column("occurred_at", Text, nullable=False), Column("received_at", Text, nullable=False),
     Column("destination_ip", Text), Column("destination_port", Integer), Column("protocol", Text),
-    Index("idx_network_event_correlation", "event_type", "source_ip", "destination_ip", "received_at"))
+    Column("source_system", Text), Column("external_event_id", Text),
+    Index("idx_network_event_correlation", "event_type", "source_ip", "destination_ip", "received_at"),
+    Index("idx_security_events_external_identity", "source_system", "external_event_id",
+          unique=True, sqlite_where=__import__("sqlalchemy").text("external_event_id IS NOT NULL"),
+          postgresql_where=__import__("sqlalchemy").text("external_event_id IS NOT NULL")))
 
 security_alerts = Table("security_alerts", metadata,
     Column("id", Integer, primary_key=True, autoincrement=True), Column("title", Text, nullable=False),
@@ -51,14 +55,16 @@ security_correlations = Table("security_correlations", metadata,
     Column("severity", Text, nullable=False), Column("source_ip", Text),
     Column("description", Text, nullable=False), Column("alert_count", Integer, nullable=False, server_default="0"),
     Column("status", Text, nullable=False, server_default="open"), Column("created_at", Text, nullable=False),
-    Column("updated_at", Text, nullable=False), Column("assigned_to", Text))
+    Column("updated_at", Text, nullable=False), Column("assigned_to", Text), Index("idx_correlations_source_ip", "source_ip"))
 
 security_correlation_alerts = Table("security_correlation_alerts", metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("correlation_id", Integer, ForeignKey("security_correlations.id", ondelete="CASCADE"), nullable=False),
     Column("alert_id", Integer, ForeignKey("security_alerts.id", ondelete="CASCADE"), nullable=False),
     Column("linked_at", Text, nullable=False),
-    UniqueConstraint("correlation_id", "alert_id", name="uq_security_correlation_alerts_pair"))
+    UniqueConstraint("correlation_id", "alert_id", name="uq_security_correlation_alerts_pair"),
+    Index("idx_correlation_alerts_correlation", "correlation_id"),
+    Index("idx_correlation_alerts_alert", "alert_id"))
 
 correlation_notes = Table("correlation_notes", metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
