@@ -96,6 +96,7 @@
                     LIVE MONITORING
                 </div>
                 <span class="auth-identity" id="auth-identity"></span>
+                <button class="text-button" id="mfa-settings-button" type="button" hidden>Security settings</button>
                 <button class="text-button" id="logout-button" type="button" hidden>Sign out</button>
                 <button class="icon-button" id="refresh-button"
                         title="Refresh dashboard" aria-label="Refresh dashboard">↻</button>
@@ -1208,6 +1209,39 @@
         <button class="primary-button" type="submit">Verify and sign in</button>
         <button class="text-button" id="auth-mfa-back" type="button">Back to sign in</button>
     </form>
+</div>
+
+<div class="auth-gate" id="mfa-management" hidden>
+    <section class="auth-panel" aria-labelledby="mfa-management-title">
+        <p class="eyebrow">AEGIS ACCOUNT SECURITY</p>
+        <h1 id="mfa-management-title">Multi-factor authentication</h1>
+        <p class="muted" id="mfa-status-text">Checking your MFA status…</p>
+        <div id="mfa-enrollment-start">
+            <form id="mfa-enroll-form">
+                <label for="mfa-current-password">Confirm your password to begin enrollment</label>
+                <input id="mfa-current-password" type="password" autocomplete="current-password" required maxlength="1024">
+                <button class="primary-button" type="submit">Set up authenticator</button>
+            </form>
+        </div>
+        <div id="mfa-enrollment-confirm" hidden>
+            <p class="muted">Add this account to your authenticator app using the provisioning URI or enter the secret manually.</p>
+            <label for="mfa-provisioning-uri">Authenticator provisioning URI</label>
+            <textarea id="mfa-provisioning-uri" rows="3" readonly></textarea>
+            <label for="mfa-secret-display">Manual setup key</label>
+            <input id="mfa-secret-display" type="text" readonly>
+            <form id="mfa-confirm-form">
+                <label for="mfa-confirm-code">Enter the six-digit authenticator code</label>
+                <input id="mfa-confirm-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+                <button class="primary-button" type="submit">Confirm and generate recovery codes</button>
+            </form>
+        </div>
+        <div id="mfa-recovery-display" hidden>
+            <p class="muted">These recovery codes are displayed once. Store them securely. Do not leave them on a shared device.</p>
+            <textarea id="mfa-recovery-codes" rows="10" readonly></textarea>
+        </div>
+        <p class="auth-error" id="mfa-management-error" role="alert" aria-live="polite"></p>
+        <button class="text-button" id="mfa-management-close" type="button">Close</button>
+    </section>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
