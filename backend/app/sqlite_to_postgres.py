@@ -277,9 +277,6 @@ def migrate(source_path: Path, backup_path: Path, confirmation: str) -> dict[str
 
     source_path = source_path.expanduser().resolve()
     backup_path = backup_path.expanduser().resolve()
-    backup_sha256 = _backup_sqlite(source_path, backup_path)
-    checkpoint_backup = _copy_checkpoint_directory(backup_path)
-
     source_url = URL.create(
         "sqlite+pysqlite",
         database=str(source_path),
@@ -289,9 +286,12 @@ def migrate(source_path: Path, backup_path: Path, confirmation: str) -> dict[str
 
     try:
         with source_engine.connect() as source_connection:
-            # Acquire SQLite's reserved writer lock for the entire transfer so
-            # an old AEGIS process cannot append events during the snapshot.
+            # Acquire SQLite's reserved writer lock before creating the backup.
+            # This prevents the legacy API from changing the source between
+            # the backup snapshot and the PostgreSQL transfer snapshot.
             source_connection.exec_driver_sql("BEGIN IMMEDIATE")
+            backup_sha256 = _backup_sqlite(source_path, backup_path)
+            checkpoint_backup = _copy_checkpoint_directory(backup_path)
             _verify_source_schema(source_connection)
 
             with destination_engine.begin() as destination_connection:
