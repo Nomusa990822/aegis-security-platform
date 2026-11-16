@@ -410,3 +410,35 @@ def test_mfa_enrollment_requires_password_reauthentication(iam_client):
         },
     )
     assert response.status_code == 403
+
+
+def test_browser_approver_requires_recent_server_owned_mfa():
+    from datetime import datetime, timedelta, timezone
+    from fastapi import HTTPException
+    from app.auth import AuthenticatedActor, get_approver_actor
+
+    with pytest.raises(HTTPException) as missing:
+        get_approver_actor(AuthenticatedActor(
+            actor_id="approver-id", role="approver",
+            auth_method="browser_session", mfa_verified_at=None,
+        ))
+    assert missing.value.status_code == 403
+
+    stale = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+    with pytest.raises(HTTPException) as expired:
+        get_approver_actor(AuthenticatedActor(
+            actor_id="approver-id", role="approver",
+            auth_method="browser_session", mfa_verified_at=stale,
+        ))
+    assert expired.value.status_code == 403
+
+    fresh = datetime.now(timezone.utc).isoformat()
+    actor = AuthenticatedActor(
+        actor_id="approver-id", role="approver",
+        auth_method="browser_session", mfa_verified_at=fresh,
+    )
+    assert get_approver_actor(actor) is actor
+
+    # Legacy bearer-token authorization semantics remain unchanged.
+    legacy = AuthenticatedActor(actor_id="legacy-approver", role="approver")
+    assert get_approver_actor(legacy) is legacy
