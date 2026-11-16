@@ -1,7 +1,7 @@
-"""Cookie-session authentication for analyst-protected API routes.
+"""Cookie-session authentication for IAM-protected API routes.
 
 Legacy bearer authentication remains authoritative whenever an Authorization
-header is supplied. Browser sessions are analyst-only and require Origin plus
+header is supplied. Browser sessions require Origin plus
 CSRF validation on every unsafe HTTP method.
 """
 import os
@@ -71,6 +71,6 @@ def authenticate_browser_session(request: Request) -> ValidatedSession | None:
     with get_connection() as connection:
         principal = validate_session(connection, token=token)
 
-    if principal is None or principal.role != "analyst":
+    if principal is None or principal.role not in {"analyst", "approver"}:
         return None
     return principal
