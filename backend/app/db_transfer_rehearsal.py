@@ -26,6 +26,66 @@ def _assert_synthetic_connections(source: Any, destination: Any) -> None:
         raise ValueError("unsupported synthetic transfer destination dialect")
 
 
+def _verify_response_audit_integrity(connection: Any, tables: Sequence[Table]) -> None:
+    """Verify canonical response hash chains and their persisted chain heads."""
+    import json
+
+    from app.response.audit_chain import verify_hash_chain
+
+    by_name = {table.name: table for table in tables}
+    audit = by_name.get("response_audit_log")
+    heads = by_name.get("response_audit_chain_heads")
+    if audit is None and heads is None:
+        return
+    if audit is None or heads is None:
+        raise ValueError(
+            "response audit transfer requires both event and chain-head tables"
+        )
+
+    events_by_response: dict[int, list[dict[str, Any]]] = {}
+    rows = connection.execute(
+        select(audit).order_by(audit.c.response_id, audit.c.id)
+    ).mappings()
+    for row in rows:
+        event = dict(row)
+        try:
+            details = json.loads(event["details"])
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ValueError(
+                f"response audit event {event.get('id')} has invalid details JSON"
+            ) from exc
+        if not isinstance(details, dict):
+            raise ValueError(
+                f"response audit event {event.get('id')} details must be a JSON object"
+            )
+        event["details"] = details
+        events_by_response.setdefault(event["response_id"], []).append(event)
+
+    head_rows = {
+        row["response_id"]: dict(row)
+        for row in connection.execute(select(heads)).mappings()
+    }
+    if set(events_by_response) != set(head_rows):
+        raise ValueError("response audit events and chain-head response IDs do not match")
+
+    for response_id, events in events_by_response.items():
+        result = verify_hash_chain(events)
+        if not result["valid"]:
+            raise ValueError(
+                f"response audit chain {response_id} is invalid: "
+                + "; ".join(result["errors"])
+            )
+        head = head_rows[response_id]
+        if head["event_count"] != result["event_count"]:
+            raise ValueError(
+                f"response audit chain-head event count mismatch for response {response_id}"
+            )
+        if head["final_hash"] != result["final_hash"]:
+            raise ValueError(
+                f"response audit chain-head final hash mismatch for response {response_id}"
+            )
+
+
 def transfer_synthetic_tables(
     source_connection: Any,
     destination_connection: Any,
@@ -47,6 +107,7 @@ def transfer_synthetic_tables(
         raise ValueError("transfer requires idle source and destination connections")
 
     ordered_names = dependency_order(tables)
+    _verify_response_audit_integrity(source_connection, tables)
     by_name = {table.name: table for table in tables}
     manifest: dict[str, dict[str, Any]] = {}
 
@@ -112,5 +173,7 @@ def transfer_synthetic_tables(
                         destination_connection.execute(
                             select(func.setval(sequence, maximum, maximum > 0))
                         )
+
+    _verify_response_audit_integrity(destination_connection, tables)
 
     return manifest

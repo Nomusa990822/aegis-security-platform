@@ -119,9 +119,9 @@ A future migration can be proposed only when every item below is evidenced and i
 | Schema inventory and column parity | All expected tables/columns match | Automated fixture checks pass |
 | Type/nullability/default parity | Every difference reviewed and accepted | Initial automated coverage passes; full review outstanding |
 | Constraints and indexes | CHECK, UNIQUE, FK, partial and expression semantics validated | Partial; CHECK and advanced semantics outstanding |
-| PostgreSQL DDL | Alembic baseline reviewed against PostgreSQL 17 | Not started |
-| Transfer | Full synthetic transfer and rollback/mismatch cases pass | Synthetic domain rehearsal implemented; further failure modes remain |
-| Audit integrity | Canonical chain verifier passes before and after transfer | Synthetic hash preservation tested; canonical end-to-end verification outstanding |
+| PostgreSQL DDL | Alembic baseline reviewed against PostgreSQL 17 | Clean-schema baseline implemented; PostgreSQL 17 upgrade/downgrade CI passes; adoption of existing schemas remains outstanding |
+| Transfer | Full synthetic transfer and rollback/mismatch cases pass | 27-table synthetic transfer passes with deterministic reconciliation; canonical audit-chain and chain-head verification now enforced; additional failure modes remain |
+| Audit integrity | Canonical chain verifier passes before and after transfer | Canonical verifier runs on source and destination transfer rows; per-response event counts and chain heads are reconciled in synthetic CI; external checkpoint verification remains outstanding |
 | External checkpoints | Separate secure backup/restore and checksum rehearsal passes | Not started |
 | Backup/restore | Independently restored backup passes all integrity checks | Not started |
 | Rollback | Timed rollback rehearsal and decision criteria approved | Not started |
@@ -132,6 +132,6 @@ A future migration can be proposed only when every item below is evidenced and i
 
 ## 7. Decision
 
-Phase 2F.12 adds stronger schema-contract tests, an explicit-path read-only preflight and documented audit/backup/restore/rollback gates.
+Phase 2F.12 adds stronger schema-contract tests, an explicit-path read-only preflight and documented audit/backup/restore/rollback gates. Phase 2F.14 adds the clean-schema Alembic baseline, validated against PostgreSQL 17 in an isolated schema. Phase 2F.15 adds canonical response audit-chain verification to synthetic transfers, including chain-head reconciliation and fail-closed handling of missing or altered evidence.
 
 It does not create or execute the production Alembic baseline. It does not migrate production data or change deployment configuration. Production migration remains a no-go until every outstanding gate above has passed and the owner explicitly authorizes the operation.
