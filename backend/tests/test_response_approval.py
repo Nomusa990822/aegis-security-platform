@@ -105,12 +105,11 @@ def test_approver_can_approve_pending_response(client, approver_client, approver
 def test_approver_can_reject_pending_response(client, approver_client, approver_id):
     response_id = create_pending_response(client)
 
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/reject",
         json={
             "reason": "Insufficient justification.",
         },
-        headers=approver_headers(),
     )
 
     assert response.status_code == 200
@@ -150,7 +149,6 @@ def test_requester_cannot_approve_own_response(client, approver_client, approver
     response = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={},
-        headers=approver_headers(),
     )
 
     assert response.status_code == 403
@@ -270,7 +268,7 @@ def test_nonexistent_response_cannot_be_rejected(approver_client):
 def test_approval_rejects_client_supplied_decision_identity(client, approver_client):
     response_id = create_pending_response(client)
 
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={
             "reason": "Approved.",
@@ -295,7 +293,7 @@ def test_approval_rejects_client_supplied_decision_identity(client, approver_cli
 def test_approval_does_not_execute_or_simulate_response(client, approver_client):
     response_id = create_pending_response(client)
 
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={},
         headers=approver_headers(),
