@@ -528,7 +528,7 @@ def reset_user_mfa(
         occurred_at=current_at, success=True,
         metadata={
             "factors_revoked": factors,
-            "recovery_codes_invalidated": recovery_codes,
+            "codes_invalidated": recovery_codes,
             "sessions_revoked": sessions,
         },
     )
