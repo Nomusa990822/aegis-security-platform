@@ -105,8 +105,9 @@ class PostgresConnection:
         upper = statement.upper()
 
         if upper in {"BEGIN IMMEDIATE", "BEGIN EXCLUSIVE"}:
-            if self._raw.info.transaction_status == TransactionStatus.IDLE:
-                self._raw.execute("BEGIN")
+            driver_connection = self._raw.driver_connection
+            if driver_connection.info.transaction_status == TransactionStatus.IDLE:
+                driver_connection.execute("BEGIN")
             return PostgresCursor(self._raw.cursor())
 
         ignore_insert = bool(re.match(r"^INSERT\s+OR\s+IGNORE\s+INTO\b", statement, re.I))
