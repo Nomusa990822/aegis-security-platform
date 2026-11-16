@@ -481,3 +481,17 @@ def regenerate_mfa_recovery_codes(
         "message": "Save these recovery codes now. They will not be shown again.",
     }
 
+
+
+
+@router.get("/mfa/status")
+def inspect_mfa_status(request: Request, response: Response):
+    principal = _require_browser_principal(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    with get_connection() as connection:
+        enabled = mfa.has_active_totp(connection, user_id=principal.user_id)
+    return {
+        "enabled": enabled,
+        "recently_verified": mfa.has_recent_mfa(principal.mfa_verified_at),
+    }
