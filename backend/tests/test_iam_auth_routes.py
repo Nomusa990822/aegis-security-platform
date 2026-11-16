@@ -74,6 +74,8 @@ def test_analyst_login_sets_secure_http_only_cookie_and_session(iam_client):
         headers={"Cookie": f"__Host-aegis_session={token}"},
     )
     assert inspected.status_code == 200
+    assert inspected.headers["cache-control"] == "no-store"
+    assert inspected.headers["pragma"] == "no-cache"
     assert inspected.json()["user"]["username"] == "analyst.login"
     assert inspected.json()["mfa_verified"] is False
 
@@ -85,6 +87,7 @@ def test_approver_password_login_is_rejected_generically(iam_client):
         headers={"Origin": ORIGIN},
     )
     assert response.status_code == 401
+    assert response.headers["cache-control"] == "no-store"
     assert response.json()["detail"] == "Username or password is incorrect."
     assert "__Host-aegis_session" not in response.headers.get("set-cookie", "")
 
