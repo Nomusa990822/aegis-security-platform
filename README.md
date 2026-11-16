@@ -479,9 +479,7 @@ AEGIS retains an analyst bearer token for legacy analyst API integrations. Appro
 
 ```bash
 export AEGIS_ANALYST_TOKEN="$(openssl rand -hex 32)"
-export AEGIS_APPROVER_TOKEN="$(openssl rand -hex 32)"
 export AEGIS_ANALYST_ID="analyst-local"
-export AEGIS_APPROVER_ID="approver-local"
 
 export AEGIS_AUDIT_CHECKPOINT_KEY="$(openssl rand -hex 32)"
 export AEGIS_AUDIT_CHECKPOINT_KEY_ID="local-v1"
@@ -553,9 +551,7 @@ From the repository root, generate a private environment file once:
 ```bash
 cat > .env <<EOF
 AEGIS_ANALYST_TOKEN=$(openssl rand -hex 32)
-AEGIS_APPROVER_TOKEN=$(openssl rand -hex 32)
 AEGIS_ANALYST_ID=analyst-local
-AEGIS_APPROVER_ID=approver-local
 AEGIS_AUDIT_CHECKPOINT_KEY=$(openssl rand -hex 32)
 AEGIS_AUDIT_CHECKPOINT_KEY_ID=local-v1
 AEGIS_AUDIT_CHECKPOINT_DIR=/data/audit_checkpoints
@@ -605,8 +601,8 @@ AEGIS focuses on a defined set of security operations workflows. It does not att
 
 | Area | Current position |
 |---|---|
-| Authentication | Static environment-configured analyst and approver tokens |
-| MFA / OTP | Not implemented |
+| Authentication | Analyst API bearer token plus IAM browser sessions; approver bearer token retired |
+| MFA / OTP | TOTP MFA, single-use recovery codes, and five-minute approver step-up |
 | SSO / OAuth / OIDC / SAML | Not implemented |
 | Detection | Ten registered rules |
 | MITRE ATT&CK | Curated ten-entry subset |
