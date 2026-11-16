@@ -95,7 +95,7 @@ def test_approved_lifecycle_has_valid_audit(client, approver_client):
 
     assert decision.status_code == 200
 
-    response = inspect_audit(client, response_id)
+    response = inspect_audit(approver_client, response_id)
 
     assert response.status_code == 200
     assert response.json()["status"] == "approved"
@@ -118,7 +118,7 @@ def test_rejected_lifecycle_has_valid_audit(client, approver_client):
 
     assert decision.status_code == 200
 
-    response = inspect_audit(client, response_id)
+    response = inspect_audit(approver_client, response_id)
 
     assert response.status_code == 200
     assert response.json()["status"] == "rejected"
@@ -148,7 +148,7 @@ def test_simulated_lifecycle_has_valid_audit(client, approver_client):
 
     assert simulation.status_code == 200
 
-    response = inspect_audit(client, response_id)
+    response = inspect_audit(approver_client, response_id)
 
     assert response.status_code == 200
     assert response.json()["status"] == "simulated"
