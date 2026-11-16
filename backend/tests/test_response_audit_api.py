@@ -4,18 +4,9 @@ from app import database
 
 
 ANALYST_TOKEN = "a" * 48
-APPROVER_TOKEN = "b" * 48
-
-
 def analyst_headers():
     return {
         "Authorization": f"Bearer {ANALYST_TOKEN}",
-    }
-
-
-def approver_headers():
-    return {
-        "Authorization": f"Bearer {APPROVER_TOKEN}",
     }
 
 
@@ -63,13 +54,12 @@ def create_pending_response(client):
     return response.json()["response_id"]
 
 
-def approve_response(client, response_id):
-    response = client.post(
+def approve_response(approver_client, response_id):
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={
             "reason": "Approved for audit API testing.",
         },
-        headers=approver_headers(),
     )
 
     assert response.status_code == 200
@@ -112,13 +102,12 @@ def test_audit_integrity_rejects_analyst_role(client):
     assert response.status_code == 403
 
 
-def test_audit_integrity_accepts_approver_role(client):
+def test_audit_integrity_accepts_approver_role(client, approver_client):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
-    response = client.get(
+    response = approver_client.get(
         f"/api/v1/response/{response_id}/audit-integrity",
-        headers=approver_headers(),
     )
 
     assert response.status_code == 200
@@ -133,9 +122,9 @@ def test_audit_integrity_accepts_approver_role(client):
     assert result["errors"] == []
 
 
-def test_audit_integrity_detects_tampered_audit_actor(client):
+def test_audit_integrity_detects_tampered_audit_actor(client, approver_client):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     with database.get_connection() as connection:
         connection.execute(
@@ -153,9 +142,8 @@ def test_audit_integrity_detects_tampered_audit_actor(client):
         )
         connection.commit()
 
-    response = client.get(
+    response = approver_client.get(
         f"/api/v1/response/{response_id}/audit-integrity",
-        headers=approver_headers(),
     )
 
     assert response.status_code == 200
@@ -166,33 +154,30 @@ def test_audit_integrity_detects_tampered_audit_actor(client):
     )
 
 
-def test_audit_integrity_returns_404_for_unknown_response(client):
-    response = client.get(
+def test_audit_integrity_returns_404_for_unknown_response(client, approver_client):
+    response = approver_client.get(
         "/api/v1/response/999999/audit-integrity",
-        headers=approver_headers(),
     )
 
     assert response.status_code == 404
 
 
-def test_audit_integrity_rejects_non_positive_response_id(client):
-    response = client.get(
+def test_audit_integrity_rejects_non_positive_response_id(client, approver_client):
+    response = approver_client.get(
         "/api/v1/response/0/audit-integrity",
-        headers=approver_headers(),
     )
 
     assert response.status_code == 400
 
 
-def test_audit_integrity_does_not_modify_audit_records(client):
+def test_audit_integrity_does_not_modify_audit_records(client, approver_client):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     before = get_audit_rows(response_id)
 
-    response = client.get(
+    response = approver_client.get(
         f"/api/v1/response/{response_id}/audit-integrity",
-        headers=approver_headers(),
     )
 
     after = get_audit_rows(response_id)
@@ -202,9 +187,9 @@ def test_audit_integrity_does_not_modify_audit_records(client):
     assert before == after
 
 
-def test_audit_integrity_detects_modified_audit_details(client):
+def test_audit_integrity_detects_modified_audit_details(client, approver_client):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     with database.get_connection() as connection:
         row = connection.execute(
@@ -233,9 +218,8 @@ def test_audit_integrity_detects_modified_audit_details(client):
         )
         connection.commit()
 
-    response = client.get(
+    response = approver_client.get(
         f"/api/v1/response/{response_id}/audit-integrity",
-        headers=approver_headers(),
     )
 
     assert response.status_code == 200
@@ -244,9 +228,9 @@ def test_audit_integrity_detects_modified_audit_details(client):
 
 
 
-def test_audit_integrity_detects_deleted_tail_event(client):
+def test_audit_integrity_detects_deleted_tail_event(client, approver_client):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     with database.get_connection() as connection:
         connection.execute(
@@ -259,9 +243,8 @@ def test_audit_integrity_detects_deleted_tail_event(client):
         )
         connection.commit()
 
-    response = client.get(
+    response = approver_client.get(
         f"/api/v1/response/{response_id}/audit-integrity",
-        headers=approver_headers(),
     )
 
     assert response.status_code == 200
@@ -273,7 +256,7 @@ def test_audit_integrity_detects_deleted_tail_event(client):
     )
 
 
-def test_audit_integrity_detects_modified_chain_head(client):
+def test_audit_integrity_detects_modified_chain_head(client, approver_client):
     response_id = create_pending_response(client)
 
     with database.get_connection() as connection:
@@ -287,9 +270,8 @@ def test_audit_integrity_detects_modified_chain_head(client):
         )
         connection.commit()
 
-    response = client.get(
+    response = approver_client.get(
         f"/api/v1/response/{response_id}/audit-integrity",
-        headers=approver_headers(),
     )
 
     assert response.status_code == 200
@@ -301,7 +283,7 @@ def test_audit_integrity_detects_modified_chain_head(client):
     )
 
 
-def test_audit_integrity_detects_missing_chain_head(client):
+def test_audit_integrity_detects_missing_chain_head(client, approver_client):
     response_id = create_pending_response(client)
 
     with database.get_connection() as connection:
@@ -314,9 +296,8 @@ def test_audit_integrity_detects_missing_chain_head(client):
         )
         connection.commit()
 
-    response = client.get(
+    response = approver_client.get(
         f"/api/v1/response/{response_id}/audit-integrity",
-        headers=approver_headers(),
     )
 
     assert response.status_code == 200
@@ -328,7 +309,7 @@ def test_audit_integrity_detects_missing_chain_head(client):
     )
 
 
-def test_audit_integrity_detects_tampered_hash_chain_event(client):
+def test_audit_integrity_detects_tampered_hash_chain_event(client, approver_client):
     response_id = create_pending_response(client)
 
     with database.get_connection() as connection:
@@ -342,9 +323,8 @@ def test_audit_integrity_detects_tampered_hash_chain_event(client):
         )
         connection.commit()
 
-    response = client.get(
+    response = approver_client.get(
         f"/api/v1/response/{response_id}/audit-integrity",
-        headers=approver_headers(),
     )
 
     assert response.status_code == 200

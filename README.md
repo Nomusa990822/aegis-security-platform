@@ -475,13 +475,11 @@ On Windows PowerShell:
 
 ### 3. Configure credentials
 
-AEGIS requires separate analyst and approver tokens, plus a signing key for response audit checkpoints. Generate unique secrets locally:
+AEGIS retains an analyst bearer token for legacy analyst API integrations. Approver authentication uses IAM browser accounts with mandatory MFA; there is no approver bearer token. Generate the analyst API token and audit-checkpoint signing key locally:
 
 ```bash
 export AEGIS_ANALYST_TOKEN="$(openssl rand -hex 32)"
-export AEGIS_APPROVER_TOKEN="$(openssl rand -hex 32)"
 export AEGIS_ANALYST_ID="analyst-local"
-export AEGIS_APPROVER_ID="approver-local"
 
 export AEGIS_AUDIT_CHECKPOINT_KEY="$(openssl rand -hex 32)"
 export AEGIS_AUDIT_CHECKPOINT_KEY_ID="local-v1"
@@ -489,7 +487,7 @@ export AEGIS_AUDIT_CHECKPOINT_DIR="$PWD/audit_checkpoints"
 ```
 
 > [!CAUTION]
-> Keep these values private and out of source control. Preserve the signing key and key ID when you need to verify checkpoints from an earlier run.
+> Keep these values private and out of source control. Preserve the signing key and key ID when you need to verify checkpoints from an earlier run. Configure browser IAM secrets and provision analyst/approver accounts using the procedures in [`backend/app/iam/README.md`](backend/app/iam/README.md). Approver accounts must complete TOTP MFA before they can sign in.
 
 Optional threat-intelligence provider configuration:
 
@@ -553,9 +551,7 @@ From the repository root, generate a private environment file once:
 ```bash
 cat > .env <<EOF
 AEGIS_ANALYST_TOKEN=$(openssl rand -hex 32)
-AEGIS_APPROVER_TOKEN=$(openssl rand -hex 32)
 AEGIS_ANALYST_ID=analyst-local
-AEGIS_APPROVER_ID=approver-local
 AEGIS_AUDIT_CHECKPOINT_KEY=$(openssl rand -hex 32)
 AEGIS_AUDIT_CHECKPOINT_KEY_ID=local-v1
 AEGIS_AUDIT_CHECKPOINT_DIR=/data/audit_checkpoints
@@ -581,7 +577,7 @@ docker compose ps
 | API Health | <http://localhost:8000/api/v1/health> |
 | Interactive API Docs | <http://localhost:8000/docs> |
 
-Use the analyst token from your local `.env` file when the dashboard requests authentication. Keep the approver token separate for approval-only operations.
+The dashboard uses IAM username/password authentication. Approver accounts must complete the MFA challenge; approval and rejection actions require a recent MFA verification. The analyst bearer token is for legacy analyst API integrations, not dashboard sign-in. Because the session cookie is Secure and the IAM origin allowlist requires HTTPS, do not sign in through the plain-HTTP Compose URL. Configure a trusted HTTPS ingress first and follow [`docs/iam-phase-2e-production-readiness.md`](docs/iam-phase-2e-production-readiness.md).
 
 ### 4. Stop and restart
 
@@ -605,8 +601,8 @@ AEGIS focuses on a defined set of security operations workflows. It does not att
 
 | Area | Current position |
 |---|---|
-| Authentication | Static environment-configured analyst and approver tokens |
-| MFA / OTP | Not implemented |
+| Authentication | Analyst API bearer token plus IAM browser sessions; approver bearer token retired |
+| MFA / OTP | TOTP MFA, single-use recovery codes, and five-minute approver step-up |
 | SSO / OAuth / OIDC / SAML | Not implemented |
 | Detection | Ten registered rules |
 | MITRE ATT&CK | Curated ten-entry subset |

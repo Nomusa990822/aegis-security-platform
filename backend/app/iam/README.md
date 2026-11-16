@@ -212,12 +212,13 @@ untrusted proxy and do not add permissive CORS rules.
 
 ## Compatibility and limitations
 
-- Existing bearer tokens remain valid for API clients and the legacy approver
-  workflow. Analyst cookie sessions are accepted by the shared API
-  authentication dependency. Unsafe cookie-authenticated methods require an
-  exact allowlisted HTTPS Origin and a valid session-bound CSRF header.
-- Analyst cookie sessions cannot satisfy approver dependencies; response
-  approval remains on the legacy approver bearer identity pending MFA step-up.
+- The analyst bearer token remains valid for existing analyst API integrations.
+  The legacy approver bearer token is retired in Phase 2E and is no longer
+  accepted. Unsafe cookie-authenticated methods require an exact allowlisted
+  HTTPS Origin and a valid session-bound CSRF header.
+- Analyst cookie sessions cannot satisfy approver dependencies. Phase 2D adds
+  approver password-plus-MFA login; approver actions require that browser
+  session and a recent server-owned MFA verification timestamp.
 - Analyst cookie sessions are not MFA-verified. The session inspection
   response explicitly reports this.
 - No public registration, invitation, activation, admin, password-reset, or
@@ -227,11 +228,11 @@ untrusted proxy and do not add permissive CORS rules.
   derived CSRF token in JavaScript memory only, and sends it on unsafe API
   requests. The dashboard and response client do not read or write
   `localStorage` or `sessionStorage`, and do not attach bearer tokens.
-- The dashboard sign-in form is analyst-only. Approver sign-in and approval
-  through a browser session remain unavailable until MFA enrollment,
-  verification, and recent-MFA step-up are integrated. Existing approver
-  bearer API compatibility is retained for legacy clients; it is not exposed
-  by the new dashboard login form.
+- Phase 2C initially shipped an analyst-only dashboard sign-in. Phase 2D
+  extends browser login to approver accounts with a mandatory MFA challenge
+  and adds MFA enrollment, step-up, and recovery-code management. The legacy
+  approver bearer token is retired by Phase 2E; approver decisions cannot be
+  made with bearer authentication.
 - No schema migration or automatic startup migration is introduced. The
   already-installed IAM v1/v2 schema is required.
 - Tests use isolated temporary SQLite databases. No live database, Docker
@@ -266,8 +267,8 @@ one-time recovery codes, login challenges, and server-side MFA step-up.
   session is issued until TOTP or a recovery code succeeds.
 - Successful challenge completion creates a server-side session with
   `mfa_verified_at` set by server-side code. Browser approver actions require
-  this timestamp to be no older than five minutes. Legacy bearer-token
-  behavior remains unchanged.
+  this timestamp to be no older than five minutes. Phase 2E retires the legacy
+  approver bearer token; analyst bearer authentication remains available.
 - Browser endpoints support password-reauthenticated enrollment, confirmation,
   step-up, and recovery-code regeneration. All unsafe cookie requests retain
   the Phase 2C CSRF and exact-origin checks. Secret-bearing responses are
@@ -280,8 +281,8 @@ Configure an independent 32-byte URL-safe Base64 key and a key identifier:
 - `AEGIS_MFA_ENCRYPTION_KEY`
 - `AEGIS_MFA_ENCRYPTION_KEY_ID`
 
-Do not reuse the audit checkpoint, CSRF, authentication-throttle, API-token,
-session, or password material. Store it only in the deployment secret store.
+Do not reuse the audit checkpoint, CSRF, authentication-throttle, analyst
+API-token, session, or password material. Store it only in the deployment secret store.
 Loss of the key makes existing encrypted TOTP factors unusable; plan and test
 key backup/rotation separately before production rollout.
 
@@ -305,3 +306,29 @@ Before production deployment, independently provision and back up the MFA
 encryption key, verify the key identifier and recovery procedure, configure
 HTTPS and trusted ingress, and complete an explicitly approved deployment
 runbook. These operational activities are not performed by this branch.
+
+
+## Phase 2E production readiness
+
+The deployment gates, secret inventory, ingress requirements, coordinated backup/restore procedure, read-only preflight, rollout sequence, smoke tests, and rollback criteria are documented in [`docs/iam-phase-2e-production-readiness.md`](../../../docs/iam-phase-2e-production-readiness.md). This is a planning/runbook document only; it does not authorise or perform a production deployment.
+
+
+### Phase 2E approver authentication boundary
+
+The legacy `AEGIS_APPROVER_TOKEN` and `AEGIS_APPROVER_ID` configuration is
+retired. The application no longer loads or accepts these values; a previously
+configured approver bearer token receives HTTP 401. Remove the obsolete values
+from the deployment secret store after deploying this release and confirming
+that no external consumer depends on them.
+
+The analyst bearer token remains available for existing analyst integrations.
+Approver identity is obtained only from an active IAM browser session created
+after password and MFA login. The shared approver dependency rejects bearer
+actors even if an actor object claims the approver role, and rejects browser
+sessions without a server-owned MFA timestamp within the five-minute window.
+This applies to approval, rejection, and every route using the shared approver
+dependency.
+
+A successful MFA login can be used for the immediate approval workflow. For
+later sensitive actions, the approver must perform MFA step-up again once the
+five-minute freshness window expires.

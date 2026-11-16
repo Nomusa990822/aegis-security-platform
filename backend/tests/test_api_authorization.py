@@ -6,9 +6,6 @@ from app import database
 
 
 ANALYST_TOKEN = "a" * 48
-APPROVER_TOKEN = "b" * 48
-
-
 @pytest.mark.parametrize(
     "method,path,payload",
     [
@@ -73,26 +70,35 @@ def test_authenticated_session_returns_server_derived_identity(
     }
 
 
-def test_approver_can_read_but_cannot_perform_analyst_operations(
-    isolated_database,
+def test_mfa_approver_can_read_but_cannot_perform_analyst_operations(
+    approver_client,
     seeded_alert,
 ):
-    with TestClient(
-        app,
-        headers={
-            "Authorization": f"Bearer {APPROVER_TOKEN}",
-        },
-    ) as approver_client:
-        read_response = approver_client.get(
-            f"/api/v1/alerts/{seeded_alert}"
-        )
-        write_response = approver_client.post(
-            f"/api/v1/alerts/{seeded_alert}/notes",
-            json={"content": "Attempted analyst-only note."},
-        )
+    read_response = approver_client.get(
+        f"/api/v1/alerts/{seeded_alert}"
+    )
+    write_response = approver_client.post(
+        f"/api/v1/alerts/{seeded_alert}/notes",
+        json={"content": "Attempted analyst-only note."},
+    )
 
     assert read_response.status_code == 200
     assert write_response.status_code == 403
+
+
+def test_legacy_approver_bearer_token_is_rejected(
+    isolated_database,
+    monkeypatch,
+):
+    retired_token = "b" * 48
+    monkeypatch.setenv("AEGIS_APPROVER_TOKEN", retired_token)
+    with TestClient(
+        app,
+        headers={"Authorization": f"Bearer {retired_token}"},
+    ) as retired_client:
+        response = retired_client.get("/api/v1/alerts")
+
+    assert response.status_code == 401
 
 
 def test_analyst_cannot_inspect_approver_only_response_audit(
@@ -202,16 +208,12 @@ def test_alert_audit_identity_comes_from_authenticated_actor(
 
 
 def test_approver_cannot_trigger_threat_intelligence_enrichment(
-    isolated_database,
+    approver_client,
 ):
-    with TestClient(
-        app,
-        headers={"Authorization": f"Bearer {APPROVER_TOKEN}"},
-    ) as approver_client:
-        response = approver_client.post(
-            "/api/v1/intelligence/ip",
-            json={"ip_address": "8.8.8.8"},
-        )
+    response = approver_client.post(
+        "/api/v1/intelligence/ip",
+        json={"ip_address": "8.8.8.8"},
+    )
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Analyst permissions are required."

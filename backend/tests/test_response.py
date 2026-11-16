@@ -13,9 +13,6 @@ from app.response.policy import ResponsePolicyEngine
 
 
 ANALYST_TOKEN = "a" * 48
-APPROVER_TOKEN = "b" * 48
-
-
 @pytest.fixture
 def engine():
     return ResponseEngine()
@@ -67,12 +64,6 @@ def create_alert(source_ip="8.8.8.8"):
 def analyst_headers():
     return {
         "Authorization": f"Bearer {ANALYST_TOKEN}",
-    }
-
-
-def approver_headers():
-    return {
-        "Authorization": f"Bearer {APPROVER_TOKEN}",
     }
 
 
@@ -190,10 +181,13 @@ def test_response_request_requires_authentication(
     assert response.status_code == 401
 
 
-def test_approver_cannot_submit_analyst_request(
+def test_retired_approver_bearer_cannot_submit_analyst_request(
     client,
     seeded_alert,
+    monkeypatch,
 ):
+    retired_token = "b" * 48
+    monkeypatch.setenv("AEGIS_APPROVER_TOKEN", retired_token)
     response = client.post(
         "/api/v1/response/preview",
         json={
@@ -201,10 +195,10 @@ def test_approver_cannot_submit_analyst_request(
             "action": "block_ip",
             "target": "198.51.100.250",
         },
-        headers=approver_headers(),
+        headers={"Authorization": f"Bearer {retired_token}"},
     )
 
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 def test_history_requires_authentication(client):
@@ -217,8 +211,9 @@ def test_history_requires_authentication(client):
     assert response.status_code == 401
 
 
-def test_approver_can_inspect_response_history(
+def test_mfa_approver_can_inspect_response_history(
     client,
+    approver_client,
     seeded_alert,
 ):
     created = client.post(
@@ -232,9 +227,8 @@ def test_approver_can_inspect_response_history(
 
     assert created.status_code == 201
 
-    history = client.get(
+    history = approver_client.get(
         "/api/v1/response/history",
-        headers=approver_headers(),
     )
 
     assert history.status_code == 200

@@ -4,7 +4,7 @@ These tests exercise authentication, role separation, and strict request
 validation through the public HTTP interface.
 """
 
-from conftest import ANALYST_TEST_TOKEN, APPROVER_TEST_TOKEN
+from conftest import ANALYST_TEST_TOKEN
 
 
 def bearer(token: str) -> dict[str, str]:
@@ -51,17 +51,20 @@ def test_analyst_cannot_inspect_approver_only_audit_integrity(client):
     assert response.status_code == 403
 
 
-def test_approver_cannot_create_analyst_investigation_note(
+def test_retired_approver_token_cannot_create_analyst_investigation_note(
     client,
     seeded_alert,
+    monkeypatch,
 ):
+    retired_token = "b" * 48
+    monkeypatch.setenv("AEGIS_APPROVER_TOKEN", retired_token)
     response = client.post(
         f"/api/v1/alerts/{seeded_alert}/notes",
         json={"content": "This action must be analyst-only."},
-        headers=bearer(APPROVER_TEST_TOKEN),
+        headers=bearer(retired_token),
     )
 
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 def test_event_ingestion_rejects_invalid_ip_address(client):
@@ -104,7 +107,7 @@ def test_authentication_fails_closed_when_credentials_are_not_configured(
     monkeypatch,
 ):
     monkeypatch.delenv("AEGIS_ANALYST_TOKEN")
-    monkeypatch.delenv("AEGIS_APPROVER_TOKEN")
+    monkeypatch.delenv("AEGIS_APPROVER_TOKEN", raising=False)
 
     response = client.get(
         "/api/v1/auth/me",
@@ -115,7 +118,7 @@ def test_authentication_fails_closed_when_credentials_are_not_configured(
     assert "not configured" in response.json()["detail"].lower()
 
 
-def test_authentication_fails_closed_when_roles_share_a_token(
+def test_retired_approver_token_setting_is_ignored(
     client,
     monkeypatch,
 ):
@@ -128,8 +131,7 @@ def test_authentication_fails_closed_when_roles_share_a_token(
         headers=bearer(shared_token),
     )
 
-    assert response.status_code == 503
-    assert "different" in response.json()["detail"].lower()
+    assert response.status_code == 200
 
 
 

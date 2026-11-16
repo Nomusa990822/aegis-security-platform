@@ -5,18 +5,9 @@ from app import database
 
 
 ANALYST_TOKEN = "a" * 48
-APPROVER_TOKEN = "b" * 48
-
-
 def analyst_headers():
     return {
         "Authorization": f"Bearer {ANALYST_TOKEN}",
-    }
-
-
-def approver_headers():
-    return {
-        "Authorization": f"Bearer {APPROVER_TOKEN}",
     }
 
 
@@ -217,15 +208,14 @@ def test_preview_attributes_request_to_authenticated_actor(client):
 # APPROVAL AND REJECTION VALIDATION
 # --------------------------------------------------
 
-def test_approval_rejects_reason_longer_than_limit(client):
+def test_approval_rejects_reason_longer_than_limit(client, approver_client):
     response_id = create_pending_response(client)
 
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={
             "reason": "A" * 501,
         },
-        headers=approver_headers(),
     )
 
     assert response.status_code == 422
@@ -239,15 +229,14 @@ def test_approval_rejects_reason_longer_than_limit(client):
     assert len(detail.json()["audit_log"]) == 1
 
 
-def test_rejection_rejects_reason_longer_than_limit(client):
+def test_rejection_rejects_reason_longer_than_limit(client, approver_client):
     response_id = create_pending_response(client)
 
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/reject",
         json={
             "reason": "R" * 501,
         },
-        headers=approver_headers(),
     )
 
     assert response.status_code == 422
@@ -269,13 +258,12 @@ def test_rejection_rejects_reason_longer_than_limit(client):
     ],
 )
 def test_decision_endpoints_reject_non_positive_ids(
-    client,
+    approver_client,
     endpoint,
 ):
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/0/{endpoint}",
         json={},
-        headers=approver_headers(),
     )
 
     assert response.status_code == 400
