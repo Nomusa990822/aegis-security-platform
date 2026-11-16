@@ -1,5 +1,5 @@
 """IAM schema: credentials, MFA, recovery, sessions and security telemetry."""
-from sqlalchemy import CheckConstraint, Column, ForeignKey, Index, Integer, LargeBinary, Table, Text, column, text
+from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Index, Integer, LargeBinary, Table, Text, column, text
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.functions import FunctionElement
 
@@ -7,7 +7,7 @@ from sqlalchemy.sql.functions import FunctionElement
 class JsonTextIsValid(FunctionElement):
     """Dialect-aware validity predicate for JSON retained in TEXT columns."""
 
-    type = Integer()
+    type = Boolean()
     inherit_cache = True
 
 
