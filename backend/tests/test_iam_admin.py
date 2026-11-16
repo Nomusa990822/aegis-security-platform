@@ -90,7 +90,7 @@ def test_sensitive_operator_output_is_written_only_to_attached_terminal(monkeypa
     admin._write_sensitive_terminal_output("provisioning-secret", "recovery-code")
 
     assert opened[0][0] == "/dev/tty"
-    assert writes == [(17, b"provisioning-secret\\nrecovery-code\\n")]
+    assert writes == [(17, b"provisioning-secret\nrecovery-code\n")]
     assert closed == [17]
 
 
