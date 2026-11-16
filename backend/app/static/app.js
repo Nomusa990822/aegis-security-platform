@@ -2811,6 +2811,10 @@ $("mitre-tactic-filter")?.addEventListener(
 function showAuthenticationGate(message = "") {
     const gate = $("auth-gate");
     if (gate) gate.hidden = false;
+    if ($("auth-form")) $("auth-form").hidden = false;
+    if ($("auth-mfa-form")) $("auth-mfa-form").hidden = true;
+    if ($("auth-password")) $("auth-password").value = "";
+    if ($("auth-mfa-code")) $("auth-mfa-code").value = "";
     if ($("auth-error")) $("auth-error").textContent = message;
     if ($("auth-identity")) $("auth-identity").textContent = "";
     const logout = $("logout-button");
@@ -2878,6 +2882,7 @@ $("auth-form")?.addEventListener("submit", async event => {
             throw new Error("Sign-in failed. Check your credentials or contact the AEGIS operator.");
         }
         if (payload.mfa_required) {
+            if ($("auth-password")) $("auth-password").value = "";
             if ($("auth-form")) $("auth-form").hidden = true;
             if ($("auth-mfa-form")) $("auth-mfa-form").hidden = false;
             if ($("auth-mfa-error")) $("auth-mfa-error").textContent = "";
