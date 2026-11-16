@@ -2943,7 +2943,7 @@ let aegisMfaFactorId = null;
 $("mfa-settings-button")?.addEventListener("click", async () => {
     const panel = $("mfa-management");
     if (panel) panel.hidden = false;
-    for (const id of ["mfa-enrollment-start", "mfa-enrollment-confirm", "mfa-recovery-display"]) {
+    for (const id of ["mfa-enrollment-start", "mfa-enrollment-confirm", "mfa-recovery-display", "mfa-step-up"]) {
         if ($(id)) $(id).hidden = true;
     }
     if ($("mfa-management-error")) $("mfa-management-error").textContent = "";
@@ -2956,6 +2956,8 @@ $("mfa-settings-button")?.addEventListener("click", async () => {
                     ? "MFA is enabled. Your session has recent MFA verification."
                     : "MFA is enabled. Verify a fresh authenticator code before privileged approver actions.";
             }
+            if ($("mfa-step-up")) $("mfa-step-up").hidden = false;
+            if ($("mfa-regenerate-codes")) $("mfa-regenerate-codes").hidden = !status.recently_verified;
         } else {
             if ($("mfa-status-text")) $("mfa-status-text").textContent = "MFA is not enabled for this account.";
             if ($("mfa-enrollment-start")) $("mfa-enrollment-start").hidden = false;
@@ -3006,6 +3008,36 @@ $("mfa-confirm-form")?.addEventListener("submit", async event => {
         if ($("mfa-provisioning-uri")) $("mfa-provisioning-uri").value = "";
         if ($("mfa-confirm-code")) $("mfa-confirm-code").value = "";
         aegisMfaFactorId = null;
+    } catch (error) {
+        if ($("mfa-management-error")) $("mfa-management-error").textContent = error.message;
+    }
+});
+
+$("mfa-step-up-form")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const code = $("mfa-step-up-code")?.value.trim() || "";
+    try {
+        await fetchJSON("/api/v1/iam/mfa/step-up", {
+            method: "POST",
+            body: JSON.stringify({ code })
+        });
+        if ($("mfa-status-text")) $("mfa-status-text").textContent = "MFA verified. This verification is valid for five minutes.";
+        if ($("mfa-regenerate-codes")) $("mfa-regenerate-codes").hidden = false;
+        if ($("mfa-step-up-code")) $("mfa-step-up-code").value = "";
+    } catch (error) {
+        if ($("mfa-management-error")) $("mfa-management-error").textContent = error.message;
+    }
+});
+
+$("mfa-regenerate-codes")?.addEventListener("click", async () => {
+    try {
+        const result = await fetchJSON("/api/v1/iam/mfa/recovery-codes/regenerate", {
+            method: "POST",
+            body: JSON.stringify({})
+        });
+        if ($("mfa-recovery-codes")) $("mfa-recovery-codes").value = result.recovery_codes.join("\n");
+        if ($("mfa-recovery-display")) $("mfa-recovery-display").hidden = false;
+        if ($("mfa-management-error")) $("mfa-management-error").textContent = "Previous unused recovery codes are now invalid. Save this new set securely.";
     } catch (error) {
         if ($("mfa-management-error")) $("mfa-management-error").textContent = error.message;
     }
