@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.database import get_connection
 from app.iam import auth_throttling, repository, sessions
@@ -36,6 +36,13 @@ class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     username: str = Field(min_length=1, max_length=128)
     password: str = Field(min_length=1, max_length=1024)
+
+    @field_validator("password")
+    @classmethod
+    def enforce_password_byte_limit(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 1024:
+            raise ValueError("password exceeds the supported UTF-8 byte limit")
+        return value
 
 
 def _required_secret(name: str) -> str:
