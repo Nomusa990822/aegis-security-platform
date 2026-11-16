@@ -106,7 +106,6 @@ def test_rejected_response_cannot_be_simulated(client, approver_client):
         json={
             "reason": "Not authorised.",
         },
-        headers=approver_headers(),
     )
 
     assert rejection.status_code == 200
@@ -129,7 +128,7 @@ def test_rejected_response_cannot_be_simulated(client, approver_client):
 
 def test_approved_response_can_be_simulated(client, approver_client, approver_id):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     response = client.post(
         f"/api/v1/response/{response_id}/simulate",
@@ -166,7 +165,7 @@ def test_approved_response_can_be_simulated(client, approver_client, approver_id
 
 def test_simulation_is_persisted_in_response_history(client, approver_client, approver_id):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     simulation = client.post(
         f"/api/v1/response/{response_id}/simulate",
@@ -200,7 +199,7 @@ def test_simulation_is_persisted_in_response_history(client, approver_client, ap
 
 def test_response_cannot_be_simulated_twice(client, approver_client, approver_id):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     first = client.post(
         f"/api/v1/response/{response_id}/simulate",
@@ -243,7 +242,7 @@ def test_simulation_rejects_non_positive_response_id(client):
 
 def test_simulation_does_not_change_alert_or_network_state(client, approver_client, approver_id):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
     before = client.get(
         f"/api/v1/response/history/{response_id}",
