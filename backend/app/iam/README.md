@@ -161,3 +161,71 @@ migration to any live database.
 No existing endpoint, middleware behavior, dashboard token handling, startup
 migration behavior, database file, Docker volume, response audit chain, or
 running service is changed by these primitives.
+
+
+---
+
+# AEGIS IAM — Phase 2C (authentication integration)
+
+Phase 2C connects the existing IAM primitives to a deliberately limited
+browser authentication surface. It adds analyst password login, session
+inspection, and logout. It does not replace legacy bearer authentication on
+existing AEGIS APIs.
+
+## Routes
+
+- `POST /api/v1/iam/login` — verifies an active analyst account and issues a
+  server-managed session cookie.
+- `GET /api/v1/iam/session` — validates the cookie and returns the server-side
+  analyst identity and a derived CSRF token.
+- `POST /api/v1/iam/logout` — requires an allowlisted HTTPS Origin and the
+  session-bound CSRF header, revokes the session, and clears the cookie.
+
+Approver accounts are intentionally rejected by password login until the
+separate MFA enrollment, TOTP verification, and recent-MFA step-up milestone.
+Invited, disabled, locked, and password-change-required accounts are also
+ineligible. Login failures use one generic message and unknown usernames
+perform Argon2id verification against a dummy hash.
+
+## Required configuration
+
+The routes fail closed unless all of the following are configured:
+
+- `AEGIS_AUTH_THROTTLE_HMAC_KEY`: independent random secret, at least 32 UTF-8
+  bytes.
+- `AEGIS_CSRF_SIGNING_KEY`: a different independent random secret, at least
+  32 UTF-8 bytes.
+- `AEGIS_IAM_ALLOWED_ORIGINS`: comma-separated exact HTTPS origins, including
+  the port where applicable; no wildcard origins.
+
+The session cookie remains Secure, HttpOnly, SameSite=Lax, Path=/, and has no
+Domain attribute. Requests use the ASGI connection client address; forwarded
+headers are not trusted. Do not expose the application directly behind an
+untrusted proxy and do not add permissive CORS rules.
+
+## Compatibility and limitations
+
+- Existing bearer tokens remain valid for API clients and the legacy approver
+  workflow. Analyst cookie sessions are accepted by the shared API
+  authentication dependency. Unsafe cookie-authenticated methods require an
+  exact allowlisted HTTPS Origin and a valid session-bound CSRF header.
+- Analyst cookie sessions cannot satisfy approver dependencies; response
+  approval remains on the legacy approver bearer identity pending MFA step-up.
+- Analyst cookie sessions are not MFA-verified. The session inspection
+  response explicitly reports this.
+- No public registration, invitation, activation, admin, password-reset, or
+  approver-login route is exposed.
+- The SOC dashboard now uses the analyst username/password routes and
+  server-managed cookie sessions. It sends same-origin credentials, keeps the
+  derived CSRF token in JavaScript memory only, and sends it on unsafe API
+  requests. The dashboard and response client do not read or write
+  `localStorage` or `sessionStorage`, and do not attach bearer tokens.
+- The dashboard sign-in form is analyst-only. Approver sign-in and approval
+  through a browser session remain unavailable until MFA enrollment,
+  verification, and recent-MFA step-up are integrated. Existing approver
+  bearer API compatibility is retained for legacy clients; it is not exposed
+  by the new dashboard login form.
+- No schema migration or automatic startup migration is introduced. The
+  already-installed IAM v1/v2 schema is required.
+- Tests use isolated temporary SQLite databases. No live database, Docker
+  volume, deployment, or audit-checkpoint state is changed by this branch.

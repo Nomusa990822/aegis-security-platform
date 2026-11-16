@@ -91,29 +91,34 @@ function showToast(message, isError = false) {
     }, 3500);
 }
 
+let aegisCsrfToken = null;
+
 async function fetchJSON(url, options = {}) {
+    const method = String(options.method || "GET").toUpperCase();
+    const unsafeMethod = !["GET", "HEAD", "OPTIONS"].includes(method);
+    const headers = {
+        "Accept": "application/json",
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(unsafeMethod && aegisCsrfToken
+            ? { "X-Aegis-CSRF-Token": aegisCsrfToken }
+            : {}),
+        ...options.headers
+    };
     const response = await fetch(url, {
         ...options,
-        headers: {
-            "Accept": "application/json",
-            ...(options.body
-                ? { "Content-Type": "application/json" }
-                : {}),
-            ...(sessionStorage.getItem("aegis_access_token")
-                ? {
-                    "Authorization": `Bearer ${sessionStorage.getItem("aegis_access_token")}`
-                }
-                : {}),
-            ...options.headers
-        }
+        credentials: "same-origin",
+        cache: "no-store",
+        headers
     });
+
+    if (response.status === 401 && aegisCsrfToken) {
+        aegisCsrfToken = null;
+        showAuthenticationGate("Your session has expired. Sign in again.");
+    }
 
     if (!response.ok) {
         const detail = await response.text();
-
-        throw new Error(
-            `HTTP ${response.status}: ${detail.slice(0, 250)}`
-        );
+        throw new Error(`HTTP ${response.status}: ${detail.slice(0, 250)}`);
     }
 
     return response.json();
@@ -2803,64 +2808,107 @@ $("mitre-tactic-filter")?.addEventListener(
    INITIALISE DASHBOARD
 ========================================================= */
 
-async function startDashboardSession(token) {
+function showAuthenticationGate(message = "") {
     const gate = $("auth-gate");
-    const error = $("auth-error");
+    if (gate) gate.hidden = false;
+    if ($("auth-error")) $("auth-error").textContent = message;
+    if ($("auth-identity")) $("auth-identity").textContent = "";
+    const logout = $("logout-button");
+    if (logout) logout.hidden = true;
+}
 
-    if (!token) {
-        if (gate) gate.hidden = false;
-        return;
-    }
-
-    sessionStorage.setItem("aegis_access_token", token);
-
+async function startDashboardSession() {
     try {
-        const session = await fetchJSON("/api/v1/auth/me");
-
-        if (gate) gate.hidden = true;
+        const response = await fetch("/api/v1/iam/session", {
+            method: "GET",
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: { "Accept": "application/json" }
+        });
+        if (!response.ok) {
+            aegisCsrfToken = null;
+            showAuthenticationGate();
+            return;
+        }
+        const session = await response.json();
+        if (!session.authenticated || session.user?.role !== "analyst") {
+            aegisCsrfToken = null;
+            showAuthenticationGate("An active analyst session is required.");
+            return;
+        }
+        aegisCsrfToken = session.csrf_token;
+        if ($("auth-gate")) $("auth-gate").hidden = true;
         if ($("auth-identity")) {
-            $("auth-identity").textContent =
-                `${session.actor_id} · ${session.role}`;
+            $("auth-identity").textContent = `${session.user.username} · ${session.user.role}`;
         }
-
+        if ($("logout-button")) $("logout-button").hidden = false;
         await refreshDashboard();
-    } catch (requestError) {
-        sessionStorage.removeItem("aegis_access_token");
-        if (gate) gate.hidden = false;
-        if (error) {
-            error.textContent =
-                "Authentication failed. Check the token and try again.";
-        }
+    } catch (error) {
+        aegisCsrfToken = null;
+        showAuthenticationGate("Unable to verify your session. Please try again.");
     }
 }
 
 $("auth-form")?.addEventListener("submit", async event => {
     event.preventDefault();
-
-    const token = $("auth-token")?.value.trim();
-
-    if (!token) {
-        if ($("auth-error")) {
-            $("auth-error").textContent = "Enter an access token.";
-        }
+    const form = $("auth-form");
+    const button = form?.querySelector('button[type="submit"]');
+    const username = $("auth-username")?.value.trim();
+    const password = $("auth-password")?.value;
+    const error = $("auth-error");
+    if (!username || !password) {
+        if (error) error.textContent = "Enter your username and password.";
         return;
     }
-
-    if ($("auth-error")) $("auth-error").textContent = "";
-    await startDashboardSession(token);
+    if (button) button.disabled = true;
+    if (error) error.textContent = "";
+    try {
+        const response = await fetch("/api/v1/iam/login", {
+            method: "POST",
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: { "Accept": "application/json", "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.authenticated || !payload.csrf_token) {
+            throw new Error("Sign-in failed. Check your credentials or contact the AEGIS operator.");
+        }
+        aegisCsrfToken = payload.csrf_token;
+        if ($("auth-password")) $("auth-password").value = "";
+        await startDashboardSession();
+    } catch (requestError) {
+        aegisCsrfToken = null;
+        if (error) error.textContent = requestError.message || "Sign-in failed. Try again.";
+    } finally {
+        if (button) button.disabled = false;
+    }
 });
 
-$("logout-button")?.addEventListener("click", () => {
-    sessionStorage.removeItem("aegis_access_token");
-    window.location.reload();
+$("logout-button")?.addEventListener("click", async () => {
+    const button = $("logout-button");
+    if (button) button.disabled = true;
+    try {
+        const response = await fetch("/api/v1/iam/logout", {
+            method: "POST",
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: { "Accept": "application/json", "X-Aegis-CSRF-Token": aegisCsrfToken || "" }
+        });
+        if (!response.ok) throw new Error("Sign-out failed. Please retry.");
+        aegisCsrfToken = null;
+        showAuthenticationGate("You have signed out.");
+    } catch (error) {
+        showToast(error.message || "Sign-out failed.", true);
+    } finally {
+        if (button) button.disabled = false;
+    }
 });
 
-startDashboardSession(
-    sessionStorage.getItem("aegis_access_token")
-);
+startDashboardSession();
 
 window.setInterval(() => {
-    if (sessionStorage.getItem("aegis_access_token")) {
+    if (aegisCsrfToken) {
         refreshDashboard();
     }
 }, 15000);
