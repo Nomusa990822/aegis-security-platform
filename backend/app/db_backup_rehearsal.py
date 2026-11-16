@@ -155,20 +155,26 @@ def run_synthetic_sqlite_backup_restore(
 
     with tempfile.TemporaryDirectory(prefix="aegis-synthetic-backup-") as directory:
         backup_path = Path(directory) / "synthetic-backup.sqlite3"
-        with sqlite3.connect(backup_path) as backup:
+        backup = sqlite3.connect(backup_path)
+        try:
             source.backup(backup)
             _integrity_report(backup, "backup")
+        finally:
+            backup.close()
         backup_bytes = backup_path.read_bytes()
         backup_sha256 = hashlib.sha256(backup_bytes).hexdigest()
 
         restored = sqlite3.connect(":memory:")
         try:
             restored.execute("PRAGMA foreign_keys = ON")
-            with sqlite3.connect(
+            backup_source = sqlite3.connect(
                 f"file:{backup_path.as_posix()}?mode=ro", uri=True
-            ) as backup_source:
+            )
+            try:
                 _integrity_report(backup_source, "backup source")
                 backup_source.backup(restored)
+            finally:
+                backup_source.close()
             _integrity_report(restored, "restored")
             restored_manifest = _verify_tables(restored, tables)
             restored_audit = _verify_audit_chain(
