@@ -1184,7 +1184,7 @@
     <form class="auth-panel" id="auth-form" autocomplete="on">
         <p class="eyebrow">AEGIS SECURE ACCESS</p>
         <h1>Sign in to AEGIS</h1>
-        <p class="muted">Use your provisioned AEGIS analyst account. Approver sign-in will be enabled after MFA integration.</p>
+        <p class="muted">Use your provisioned AEGIS account. If MFA is enabled, you will be asked for a verification code.</p>
         <label for="auth-username">Username</label>
         <input id="auth-username" name="username" type="text"
                autocomplete="username" maxlength="128" required
@@ -1195,6 +1195,18 @@
                placeholder="Enter your password">
         <p class="auth-error" id="auth-error" role="alert" aria-live="polite"></p>
         <button class="primary-button" type="submit">Sign in</button>
+    </form>
+    <form class="auth-panel" id="auth-mfa-form" hidden autocomplete="off">
+        <p class="eyebrow">AEGIS MULTI-FACTOR AUTHENTICATION</p>
+        <h1>Verify your identity</h1>
+        <p class="muted">Enter the current code from your authenticator app, or an unused recovery code.</p>
+        <label for="auth-mfa-code">Verification code</label>
+        <input id="auth-mfa-code" name="code" type="text"
+               inputmode="numeric" autocomplete="one-time-code"
+               maxlength="300" required placeholder="Authenticator or recovery code">
+        <p class="auth-error" id="auth-mfa-error" role="alert" aria-live="polite"></p>
+        <button class="primary-button" type="submit">Verify and sign in</button>
+        <button class="text-button" id="auth-mfa-back" type="button">Back to sign in</button>
     </form>
 </div>
 
