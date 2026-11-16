@@ -57,7 +57,7 @@
 <img alt="Python 3.14" src="https://img.shields.io/badge/Python-3.14-0B0F14?style=for-the-badge&logo=python&logoColor=2F80FF" />
 <img alt="FastAPI backend" src="https://img.shields.io/badge/FastAPI-Backend-0B0F14?style=for-the-badge&logo=fastapi&logoColor=2F80FF" />
 <img alt="Pydantic validation" src="https://img.shields.io/badge/Pydantic-Validation-0B0F14?style=for-the-badge&logo=pydantic&logoColor=2F80FF" />
-<img alt="SQLite database" src="https://img.shields.io/badge/SQLite-Database-0B0F14?style=for-the-badge&logo=sqlite&logoColor=2F80FF" />
+<img alt="PostgreSQL database" src="https://img.shields.io/badge/PostgreSQL-Database-0B0F14?style=for-the-badge&logo=postgresql&logoColor=2F80FF" />
 <img alt="JavaScript dashboard" src="https://img.shields.io/badge/JavaScript-Dashboard-0B0F14?style=for-the-badge&logo=javascript&logoColor=2F80FF" />
 <img alt="HTML5 interface" src="https://img.shields.io/badge/HTML5-Interface-0B0F14?style=for-the-badge&logo=html5&logoColor=2F80FF" />
 <img alt="CSS3 styling" src="https://img.shields.io/badge/CSS3-Styling-0B0F14?style=for-the-badge&logo=css3&logoColor=2F80FF" />
@@ -436,8 +436,13 @@ The fastest way to see AEGIS running is the [Docker Compose demo](#docker-compos
 git clone https://github.com/Nomusa990822/aegis-security-platform.git
 cd aegis-security-platform
 
-# Create a private .env first (see "Docker Compose Demo Deployment" below)
-docker compose up --build -d
+# Create and configure the private PostgreSQL-backed .env first.
+cp .env.example .env
+# Edit .env and set unique secrets plus AEGIS_DATABASE_URL.
+docker compose build aegis
+docker compose up -d postgres
+docker compose --profile migration run --rm migrate
+docker compose up -d aegis
 ```
 
 Then open the dashboard at <http://localhost:8000/dashboard>. To run from source instead, follow [Run AEGIS Locally](#run-aegis-locally).
@@ -449,6 +454,7 @@ Then open the dashboard at <http://localhost:8000/dashboard>. To run from source
 ### Requirements
 
 - Python 3.14
+- PostgreSQL 17
 - Git
 
 ### 1. Clone the repository
@@ -473,7 +479,14 @@ On Windows PowerShell:
 .venv\Scripts\Activate.ps1
 ```
 
-### 3. Configure credentials
+### 3. Configure credentials and PostgreSQL
+
+Set AEGIS_DATABASE_URL to a PostgreSQL 17 database using the postgresql+psycopg:// driver URL. Apply the reviewed schema before starting the API:
+
+```bash
+export AEGIS_DATABASE_URL="postgresql+psycopg://aegis:URL_ENCODED_PASSWORD@localhost:5432/aegis"
+AEGIS_ALEMBIC_ALLOW_MIGRATIONS=1 alembic upgrade head
+```
 
 AEGIS retains an analyst bearer token for legacy analyst API integrations. Approver authentication uses IAM browser accounts with mandatory MFA; there is no approver bearer token. Generate the analyst API token and audit-checkpoint signing key locally:
 
@@ -537,7 +550,7 @@ The local SQLite database is created under `backend/aegis.db`.
 
 ## Docker Compose Demo Deployment
 
-The repository includes a single-container Docker Compose deployment for a reproducible local demonstration. It persists the SQLite database and signed response-audit checkpoints in a named Docker volume.
+The Compose deployment runs AEGIS against PostgreSQL 17. PostgreSQL data and signed response-audit checkpoints are persisted in separate named Docker volumes. The SQLite file is retained only as a migration source until the guarded transfer has been completed and verified.
 
 ### Requirements
 
@@ -555,19 +568,27 @@ AEGIS_ANALYST_ID=analyst-local
 AEGIS_AUDIT_CHECKPOINT_KEY=$(openssl rand -hex 32)
 AEGIS_AUDIT_CHECKPOINT_KEY_ID=local-v1
 AEGIS_AUDIT_CHECKPOINT_DIR=/data/audit_checkpoints
-AEGIS_DATABASE_PATH=/data/aegis.db
+AEGIS_POSTGRES_DB=aegis
+AEGIS_POSTGRES_USER=aegis
+AEGIS_POSTGRES_PASSWORD=$(openssl rand -hex 32)
+AEGIS_DATABASE_URL=postgresql+psycopg://aegis:$AEGIS_POSTGRES_PASSWORD@postgres:5432/aegis
 EOF
 ```
 
 > [!CAUTION]
 > Keep `.env` private and preserve it between restarts: changing the checkpoint signing key can prevent verification of checkpoints signed with the previous key. Do not commit the file or paste its contents into issue trackers.
 
-### 2. Build and start AEGIS
+### 2. Build PostgreSQL-backed AEGIS and apply the schema
 
 ```bash
-docker compose up --build -d
+docker compose build aegis
+docker compose up -d postgres
+docker compose --profile migration run --rm migrate
+docker compose up -d aegis
 docker compose ps
 ```
+
+The migration profile applies the reviewed Alembic baseline explicitly. The API does not create or alter the PostgreSQL schema during application startup.
 
 ### 3. Open the services
 
@@ -612,12 +633,12 @@ AEGIS focuses on a defined set of security operations workflows. It does not att
 | Threat intelligence | Configurable external provider integration |
 | Response | Approval workflow and simulation only |
 | Rate limiting | Process-local; not shared across multiple workers |
-| Database | SQLite for local and single-process use |
+| Database | PostgreSQL 17 for the Compose/runtime deployment; SQLite is retained for isolated tests and the one-time legacy transfer source |
 | Malware sandbox / EDR | Not implemented |
 
 ### Deployment Considerations
 
-SQLite is suitable for local development and a single-process demonstration. A multi-worker or production deployment would require a shared database such as PostgreSQL, shared rate limiting, managed secrets, hardened identity/session handling, backups, monitoring, and a reviewed deployment architecture.
+The application runtime now uses PostgreSQL through psycopg 3. The guarded SQLite transfer command requires a backup, an empty PostgreSQL target at the reviewed Alembic baseline, valid response hash chains, and valid signed audit checkpoints. Shared rate limiting, managed secrets, external backups, monitoring, and a production deployment review remain separate operational requirements.
 
 Do not expose the development server directly to the public internet.
 
@@ -628,8 +649,8 @@ Do not expose the development server directly to the public internet.
 The core detection, investigation, threat-intelligence, MITRE-context, controlled-response, and Linux SSH/Nginx telemetry-adapter workflows are implemented and covered by the current regression suite. Remaining work should focus on making the prototype easier to demonstrate and operate:
 
 1. Improve the dashboard's visibility into detection evidence, MITRE mappings, and any unmapped detection rules.
-2. Prepare a reproducible demonstration deployment with persistent storage, managed secrets, backups, and explicit single-process constraints.
-3. Evaluate PostgreSQL and shared rate limiting only when moving beyond the local, single-process prototype.
+2. Complete the one-time SQLite-to-PostgreSQL transfer on the deployment host, then verify the health endpoint and preserve the original SQLite and checkpoint backups.
+3. Implement shared rate limiting and complete the production deployment review.
 
 MFA and stronger identity management remain a separate security milestone. Large endpoint agents, malware sandboxes, full ATT&CK ingestion, unsupported machine-learning claims, and real automated containment remain outside the current low-cost prototype scope.
 
