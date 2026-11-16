@@ -101,7 +101,7 @@ def approver_client(client, monkeypatch):
     monkeypatch.setenv("AEGIS_MFA_ENCRYPTION_KEY_ID", "test-key-v1")
 
     with database.get_connection() as connection:
-        apply_migrations(connection)
+        apply_migrations(connection, applied_at="2026-11-16T12:00:00+00:00")
         invitation = create_invitation(
             connection,
             username="approver.test",
