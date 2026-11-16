@@ -1,15 +1,15 @@
-
 import hmac
 import os
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Request, status
-from app.iam.browser_auth import authenticate_browser_session
-from app.iam.mfa import has_recent_mfa
 from fastapi.security import (
     HTTPAuthorizationCredentials,
     HTTPBearer,
 )
+
+from app.iam.browser_auth import authenticate_browser_session
+from app.iam.mfa import has_recent_mfa
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -28,47 +28,32 @@ class AuthenticatedActor:
 
 def _load_auth_configuration():
     analyst_token = os.getenv("AEGIS_ANALYST_TOKEN", "").strip()
-    approver_token = os.getenv("AEGIS_APPROVER_TOKEN", "").strip()
-
     analyst_id = os.getenv("AEGIS_ANALYST_ID", "analyst").strip()
-    approver_id = os.getenv("AEGIS_APPROVER_ID", "approver").strip()
 
-    if not analyst_token or not approver_token:
+    if not analyst_token:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Response authentication is not configured.",
         )
 
-    if len(analyst_token) < 32 or len(approver_token) < 32:
+    if len(analyst_token) < 32:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Response authentication credentials are too weak.",
         )
 
-    if hmac.compare_digest(analyst_token, approver_token):
+    if not analyst_id:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Analyst and approver credentials must be different.",
+            detail="Analyst identity is not configured.",
         )
 
-    if (
-        not analyst_id
-        or not approver_id
-        or analyst_id == approver_id
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Analyst and approver identities must be distinct.",
-        )
-
+    # The legacy approver bearer token has been retired. Approver identities
+    # are issued only from IAM browser sessions after password + MFA login.
     return {
         analyst_token: AuthenticatedActor(
             actor_id=analyst_id,
             role=ANALYST_ROLE,
-        ),
-        approver_token: AuthenticatedActor(
-            actor_id=approver_id,
-            role=APPROVER_ROLE,
         ),
     }
 
@@ -92,7 +77,7 @@ def get_current_actor(
             )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Bearer or analyst session authentication is required.",
+            detail="Bearer or browser session authentication is required.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -137,7 +122,14 @@ def get_approver_actor(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Approver permissions are required.",
         )
-    if actor.auth_method == "browser_session" and not has_recent_mfa(actor.mfa_verified_at):
+
+    if actor.auth_method != "browser_session":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Approver actions require an MFA-authenticated browser session.",
+        )
+
+    if not has_recent_mfa(actor.mfa_verified_at):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Recent MFA verification is required for approver actions.",
