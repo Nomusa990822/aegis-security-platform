@@ -68,7 +68,10 @@ def matching_step(
         raise ValueError("allowed drift must be between zero and two steps")
     timestamp = time.time() if at_time is None else at_time
     current = _counter(timestamp)
-    key = _decode_secret(secret)
+    try:
+        key = _decode_secret(secret)
+    except ValueError:
+        return None
     for step in range(current - allowed_drift_steps, current + allowed_drift_steps + 1):
         if step < 0:
             continue
