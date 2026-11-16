@@ -235,8 +235,7 @@ def test_full_domain_synthetic_transfer_preserves_all_27_tables_and_audit_chain(
             connection.exec_driver_sql(f'CREATE SCHEMA "{schema}"')
         metadata.create_all(source_engine)
         metadata.create_all(
-            postgres_engine,
-            execution_options={"schema_translate_map": {None: schema}},
+            postgres_engine.execution_options(schema_translate_map={None: schema})
         )
         with source_engine.begin() as source:
             _insert_synthetic_source(source, tables, rows_by_table)
