@@ -59,33 +59,7 @@
     }
 
     async function requestJSON(url, options = {}) {
-        const response = await fetch(url, {
-            ...options,
-            headers: {
-                "Accept": "application/json",
-                ...(options.body
-                    ? { "Content-Type": "application/json" }
-                    : {}),
-                ...(sessionStorage.getItem("aegis_access_token")
-                    ? {
-                        "Authorization": `Bearer ${sessionStorage.getItem("aegis_access_token")}`
-                    }
-                    : {}),
-                ...options.headers
-            }
-        });
-
-        const payload = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-            const detail = payload.detail
-                ? JSON.stringify(payload.detail)
-                : `HTTP ${response.status}`;
-
-            throw new Error(detail);
-        }
-
-        return payload;
+        return fetchJSON(url, options);
     }
 
     function renderResult(payload) {
