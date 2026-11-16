@@ -494,3 +494,46 @@ def issue_mfa_verified_session(
         connection.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
         connection.execute(f"RELEASE SAVEPOINT {savepoint}")
         raise
+
+
+def reset_user_mfa(
+    connection: sqlite3.Connection, *, user_id: str,
+    now: datetime | None = None,
+) -> dict[str, int]:
+    """Audited local-operator recovery: revoke factors, codes, and all sessions."""
+    from app.iam.sessions import revoke_all_user_sessions
+
+    current_at = _iso(_now(now))
+    user = connection.execute(
+        "SELECT id FROM iam_users WHERE id = ?", (user_id,)
+    ).fetchone()
+    if user is None:
+        raise ValueError("IAM account does not exist")
+    factors = connection.execute(
+        """UPDATE iam_mfa_factors
+           SET status = 'revoked', revoked_at = ?
+           WHERE user_id = ? AND status IN ('pending', 'active')""",
+        (current_at, user_id),
+    ).rowcount
+    recovery_codes = connection.execute(
+        """UPDATE iam_recovery_codes SET used_at = ?
+           WHERE user_id = ? AND used_at IS NULL""",
+        (current_at, user_id),
+    ).rowcount
+    sessions = revoke_all_user_sessions(
+        connection, user_id=user_id, now=_now(now)
+    )
+    record_security_event(
+        connection, event_type="mfa_operator_reset", user_id=user_id,
+        occurred_at=current_at, success=True,
+        metadata={
+            "factors_revoked": factors,
+            "recovery_codes_invalidated": recovery_codes,
+            "sessions_revoked": sessions,
+        },
+    )
+    return {
+        "factors_revoked": factors,
+        "recovery_codes_invalidated": recovery_codes,
+        "sessions_revoked": sessions,
+    }
