@@ -1216,6 +1216,14 @@
         <p class="eyebrow">AEGIS ACCOUNT SECURITY</p>
         <h1 id="mfa-management-title">Multi-factor authentication</h1>
         <p class="muted" id="mfa-status-text">Checking your MFA status…</p>
+        <div id="mfa-step-up" hidden>
+            <form id="mfa-step-up-form">
+                <label for="mfa-step-up-code">Verify a fresh authenticator or recovery code</label>
+                <input id="mfa-step-up-code" type="text" autocomplete="one-time-code" maxlength="300" required>
+                <button class="primary-button" type="submit">Verify MFA</button>
+            </form>
+            <button class="text-button" id="mfa-regenerate-codes" type="button" hidden>Regenerate recovery codes</button>
+        </div>
         <div id="mfa-enrollment-start">
             <form id="mfa-enroll-form">
                 <label for="mfa-current-password">Confirm your password to begin enrollment</label>
