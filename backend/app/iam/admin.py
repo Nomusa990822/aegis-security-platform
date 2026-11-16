@@ -55,6 +55,10 @@ def main(argv: list[str] | None = None) -> int:
         "mfa-enroll", help="locally provision an account's first TOTP factor"
     )
     mfa_enroll.add_argument("--user-id", required=True)
+    mfa_reset = commands.add_parser(
+        "mfa-reset", help="revoke MFA factors and sessions for local recovery"
+    )
+    mfa_reset.add_argument("--user-id", required=True)
     for status in ("disable", "lock"):
         action = commands.add_parser(
             status, help=f"{status} an account and revoke sessions"
@@ -118,6 +122,25 @@ def main(argv: list[str] | None = None) -> int:
                 print("One-time recovery codes (store securely; shown once):")
                 for recovery_code in recovery_codes:
                     print(recovery_code)
+                return 0
+
+            if args.command == "mfa-reset":
+                confirmation = getpass(
+                    "Type RESET MFA to revoke factors, recovery codes, and sessions: "
+                )
+                if confirmation != "RESET MFA":
+                    raise ValueError("MFA reset confirmation did not match")
+                result = mfa.reset_user_mfa(
+                    connection, user_id=args.user_id
+                )
+                connection.commit()
+                print(
+                    "MFA reset completed. "
+                    f"Factors revoked: {result['factors_revoked']}; "
+                    f"codes invalidated: {result['codes_invalidated']}; "
+                    f"sessions revoked: {result['sessions_revoked']}."
+                )
+                print("The account must be enrolled again before approver browser login.")
                 return 0
 
             status = "disabled" if args.command == "disable" else "locked"
