@@ -18,9 +18,13 @@ def test_alembic_configuration_uses_repository_migration_directory():
     assert config.get_main_option("sqlalchemy.url") == ""
 
 
-def test_alembic_has_no_initial_or_implicit_baseline():
+def test_alembic_has_one_reviewed_initial_baseline():
     config = Config(str(BACKEND_ROOT / "alembic.ini"))
-    assert ScriptDirectory.from_config(config).get_heads() == []
+    script_directory = ScriptDirectory.from_config(config)
+    assert script_directory.get_heads() == ["20261117_01"]
+    revision = script_directory.get_revision("20261117_01")
+    assert revision is not None
+    assert revision.down_revision is None
 
 
 def test_all_domain_metadata_is_complete_for_autogeneration():
