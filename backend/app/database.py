@@ -1,5 +1,7 @@
 import os
 import sqlite3
+
+from app.dbapi_compat import connect_postgres
 from pathlib import Path
 
 from app.response.repository import initialize_response_tables
@@ -12,6 +14,14 @@ DATABASE_PATH = Path(
     )
 )
 SQLITE_BUSY_TIMEOUT_MS = 30_000
+DATABASE_ERRORS = (sqlite3.Error,)
+
+
+def _postgres_url() -> str | None:
+    value = os.getenv("AEGIS_DATABASE_URL")
+    if value and not value.startswith("postgresql+psycopg://"):
+        raise RuntimeError("AEGIS_DATABASE_URL must use postgresql+psycopg://")
+    return value
 
 
 class _ClosingSQLiteConnection(sqlite3.Connection):
@@ -25,6 +35,13 @@ class _ClosingSQLiteConnection(sqlite3.Connection):
 
 
 def get_connection():
+    global DATABASE_ERRORS
+    database_url = _postgres_url()
+    if database_url:
+        import psycopg
+        DATABASE_ERRORS = (sqlite3.Error, psycopg.Error)
+        return connect_postgres(database_url)
+
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     # SQLite permits multiple readers but only one active writer. Give
@@ -42,7 +59,7 @@ def get_connection():
     return connection
 
 
-def initialize_database():
+def _initialize_sqlite_database():
     with get_connection() as connection:
 
         # --------------------------------------------------
@@ -503,3 +520,47 @@ def initialize_database():
         initialize_response_tables(connection)
 
         connection.commit()
+
+
+def initialize_database():
+    """Validate PostgreSQL's migrated schema, or initialise isolated SQLite dev/test storage.
+
+    Production schema changes are deliberately not performed during API startup.
+    Run the reviewed Alembic migration command before deploying the application.
+    """
+    if not _postgres_url():
+        return _initialize_sqlite_database()
+
+    required_tables = {
+        "security_events", "security_alerts", "incident_notes",
+        "incident_timeline", "incident_evidence", "alert_audit_log",
+        "security_correlations", "security_correlation_alerts",
+        "correlation_notes", "correlation_timeline", "correlation_audit_log",
+        "response_records", "response_audit_log", "response_audit_chain_heads",
+        "iam_users", "iam_credentials", "iam_mfa_factors",
+        "iam_recovery_codes", "iam_access_tokens", "iam_sessions",
+        "iam_auth_challenges", "iam_activation_tokens", "iam_security_events",
+        "iam_auth_rate_limits", "iam_schema_migrations",
+        "ip_intelligence_assessments", "ip_intelligence_provider_results",
+        "alembic_version",
+    }
+    with get_connection() as connection:
+        rows = connection.execute(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = current_schema()"
+        ).fetchall()
+        existing = {row["table_name"] for row in rows}
+        missing = sorted(required_tables - existing)
+        if missing:
+            raise RuntimeError(
+                "PostgreSQL schema is not migrated. Missing tables: "
+                + ", ".join(missing)
+                + ". Run the documented Alembic upgrade before starting AEGIS."
+            )
+        revision = connection.execute(
+            "SELECT version_num FROM alembic_version"
+        ).fetchone()
+        if revision is None or revision["version_num"] != "20261117_01":
+            raise RuntimeError(
+                "AEGIS PostgreSQL schema revision is not the reviewed baseline."
+            )
