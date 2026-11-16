@@ -464,6 +464,9 @@ def start_mfa_enrollment(
     principal = _require_browser_principal(request)
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
+    enrollment = None
+    failure_status = None
+    retry_after = None
     with get_connection() as connection:
         throttle_key = _check_mfa_throttle(
             connection, scope="mfa-enroll-start", identifier=principal.user_id
@@ -475,23 +478,37 @@ def start_mfa_enrollment(
                 account["password_hash"], payload.current_password
             )
         ):
-            _record_mfa_failure(
+            failure = _record_mfa_failure(
                 connection, scope="mfa-enroll-start",
                 identifier=principal.user_id, key=throttle_key,
             )
-            raise HTTPException(status_code=403, detail="Recent password verification is required.")
-        auth_throttling.authentication_succeeded(
-            connection, scope="mfa-enroll-start",
-            identifier=principal.user_id, secret=throttle_key,
-        )
-        try:
-            enrollment = mfa.begin_totp_enrollment(
-                connection, user_id=principal.user_id
+            failure_status = 429 if not failure.allowed else 403
+            retry_after = failure.retry_after_seconds
+        else:
+            auth_throttling.authentication_succeeded(
+                connection, scope="mfa-enroll-start",
+                identifier=principal.user_id, secret=throttle_key,
             )
-        except RuntimeError as exc:
-            raise HTTPException(status_code=503, detail="MFA encryption is not configured.") from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=409, detail="MFA enrollment is not available.") from exc
+            try:
+                enrollment = mfa.begin_totp_enrollment(
+                    connection, user_id=principal.user_id
+                )
+            except RuntimeError:
+                failure_status = 503
+            except ValueError:
+                failure_status = 409
+    if failure_status is not None:
+        headers = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+        if failure_status == 429:
+            headers["Retry-After"] = str(max(1, retry_after or 1))
+        detail = {
+            429: "Too many MFA attempts. Try again later.",
+            403: "Recent password verification is required.",
+            409: "MFA enrollment is not available.",
+            503: "MFA encryption is not configured.",
+        }[failure_status]
+        raise HTTPException(status_code=failure_status, detail=detail, headers=headers)
+    response.headers["Pragma"] = "no-cache"
     return enrollment
 
 
@@ -502,6 +519,9 @@ def confirm_mfa_enrollment(
     principal = _require_browser_principal(request)
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
+    codes = None
+    failure_status = None
+    retry_after = None
     with get_connection() as connection:
         throttle_key = _check_mfa_throttle(
             connection, scope="mfa-enroll", identifier=principal.user_id
@@ -512,18 +532,29 @@ def confirm_mfa_enrollment(
                 factor_id=payload.factor_id, code=payload.code,
                 password_service=DEFAULT_PASSWORD_SERVICE,
             )
-        except RuntimeError as exc:
-            raise HTTPException(status_code=503, detail="MFA encryption is not configured.") from exc
-        except ValueError as exc:
-            _record_mfa_failure(
+        except RuntimeError:
+            failure_status = 503
+        except ValueError:
+            failure = _record_mfa_failure(
                 connection, scope="mfa-enroll",
                 identifier=principal.user_id, key=throttle_key,
             )
-            raise HTTPException(status_code=400, detail="MFA enrollment could not be confirmed.") from exc
-        auth_throttling.authentication_succeeded(
-            connection, scope="mfa-enroll",
-            identifier=principal.user_id, secret=throttle_key,
+            failure_status = 429 if not failure.allowed else 400
+            retry_after = failure.retry_after_seconds
+        if failure_status is None:
+            auth_throttling.authentication_succeeded(
+                connection, scope="mfa-enroll",
+                identifier=principal.user_id, secret=throttle_key,
+            )
+    if failure_status is not None:
+        headers = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+        if failure_status == 429:
+            headers["Retry-After"] = str(max(1, retry_after or 1))
+        detail = "MFA encryption is not configured." if failure_status == 503 else (
+            "Too many MFA attempts. Try again later."
+            if failure_status == 429 else "MFA enrollment could not be confirmed."
         )
+        raise HTTPException(status_code=failure_status, detail=detail, headers=headers)
     return {
         "mfa_enabled": True,
         "recovery_codes": codes,
@@ -539,37 +570,53 @@ def verify_mfa_step_up(
     session_token = request.cookies.get(SESSION_COOKIE_NAME)
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
+    failure_status = None
+    retry_after = None
     with get_connection() as connection:
+        throttle_identifier = f"{principal.user_id}:{principal.session_id}"
         throttle_key = _check_mfa_throttle(
-            connection, scope="mfa-stepup",
-            identifier=f"{principal.user_id}:{principal.session_id}",
+            connection, scope="mfa-stepup", identifier=throttle_identifier,
         )
         try:
             valid = mfa.verify_totp(
                 connection, user_id=principal.user_id, code=payload.code
             )
-        except RuntimeError as exc:
-            raise HTTPException(status_code=503, detail="MFA encryption is not configured.") from exc
-        if not valid:
+        except RuntimeError:
+            valid = False
+            failure_status = 503
+        if not valid and failure_status is None:
             valid = mfa.consume_recovery_code(
                 connection, user_id=principal.user_id,
                 recovery_code=payload.code,
                 password_service=DEFAULT_PASSWORD_SERVICE,
             )
-        if not valid:
-            _record_mfa_failure(
+        if not valid and failure_status is None:
+            failure = _record_mfa_failure(
                 connection, scope="mfa-stepup",
-                identifier=f"{principal.user_id}:{principal.session_id}", key=throttle_key,
+                identifier=throttle_identifier, key=throttle_key,
             )
-            raise HTTPException(status_code=401, detail="MFA verification failed.")
-        if not mfa.mark_session_mfa_verified(
-            connection, session_token=session_token
-        ):
-            raise HTTPException(status_code=401, detail="MFA verification failed.")
-        auth_throttling.authentication_succeeded(
-            connection, scope="mfa-stepup",
-            identifier=f"{principal.user_id}:{principal.session_id}", secret=throttle_key,
-        )
+            failure_status = 429 if not failure.allowed else 401
+            retry_after = failure.retry_after_seconds
+        if valid:
+            if not mfa.mark_session_mfa_verified(
+                connection, session_token=session_token
+            ):
+                failure_status = 401
+            else:
+                auth_throttling.authentication_succeeded(
+                    connection, scope="mfa-stepup",
+                    identifier=throttle_identifier, secret=throttle_key,
+                )
+    if failure_status is not None:
+        headers = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+        if failure_status == 429:
+            headers["Retry-After"] = str(max(1, retry_after or 1))
+        detail = {
+            401: "MFA verification failed.",
+            429: "Too many MFA attempts. Try again later.",
+            503: "MFA encryption is not configured.",
+        }[failure_status]
+        raise HTTPException(status_code=failure_status, detail=detail, headers=headers)
     return {"mfa_verified": True, "fresh_for_seconds": mfa.RECENT_MFA_SECONDS}
 
 
