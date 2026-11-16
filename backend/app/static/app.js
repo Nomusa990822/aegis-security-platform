@@ -2815,6 +2815,8 @@ function showAuthenticationGate(message = "") {
     if ($("auth-identity")) $("auth-identity").textContent = "";
     const logout = $("logout-button");
     if (logout) logout.hidden = true;
+    const securitySettings = $("mfa-settings-button");
+    if (securitySettings) securitySettings.hidden = true;
 }
 
 async function startDashboardSession() {
@@ -2842,6 +2844,7 @@ async function startDashboardSession() {
             $("auth-identity").textContent = `${session.user.username} · ${session.user.role}`;
         }
         if ($("logout-button")) $("logout-button").hidden = false;
+        if ($("mfa-settings-button")) $("mfa-settings-button").hidden = false;
         await refreshDashboard();
     } catch (error) {
         aegisCsrfToken = null;
@@ -2933,6 +2936,87 @@ $("auth-mfa-back")?.addEventListener("click", () => {
     if ($("auth-mfa-form")) $("auth-mfa-form").hidden = true;
     if ($("auth-form")) $("auth-form").hidden = false;
     if ($("auth-mfa-code")) $("auth-mfa-code").value = "";
+});
+
+let aegisMfaFactorId = null;
+
+$("mfa-settings-button")?.addEventListener("click", async () => {
+    const panel = $("mfa-management");
+    if (panel) panel.hidden = false;
+    for (const id of ["mfa-enrollment-start", "mfa-enrollment-confirm", "mfa-recovery-display"]) {
+        if ($(id)) $(id).hidden = true;
+    }
+    if ($("mfa-management-error")) $("mfa-management-error").textContent = "";
+    if ($("mfa-status-text")) $("mfa-status-text").textContent = "Checking your MFA status…";
+    try {
+        const status = await fetchJSON("/api/v1/iam/mfa/status");
+        if (status.enabled) {
+            if ($("mfa-status-text")) {
+                $("mfa-status-text").textContent = status.recently_verified
+                    ? "MFA is enabled. Your session has recent MFA verification."
+                    : "MFA is enabled. Verify a fresh authenticator code before privileged approver actions.";
+            }
+        } else {
+            if ($("mfa-status-text")) $("mfa-status-text").textContent = "MFA is not enabled for this account.";
+            if ($("mfa-enrollment-start")) $("mfa-enrollment-start").hidden = false;
+        }
+    } catch (error) {
+        if ($("mfa-management-error")) $("mfa-management-error").textContent = error.message;
+    }
+});
+
+$("mfa-enroll-form")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const password = $("mfa-current-password")?.value || "";
+    if ($("mfa-management-error")) $("mfa-management-error").textContent = "";
+    try {
+        const enrollment = await fetchJSON("/api/v1/iam/mfa/enroll", {
+            method: "POST",
+            body: JSON.stringify({ current_password: password })
+        });
+        aegisMfaFactorId = enrollment.factor_id;
+        if ($("mfa-provisioning-uri")) $("mfa-provisioning-uri").value = enrollment.provisioning_uri;
+        if ($("mfa-secret-display")) $("mfa-secret-display").value = enrollment.secret;
+        if ($("mfa-current-password")) $("mfa-current-password").value = "";
+        if ($("mfa-enrollment-start")) $("mfa-enrollment-start").hidden = true;
+        if ($("mfa-enrollment-confirm")) $("mfa-enrollment-confirm").hidden = false;
+        if ($("mfa-confirm-code")) $("mfa-confirm-code").focus();
+    } catch (error) {
+        if ($("mfa-management-error")) $("mfa-management-error").textContent = error.message;
+    }
+});
+
+$("mfa-confirm-form")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const code = $("mfa-confirm-code")?.value.trim() || "";
+    if (!aegisMfaFactorId) {
+        if ($("mfa-management-error")) $("mfa-management-error").textContent = "Start a new MFA enrollment first.";
+        return;
+    }
+    try {
+        const result = await fetchJSON("/api/v1/iam/mfa/confirm", {
+            method: "POST",
+            body: JSON.stringify({ factor_id: aegisMfaFactorId, code })
+        });
+        if ($("mfa-recovery-codes")) $("mfa-recovery-codes").value = result.recovery_codes.join("\n");
+        if ($("mfa-enrollment-confirm")) $("mfa-enrollment-confirm").hidden = true;
+        if ($("mfa-recovery-display")) $("mfa-recovery-display").hidden = false;
+        if ($("mfa-status-text")) $("mfa-status-text").textContent = "MFA is enabled. Save your recovery codes now.";
+        if ($("mfa-secret-display")) $("mfa-secret-display").value = "";
+        if ($("mfa-provisioning-uri")) $("mfa-provisioning-uri").value = "";
+        if ($("mfa-confirm-code")) $("mfa-confirm-code").value = "";
+        aegisMfaFactorId = null;
+    } catch (error) {
+        if ($("mfa-management-error")) $("mfa-management-error").textContent = error.message;
+    }
+});
+
+$("mfa-management-close")?.addEventListener("click", () => {
+    if ($("mfa-management")) $("mfa-management").hidden = true;
+    for (const id of ["mfa-secret-display", "mfa-provisioning-uri", "mfa-recovery-codes", "mfa-confirm-code", "mfa-current-password"]) {
+        if ($(id)) $(id).value = "";
+    }
+    aegisMfaFactorId = null;
 });
 
 $("logout-button")?.addEventListener("click", async () => {
