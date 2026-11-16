@@ -125,9 +125,9 @@ def _record_login_failure(connection, *, ip_identifier: str, user_identifier: st
 
 
 def _clear_login_failures(connection, *, ip_identifier: str, user_identifier: str, key: str):
-    auth_throttling.authentication_succeeded(
-        connection, scope="login-ip", identifier=ip_identifier, secret=key
-    )
+    # A successful account login clears only that username+IP bucket. Keep
+    # the shared IP bucket intact so one valid account cannot erase failures
+    # accumulated by other usernames from the same source address.
     auth_throttling.authentication_succeeded(
         connection, scope="login-user-ip", identifier=user_identifier, secret=key
     )
