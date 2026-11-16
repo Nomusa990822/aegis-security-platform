@@ -2,15 +2,6 @@
 from app import database
 
 
-APPROVER_TOKEN = "b" * 48
-
-
-def approver_headers():
-    return {
-        "Authorization": f"Bearer {APPROVER_TOKEN}",
-    }
-
-
 def create_pending_response(client):
     with database.get_connection() as connection:
         cursor = connection.execute(
@@ -55,13 +46,12 @@ def create_pending_response(client):
     return response.json()["response_id"]
 
 
-def approve_response(client, response_id):
-    response = client.post(
+def approve_response(approver_client, response_id):
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/approve",
         json={
             "reason": "Approved for controlled dry-run testing.",
         },
-        headers=approver_headers(),
     )
 
     assert response.status_code == 200
@@ -77,13 +67,12 @@ def test_simulation_requires_authentication(client):
     assert response.status_code == 401
 
 
-def test_approver_cannot_simulate_as_analyst(client):
+def test_approver_cannot_simulate_as_analyst(client, approver_client):
     response_id = create_pending_response(client)
-    approve_response(client, response_id)
+    approve_response(approver_client, response_id)
 
-    response = client.post(
+    response = approver_client.post(
         f"/api/v1/response/{response_id}/simulate",
-        headers=approver_headers(),
     )
 
     assert response.status_code == 403
@@ -109,10 +98,10 @@ def test_pending_response_cannot_be_simulated(client):
     assert len(detail.json()["audit_log"]) == 1
 
 
-def test_rejected_response_cannot_be_simulated(client):
+def test_rejected_response_cannot_be_simulated(client, approver_client):
     response_id = create_pending_response(client)
 
-    rejection = client.post(
+    rejection = approver_client.post(
         f"/api/v1/response/{response_id}/reject",
         json={
             "reason": "Not authorised.",
@@ -138,7 +127,7 @@ def test_rejected_response_cannot_be_simulated(client):
     assert len(detail.json()["audit_log"]) == 2
 
 
-def test_approved_response_can_be_simulated(client):
+def test_approved_response_can_be_simulated(client, approver_client, approver_id):
     response_id = create_pending_response(client)
     approve_response(client, response_id)
 
@@ -153,7 +142,7 @@ def test_approved_response_can_be_simulated(client):
     assert record["status"] == "simulated"
     assert record["simulated"] is True
     assert record["executed"] is False
-    assert record["decided_by"] == "approver-beta"
+    assert record["decided_by"] == approver_id
 
     assert len(record["audit_log"]) == 3
 
@@ -175,7 +164,7 @@ def test_approved_response_can_be_simulated(client):
     assert details["simulated"] is True
 
 
-def test_simulation_is_persisted_in_response_history(client):
+def test_simulation_is_persisted_in_response_history(client, approver_client, approver_id):
     response_id = create_pending_response(client)
     approve_response(client, response_id)
 
@@ -209,7 +198,7 @@ def test_simulation_is_persisted_in_response_history(client):
     ]
 
 
-def test_response_cannot_be_simulated_twice(client):
+def test_response_cannot_be_simulated_twice(client, approver_client, approver_id):
     response_id = create_pending_response(client)
     approve_response(client, response_id)
 
@@ -252,7 +241,7 @@ def test_simulation_rejects_non_positive_response_id(client):
     assert response.status_code == 400
 
 
-def test_simulation_does_not_change_alert_or_network_state(client):
+def test_simulation_does_not_change_alert_or_network_state(client, approver_client, approver_id):
     response_id = create_pending_response(client)
     approve_response(client, response_id)
 
