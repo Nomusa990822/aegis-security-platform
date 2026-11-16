@@ -1,7 +1,6 @@
-"""HTTP integration for analyst password login and browser sessions.
+"""HTTP integration for IAM password login, MFA challenges, and browser sessions.
 
-Approver sessions remain deliberately unavailable until MFA step-up is
-implemented. Legacy bearer authentication is not modified by this router.
+Legacy bearer authentication is not modified by this router.
 """
 from __future__ import annotations
 
@@ -40,11 +39,6 @@ class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=128)
     password: str = Field(min_length=1, max_length=1024)
 
-
-class MFAChallengeRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    code: str = Field(min_length=6, max_length=300)
-
     @field_validator("password")
     @classmethod
     def enforce_password_byte_limit(cls, value: str) -> str:
@@ -55,6 +49,11 @@ class MFAChallengeRequest(BaseModel):
         if len(encoded) > 1024:
             raise ValueError("password exceeds the supported UTF-8 byte limit")
         return value
+
+
+class MFAChallengeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(min_length=6, max_length=300)
 
 
 def _required_secret(name: str) -> str:
