@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.database import get_connection
 from app.iam import auth_throttling, mfa, repository, sessions
+from app.iam.browser_auth import authenticate_browser_session
 from app.iam.browser_security import (
     CSRF_HEADER_NAME,
     SESSION_COOKIE_NAME,
@@ -360,3 +361,123 @@ def logout(request: Request, response: Response):
             sessions.revoke_session(connection, token=token)
     clear_session_cookie(response)
     return {"authenticated": False}
+
+
+class MFAEnrollmentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    current_password: str = Field(min_length=1, max_length=1024)
+
+
+class MFAConfirmationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    factor_id: str = Field(min_length=36, max_length=36)
+    code: str = Field(min_length=6, max_length=6)
+
+
+class MFAVerificationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str = Field(min_length=6, max_length=300)
+
+
+def _require_browser_principal(request: Request):
+    principal = authenticate_browser_session(request)
+    if principal is None:
+        raise HTTPException(
+            status_code=401, detail="An authenticated browser session is required.",
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+    return principal
+
+
+@router.post("/mfa/enroll")
+def start_mfa_enrollment(
+    payload: MFAEnrollmentRequest, request: Request, response: Response
+):
+    principal = _require_browser_principal(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    with get_connection() as connection:
+        account = repository.get_account_by_id(connection, principal.user_id)
+        if (
+            account is None or account["status"] != "active"
+            or not DEFAULT_PASSWORD_SERVICE.verify_password(
+                account["password_hash"], payload.current_password
+            )
+        ):
+            raise HTTPException(status_code=403, detail="Recent password verification is required.")
+        try:
+            enrollment = mfa.begin_totp_enrollment(
+                connection, user_id=principal.user_id
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return enrollment
+
+
+@router.post("/mfa/confirm")
+def confirm_mfa_enrollment(
+    payload: MFAConfirmationRequest, request: Request, response: Response
+):
+    principal = _require_browser_principal(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    with get_connection() as connection:
+        try:
+            codes = mfa.confirm_totp_enrollment(
+                connection, user_id=principal.user_id,
+                factor_id=payload.factor_id, code=payload.code,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="MFA enrollment could not be confirmed.") from exc
+    return {
+        "mfa_enabled": True,
+        "recovery_codes": codes,
+        "message": "Save these recovery codes now. They will not be shown again.",
+    }
+
+
+@router.post("/mfa/step-up")
+def verify_mfa_step_up(
+    payload: MFAVerificationRequest, request: Request, response: Response
+):
+    principal = _require_browser_principal(request)
+    session_token = request.cookies.get(SESSION_COOKIE_NAME)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    with get_connection() as connection:
+        valid = mfa.verify_totp(
+            connection, user_id=principal.user_id, code=payload.code
+        )
+        if not valid:
+            valid = mfa.consume_recovery_code(
+                connection, user_id=principal.user_id,
+                recovery_code=payload.code,
+            )
+        if not valid or not mfa.mark_session_mfa_verified(
+            connection, session_token=session_token
+        ):
+            raise HTTPException(status_code=401, detail="MFA verification failed.")
+    return {"mfa_verified": True, "fresh_for_seconds": mfa.RECENT_MFA_SECONDS}
+
+
+@router.post("/mfa/recovery-codes/regenerate")
+def regenerate_mfa_recovery_codes(
+    request: Request, response: Response
+):
+    principal = _require_browser_principal(request)
+    if not mfa.has_recent_mfa(principal.mfa_verified_at):
+        raise HTTPException(status_code=403, detail="Recent MFA verification is required.")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    with get_connection() as connection:
+        try:
+            codes = mfa.regenerate_recovery_codes(
+                connection, user_id=principal.user_id
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail="Recovery codes cannot be regenerated.") from exc
+    return {
+        "recovery_codes": codes,
+        "message": "Save these recovery codes now. They will not be shown again.",
+    }
+
