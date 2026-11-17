@@ -1,18 +1,13 @@
-"""Alembic environment for the staged AEGIS PostgreSQL transition.
-
-This is intentionally not invoked by FastAPI startup. Migration commands
-require an explicit opt-in and a database URL supplied through the environment.
-"""
+"""Guarded Alembic environment; never invoked during application startup."""
 from __future__ import annotations
 
 import os
 from logging.config import fileConfig
 
 from alembic import context
-
 from app.db_engine import create_database_engine
 from app.db_migrations.guard import assert_autogenerate_metadata_complete
-from app.db_schema.intelligence import metadata as target_metadata
+from app.db_schema import metadata as target_metadata
 
 config = context.config
 if config.config_file_name is not None:
@@ -40,13 +35,9 @@ def run_migrations_offline() -> None:
     database_url = os.getenv("AEGIS_DATABASE_URL")
     if not database_url:
         raise RuntimeError("AEGIS_DATABASE_URL must be configured")
-
     context.configure(
-        url=database_url,
-        target_metadata=target_metadata,
-        literal_binds=True,
-        dialect_opts={"paramstyle": "named"},
-        compare_type=True,
+        url=database_url, target_metadata=target_metadata, literal_binds=True,
+        dialect_opts={"paramstyle": "named"}, compare_type=True,
         compare_server_default=True,
     )
     with context.begin_transaction():
@@ -60,12 +51,9 @@ def run_migrations_online() -> None:
     try:
         with engine.connect() as connection:
             context.configure(
-                connection=connection,
-                target_metadata=target_metadata,
-                compare_type=True,
-                compare_server_default=True,
-                transaction_per_migration=True,
-                render_as_batch=False,
+                connection=connection, target_metadata=target_metadata,
+                compare_type=True, compare_server_default=True,
+                transaction_per_migration=True, render_as_batch=False,
             )
             with context.begin_transaction():
                 context.run_migrations()
