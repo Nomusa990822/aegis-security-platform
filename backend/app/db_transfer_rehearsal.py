@@ -30,6 +30,8 @@ def transfer_synthetic_tables(
     source_connection: Any,
     destination_connection: Any,
     tables: Sequence[Table],
+    *,
+    destination_schema: str | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Copy selected tables atomically and reconcile their contents.
 
@@ -52,7 +54,8 @@ def transfer_synthetic_tables(
     destination_inspector = inspect(destination_connection.engine)
     for name in ordered_names:
         table = by_name[name]
-        if not destination_inspector.has_table(name, schema=table.schema):
+        inspected_schema = destination_schema if destination_schema is not None else table.schema
+        if not destination_inspector.has_table(name, schema=inspected_schema):
             raise ValueError(f"destination table {name!r} is missing; DDL is never run by transfer")
 
     with destination_connection.begin():
@@ -96,7 +99,11 @@ def transfer_synthetic_tables(
                         continue
                     if column.autoincrement is False:
                         continue
-                    table_name = table.fullname
+                    table_name = (
+                        f"{destination_schema}.{table.name}"
+                        if destination_schema
+                        else table.fullname
+                    )
                     sequence = destination_connection.execute(
                         select(func.pg_get_serial_sequence(table_name, column.name))
                     ).scalar_one_or_none()
