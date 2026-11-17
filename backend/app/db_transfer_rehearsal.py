@@ -99,7 +99,11 @@ def transfer_synthetic_tables(
                         continue
                     if column.autoincrement is False:
                         continue
-                    table_name = f"{destination_schema}.{table.name}" if destination_schema else table.fullname
+                    table_name = (
+                        f"{destination_schema}.{table.name}"
+                        if destination_schema
+                        else table.fullname
+                    )
                     sequence = destination_connection.execute(
                         select(func.pg_get_serial_sequence(table_name, column.name))
                     ).scalar_one_or_none()
@@ -109,8 +113,12 @@ def transfer_synthetic_tables(
                         select(func.max(column)).select_from(table)
                     ).scalar_one_or_none()
                     if maximum is not None:
+                        # to_regclass converts the returned sequence name to
+                        # the regclass type required by setval. Mark it called
+                        # even when the preserved maximum is zero, so the next
+                        # generated ID is maximum + 1 rather than zero again.
                         destination_connection.execute(
-                            select(func.setval(sequence, maximum, maximum > 0))
+                            select(func.setval(func.to_regclass(sequence), maximum, True))
                         )
 
     return manifest
