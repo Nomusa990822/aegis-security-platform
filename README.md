@@ -423,6 +423,7 @@ Automated regression tests are configured through GitHub Actions: [Backend Tests
 |---|---|
 | [`README.md`](README.md) | Project overview, setup, capabilities, and limitations |
 | [`TESTING_STATUS.md`](TESTING_STATUS.md) | Regression test batches and verification status |
+| [`docs/VERIFICATION-RECORD.md`](docs/VERIFICATION-RECORD.md) | Consolidated runtime, API, database, CI, synthetic workflow evidence, and outstanding verification gaps |
 | [`docs/security/AUDIT_CHECKPOINT_KEY_ROTATION.md`](docs/security/AUDIT_CHECKPOINT_KEY_ROTATION.md) | Audit checkpoint signing-key rotation guidance |
 | [`backend/app/telemetry/cli.py`](backend/app/telemetry/cli.py) | Linux SSH and Nginx log import command |
 
